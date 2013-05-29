@@ -127,7 +127,7 @@ int pdf_width(struct pdf_doc *pdf);
 
 /**
  * Add a new page to the given pdf
- * @return new page index (note: pages are numbered from 0
+ * @return new page object
  */
 struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
 
@@ -139,7 +139,7 @@ int pdf_save(struct pdf_doc *pdf, const char *filename);
 /**
  * Add a text string to the document
  * @param pdf PDF document to add to
- * @param page Page number to add (-1 => most recently added page)
+ * @param page Page to add object to (NULL => most recently added page)
  * @param text String to display
  * @param size Point size of the font
  * @param xoff X location to put it in
@@ -152,7 +152,7 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
 /**
  * Add a line to the document
  * @param pdf PDF document to add to
- * @param page Page number to add (-1 => most recently added page)
+ * @param page Page to add object to (NULL => most recently added page)
  * @param x1 X offset of start of line
  * @param y1 Y offset of start of line
  * @param x2 X offset of end of line
@@ -166,7 +166,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
 /**
  * Add an outline rectangle to the document
  * @param pdf PDF document to add to
- * @param page Page number to add (-1 => most recently added page)
+ * @param page Page to add object to (NULL => most recently added page)
  * @param x X offset to start rectangle at
  * @param y Y offset to start rectangle at
  * @param width Width of rectangle
@@ -187,8 +187,8 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * Note: At the moment all bookmarks are at the top level -
  * there is no support for the full bookmark tree structure yet.
  * @param pdf PDF document to add bookmark to
- * @param page Page number to jump to for bookmark
-               (or -1 for the most recently added page)
+ * @param page Page to jump to for bookmark
+               (or NULL for the most recently added page)
  * @param name String to associate with the bookmark
  * @return < 0 on failure, new bookmark id on success
  */
