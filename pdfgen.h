@@ -24,7 +24,7 @@
  *
  * @par PDF library example:
  * @code
-#include <libbw/pdfgen.h>
+#include "pdfgen.h"
  ...
 struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT);
 pdf_append_page(pdf);
@@ -48,24 +48,36 @@ struct pdf_info {
 };
 
 /**
+ * Convert a value in inches into a number of points.
+ * Always returns an integer value
+ */
+#define PDF_INCH_TO_POINT(inch) ((int)((inch) * 72 + 0.5))
+
+/**
+ * Convert a value in milli-meters into a number of points.
+ * Always returns an integer value
+ */
+#define PDF_MM_TO_POINT(mm) ((int)((mm) * 72 / 25.4 + 0.5))
+
+/**
  * Point width of a standard US-Letter page
  */
-#define PDF_LETTER_WIDTH 612
+#define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5)
 
 /**
  * Point height of a standard US-Letter page
  */
-#define PDF_LETTER_HEIGHT 792
+#define PDF_LETTER_HEIGHT PDF_INCH_TO_POINT(11)
 
 /**
  * Point width of a standard A4 page
  */
-#define PDF_A4_WIDTH 595
+#define PDF_A4_WIDTH PDF_MM_TO_POINT(210)
 
 /**
  * Point height of a standard A4 page
  */
-#define PDF_A4_HEIGHT 842
+#define PDF_A4_HEIGHT PDF_MM_TO_POINT(297)
 
 /**
  * Create a new PDF object, with the given page
