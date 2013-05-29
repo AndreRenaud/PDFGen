@@ -1,7 +1,7 @@
 PDFGen
 ======
 
-Simple C PDF Generation library
+Simple C PDF Creation/Generation library
 
 Provides a very simple C api for creating PDF documents.
 
