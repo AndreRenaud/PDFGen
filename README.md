@@ -19,3 +19,7 @@ pdf_add_line(pdf, NULL, 50, 24, 150, 24);
 pdf_save(pdf, "output.pdf");
 pdf_destroy(pdf);
 ```
+
+License
+=======
+This project is licensed under the BSD 3-Clause license. See the 'LICENSE' file for full details.
