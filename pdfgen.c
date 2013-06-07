@@ -665,7 +665,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
     ADDTEXT("BT ");
     ADDTEXT("%d w ", width);
     ADDTEXT("%d %d m ", x1, y1);
-    ADDTEXT("%f %f %f RG ", ((colour >> 24) & 0xff) / 255.0,
+    ADDTEXT("%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0,
             (colour & 0xff) / 255.0);
     ADDTEXT("%d %d l S ", x2, y2);
@@ -681,7 +681,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     char buffer[1024];
     int written = 0;
     ADDTEXT("BT ");
-    ADDTEXT("%f %f %f RG ", ((colour >> 24) & 0xff) / 255.0,
+    ADDTEXT("%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0,
             (colour & 0xff) / 255.0);
     ADDTEXT("%d w ", border_width);
@@ -698,7 +698,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     char buffer[1024];
     int written = 0;
     ADDTEXT("BT ");
-    ADDTEXT("%f %f %f rg ", ((colour >> 24) & 0xff) / 255.0,
+    ADDTEXT("%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0,
             (colour & 0xff) / 255.0);
     ADDTEXT("%d w ", border_width);
