@@ -86,6 +86,8 @@
 
 #include "pdfgen.h"
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 typedef struct pdf_object pdf_object;
 
 enum {
@@ -706,5 +708,200 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     ADDTEXT("ET");
 
     return pdf_add_stream(pdf, page, buffer);
+}
+
+
+static const struct {
+    uint32_t code;
+    char ch;
+} code_128a_encoding[] = {
+    {0x212222, ' '},
+    {0x222122, '!'},
+    {0x222221, '"'},
+    {0x121223, '#'},
+    {0x121322, '$'},
+    {0x131222, '%'},
+    {0x122213, '&'},
+    {0x122312, '\''},
+    {0x132212, '('},
+    {0x221213, ')'},
+    {0x221312, '*'},
+    {0x231212, '+'},
+    {0x112232, ','},
+    {0x122132, '-'},
+    {0x122231, '.'},
+    {0x113222, '/'},
+    {0x123122, '0'},
+    {0x123221, '1'},
+    {0x223211, '2'},
+    {0x221132, '3'},
+    {0x221231, '4'},
+    {0x213212, '5'},
+    {0x223112, '6'},
+    {0x312131, '7'},
+    {0x311222, '8'},
+    {0x321122, '9'},
+    {0x321221, ':'},
+    {0x312212, ';'},
+    {0x322112, '<'},
+    {0x322211, '='},
+    {0x212123, '>'},
+    {0x212321, '?'},
+    {0x232121, '@'},
+    {0x111323, 'A'},
+    {0x131123, 'B'},
+    {0x131321, 'C'},
+    {0x112313, 'D'},
+    {0x132113, 'E'},
+    {0x132311, 'F'},
+    {0x211313, 'G'},
+    {0x231113, 'H'},
+    {0x231311, 'I'},
+    {0x112133, 'J'},
+    {0x112331, 'K'},
+    {0x132131, 'L'},
+    {0x113123, 'M'},
+    {0x113321, 'N'},
+    {0x133121, 'O'},
+    {0x313121, 'P'},
+    {0x211331, 'Q'},
+    {0x231131, 'R'},
+    {0x213113, 'S'},
+    {0x213311, 'T'},
+    {0x213131, 'U'},
+    {0x311123, 'V'},
+    {0x311321, 'W'},
+    {0x331121, 'X'},
+    {0x312113, 'Y'},
+    {0x312311, 'Z'},
+    {0x332111, '['},
+    {0x314111, '\\'},
+    {0x221411, ']'},
+    {0x431111, '^'},
+    {0x111224, '_'},
+    {0x111422, '`'},
+    {0x121124, 'a'},
+    {0x121421, 'b'},
+    {0x141122, 'c'},
+    {0x141221, 'd'},
+    {0x112214, 'e'},
+    {0x112412, 'f'},
+    {0x122114, 'g'},
+    {0x122411, 'h'},
+    {0x142112, 'i'},
+    {0x142211, 'j'},
+    {0x241211, 'k'},
+    {0x221114, 'l'},
+    {0x413111, 'm'},
+    {0x241112, 'n'},
+    {0x134111, 'o'},
+    {0x111242, 'p'},
+    {0x121142, 'q'},
+    {0x121241, 'r'},
+    {0x114212, 's'},
+    {0x124112, 't'},
+    {0x124211, 'u'},
+    {0x411212, 'v'},
+    {0x421112, 'w'},
+    {0x421211, 'x'},
+    {0x212141, 'y'},
+    {0x214121, 'z'},
+    {0x412121, '{'},
+    {0x111143, '|'},
+    {0x111341, '}'},
+    {0x131141, '~'},
+    {0x114113, '\0'},
+    {0x114311, '\0'},
+    {0x411113, '\0'},
+    {0x411311, '\0'},
+    {0x113141, '\0'},
+    {0x114131, '\0'},
+    {0x311141, '\0'},
+    {0x411131, '\0'},
+    {0x211412, '\0'},
+    {0x211214, '\0'},
+    {0x211232, '\0'},
+    {0x2331112, '\0'},
+};
+
+static int find_128_encoding(char ch)
+{
+    int i;
+    for (i = 0; i < ARRAY_SIZE(code_128a_encoding); i++) {
+        if (code_128a_encoding[i].ch == ch)
+            return i;
+    }
+    return -1;
+}
+
+static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
+        int x, int y, int width, int height, uint32_t colour,
+        int index, int code_len)
+{
+    uint32_t code = code_128a_encoding[index].code;
+    int i;
+    int line_width = width / 11;
+
+    printf("Adding %d %c: 0x%x. Len=%d line_width=%d x=%d\n",
+            index, code_128a_encoding[index].ch, code,
+            code_len, line_width, x);
+
+    for (i = 0; i < code_len; i++) {
+        uint8_t shift = (code_len - 1 - i) * 4;
+        uint8_t mask = (code >> shift) & 0xf;
+        int j;
+
+        printf("%d: Mask: 0x%x\n", i, mask);
+
+        if (!(i % 2))
+            for (j = 0; j < mask; j++) {
+                pdf_add_line(pdf, page, x, y, x, y + height, line_width, colour);
+                x += line_width;
+            }
+        else
+            x += line_width * mask;
+    }
+    return x;
+}
+
+static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
+    int x, int y, int width, int height, const char *string,
+    uint32_t colour)
+{
+    const char *s;
+    int len = strlen(string);
+    int char_width = width / len;
+    int checksum, i;
+
+    for (s = string; *s; s++)
+        if (find_128_encoding(*s) < 0)
+            return -EINVAL;
+
+    x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 104, 6);
+    checksum = 104;
+
+    for (i = 1, s = string; *s; s++, i++) {
+        int index = find_128_encoding(*s);
+        x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, index, 6);
+        checksum += index * i;
+    }
+    x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, checksum % 103, 6);
+    x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 106, 7);
+    return 0;
+}
+
+int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
+    int code, int x, int y, int width, int height, const char *string,
+    uint32_t colour)
+{
+    if (!string || !*string)
+        return 0;
+    switch (code) {
+        case PDF_BARCODE_128A:
+            return pdf_add_barcode_128a(pdf, page, x, y,
+                    width, height, string, colour);
+        default:
+            return -EINVAL;
+    }
 }
 

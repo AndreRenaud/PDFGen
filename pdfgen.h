@@ -195,5 +195,28 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
         const char *name);
 
+/**
+ * List of different barcode encodings that are supported
+ */
+enum {
+    PDF_BARCODE_128A,
+};
+
+/**
+ * Add a barcode to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add barcode to
+ * @param code Type of barcode to add (PDF_BARCODE_xxx)
+ * @param x X offset to but barcode at
+ * @param y Y offset to but barcode at
+ * @param width Width of barcode
+ * @param height Height of barcode
+ * @param string Barcode contents
+ * @param colour Colour to draw barcode
+ */
+int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
+    int code, int x, int y, int width, int height, const char *string,
+    uint32_t colour);
+
 #endif
 
