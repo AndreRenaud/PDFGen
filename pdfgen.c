@@ -842,16 +842,10 @@ static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
     int i;
     int line_width = width / 11;
 
-    printf("Adding %d %c: 0x%x. Len=%d line_width=%d x=%d\n",
-            index, code_128a_encoding[index].ch, code,
-            code_len, line_width, x);
-
     for (i = 0; i < code_len; i++) {
         uint8_t shift = (code_len - 1 - i) * 4;
         uint8_t mask = (code >> shift) & 0xf;
         int j;
-
-        printf("%d: Mask: 0x%x\n", i, mask);
 
         if (!(i % 2))
             for (j = 0; j < mask; j++) {
