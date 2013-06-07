@@ -869,7 +869,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
     uint32_t colour)
 {
     const char *s;
-    int len = strlen(string);
+    int len = strlen(string) + 3;
     int char_width = width / len;
     int checksum, i;
 
