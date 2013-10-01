@@ -16,6 +16,8 @@ int main(int argc, char *argv[])
     pdf_set_font(pdf, "Helvetica");
     pdf_append_page(pdf);
 
+    pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm");
+
     pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 100, "ABCDEF", PDF_RGB(0, 0, 0));
 
     pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0));
