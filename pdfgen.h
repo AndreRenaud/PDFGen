@@ -9,10 +9,6 @@
 
 #include <stdint.h>
 
-#define PDF_RGB(r,g,b) ((((r) & 0xff) << 16) | (((g) & 0xff) << 8) | (((b) & 0xff)))
-#define PDF_RED PDF_RGB(0xff, 0, 0)
-#define PDF_GREEN PDF_RGB(0, 0xff, 0)
-
 /**
  * @defgroup subsystem Simple PDF Generation
  * Allows for quick generation of simple PDF documents.
@@ -21,6 +17,7 @@
  *
  * Note: All coordinates/sizes are in points (1/72 of an inch)
  * All coordinates are based on 0,0 being the bottom left of the page
+ * All colours are specified as a packed 32-bit value - see @ref PDF_RGB
  *
  * @par PDF library example:
  * @code
@@ -80,6 +77,28 @@ struct pdf_info {
 #define PDF_A4_HEIGHT PDF_MM_TO_POINT(297)
 
 /**
+ * Convert three 8-bit RGB values into a single packed 32-bit
+ * colour. These 32-bit colours are used by various functions
+ * in PDFGen
+ */
+#define PDF_RGB(r,g,b) ((((r) & 0xff) << 16) | (((g) & 0xff) << 8) | (((b) & 0xff)))
+
+/**
+ * Utility macro to provide bright red
+ */
+#define PDF_RED PDF_RGB(0xff, 0, 0)
+
+/**
+ * Utility macro to provide bright green
+ */
+#define PDF_GREEN PDF_RGB(0, 0xff, 0)
+
+/**
+ * Utility macro to provide bright blue
+ */
+#define PDF_BLUE PDF_RGB(0, 0, 0xff)
+
+/**
  * Create a new PDF object, with the given page
  * width/height
  * @param width Width of the page
@@ -105,6 +124,8 @@ const char *pdf_get_err(struct pdf_doc *pdf, int *errval);
 /**
  * Sets the font to use in the output. Default value is Times-Roman if
  * this function is not called
+ * Note: Currently PDFGen only allows a single font for all text in the
+ * document
  * @param pdf PDF document to update font on
  * @param font New font to use. This must be one of the standard PDF fonts:
  *  Courier, Courier-Bold, Courier-BoldOblique, Courier-Oblique,
@@ -144,6 +165,7 @@ int pdf_save(struct pdf_doc *pdf, const char *filename);
  * @param size Point size of the font
  * @param xoff X location to put it in
  * @param yoff Y location to put it in
+ * @param colour Colour to draw the text
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
@@ -158,6 +180,7 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
  * @param x2 X offset of end of line
  * @param y2 Y offset of end of line
  * @param width Width of the line
+ * @param colour Colour to draw the line
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
@@ -172,11 +195,24 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
  * @param width Width of rectangle
  * @param height Height of rectangle
  * @param border_width Width of rectangle border
+ * @param colour Colour to draw the rectangle
  * @return 0 on succss, < 0 on failure
  */
 int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     int x, int y, int width, int height, int border_width, uint32_t colour);
 
+/**
+ * Add a filled rectangle to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x X offset to start rectangle at
+ * @param y Y offset to start rectangle at
+ * @param width Width of rectangle
+ * @param height Height of rectangle
+ * @param border_width Width of rectangle border
+ * @param colour Colour to draw the rectangle
+ * @return 0 on succss, < 0 on failure
+ */
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     int x, int y, int width, int height, int border_width,
     uint32_t colour);
