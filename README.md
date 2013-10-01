@@ -7,6 +7,13 @@ Provides a very simple C api for creating PDF documents.
 
 Useful for embedded into other programs that require rudimentary PDF output.
 
+Supports the following PDF features
+* Text
+* Lines/Rectangles/Filled Rectangles
+* Bookmarks
+* Barcodes (Code-128)
+* PPM Images
+
 Example usage
 =============
 ```c
