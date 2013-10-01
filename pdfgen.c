@@ -555,6 +555,16 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
     return 0;
 }
 
+static int pdf_page_add_obj(struct pdf_object *page,
+        struct pdf_object *obj)
+{
+    page->page.nchildren++;
+    page->page.children = realloc(page->page.children,
+            page->page.nchildren * sizeof (struct pdf_object *));
+    page->page.children[page->page.nchildren - 1] = obj;
+    return 0;
+}
+
 static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     char *buffer)
 {
@@ -590,12 +600,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     strcat(obj->stream.text, buffer);
     strcat(obj->stream.text, suffix);
 
-    page->page.nchildren++;
-    page->page.children = realloc(page->page.children,
-            page->page.nchildren * sizeof (struct pdf_object *));
-    page->page.children[page->page.nchildren - 1] = obj;
-
-    return 0;
+    return pdf_page_add_obj(page, obj);
 }
 
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
@@ -709,7 +714,6 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 
     return pdf_add_stream(pdf, page, buffer);
 }
-
 
 static const struct {
     uint32_t code;
