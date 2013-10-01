@@ -933,8 +933,10 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
 
     len = strlen(line) + width * height * 3 * 2 + strlen(endstream) + 1;
     final_data = malloc(len);
-    if (!final_data)
-        return -ENOMEM;
+    if (!final_data) {
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate %d bytes memory for image", len);
+        return NULL;
+    }
     strcpy((char *)final_data, line);
     uint8_t *pos = &final_data[strlen(line)];
     for (i = 0; i < width * height * 3; i++) {
