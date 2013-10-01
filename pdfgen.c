@@ -100,6 +100,7 @@ enum {
     OBJ_outline,
     OBJ_catalog,
     OBJ_pages,
+    OBJ_image,
 };
 
 struct pdf_object {
@@ -363,6 +364,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     switch (object->type) {
         case OBJ_stream:
+        case OBJ_image:
             fwrite(object->stream.text, strlen(object->stream.text), 1, fp);
             break;
         case OBJ_info: {
@@ -385,15 +387,25 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             int i;
             struct pdf_object *font = pdf_find_first_object(pdf, OBJ_font);
             struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
+            struct pdf_object *image = pdf_find_first_object(pdf, OBJ_image);
 
             fprintf(fp, "<<\r\n"
                     "/Type /Page\r\n"
                     "/Parent %d 0 R\r\n", pages->index);
-            fprintf(fp, "/Resources <<\r\n"
-                    "  /Font <<\r\n"
+            fprintf(fp, "/Resources <<\r\n");
+            fprintf(fp, "  /Font <<\r\n"
                     "    /F1 %d 0 R\r\n"
-                    "  >>\r\n"
-                    ">>\r\n", font->index);
+                    "  >>\r\n", font->index);
+            if (image) {
+                fprintf(fp, "  /XObject <<");
+                while (image) {
+                    fprintf(fp, "/Image%d %d 0 R ", image->index, image->index);
+                    image = pdf_find_object_after(pdf, image->index, OBJ_image);
+                }
+                fprintf(fp, ">>\r\n");
+            }
+
+            fprintf(fp, ">>\r\n");
             fprintf(fp, "/Contents [ ");
             for (i = 0; i < object->page.nchildren; i++)
                 fprintf(fp, "%d 0 R ", object->page.children[i]->index);
@@ -903,3 +915,116 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
     }
 }
 
+static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
+        uint8_t *data, int width, int height)
+{
+    struct pdf_object *obj;
+    char line[1024];
+    int len;
+    uint8_t *final_data;
+    const char *endstream = ">\r\nendstream\r\n";
+    int i;
+
+    sprintf(line, "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
+                  "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
+                  "/BitsPerComponent 8\r\n/Filter /ASCIIHexDecode\r\n"
+                  "/Length %d\r\n>>\r\nstream\r\n",
+            pdf->nobjects, height, width, width * height * 3 * 2 + 1);
+
+    len = strlen(line) + width * height * 3 * 2 + strlen(endstream) + 1;
+    final_data = malloc(len);
+    if (!final_data)
+        return -ENOMEM;
+    strcpy((char *)final_data, line);
+    uint8_t *pos = &final_data[strlen(line)];
+    for (i = 0; i < width * height * 3; i++) {
+        *pos++ = "0123456789ABCDEF"[(data[i] >> 4 & 0xf)];
+        *pos++ = "0123456789ABCDEF"[data[i] & 0xf];
+    }
+    strcpy((char *)pos, endstream);
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
+        return NULL;
+    obj->stream.text = (char *)final_data;
+
+    return obj;
+}
+
+static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
+        struct pdf_object *image, int x, int y, int width, int height)
+{
+    char buffer[1024];
+    int written = 0;
+    ADDTEXT("q ");
+    ADDTEXT("%d 0 0 %d %d %d cm ", width, height, x, y);
+    ADDTEXT("/Image%d Do ", image->index);
+    ADDTEXT("Q");
+
+    return pdf_add_stream(pdf, page, buffer);
+}
+
+int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
+    int x, int y, int display_width, int display_height, const char *ppm_file)
+{
+    struct pdf_object *obj;
+    uint8_t *data;
+    FILE *fp;
+    char line[1024];
+    int width, height;
+
+    if (!page)
+        page = pdf->last_page;
+
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page\n");
+
+    /* Load the PPM file */
+    fp = fopen(ppm_file, "rb");
+    if (!fgets(line, sizeof(line) - 1, fp)) {
+        fclose(fp);
+        return -1;
+    }
+
+    /* We only support binary ppms */
+    if (strncmp(line, "P6", 2) != 0) {
+        fclose(fp);
+        return -1;
+    }
+
+    /* Find the width line */
+    do {
+        if (!fgets(line, sizeof(line) - 1, fp)) {
+            fclose(fp);
+            return -1;
+        }
+        if (line[0] == '#')
+            continue;
+
+        if (sscanf(line, "%d %d\n", &width, &height) != 2) {
+            fclose(fp);
+            return -1;
+        } else
+            break;
+    } while (1);
+
+    /* Skip over the byte-size line */
+    fgets(line, sizeof(line) - 1, fp);
+
+    data = malloc(width * height * 3);
+    if (!data) {
+        fclose(fp);
+        return -1;
+    }
+    if (fread(data, 3, width * height, fp) != width * height) {
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    obj = pdf_add_raw_rgb24(pdf, data, width, height);
+    free(data);
+    if (!obj)
+        return pdf->errval;
+
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}

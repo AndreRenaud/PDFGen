@@ -218,5 +218,19 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
     int code, int x, int y, int width, int height, const char *string,
     uint32_t colour);
 
+/**
+ * Add a PPM file as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add barcode to
+ * @param x X offset to but barcode at
+ * @param y Y offset to but barcode at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param ppm_file Filename of P6 (binary) ppm file to display
+ */
+int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
+    int x, int y, int display_width, int display_height,
+    const char *ppm_file);
+
 #endif
 
