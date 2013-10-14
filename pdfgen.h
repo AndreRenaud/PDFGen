@@ -241,7 +241,7 @@ enum {
 /**
  * Add a barcode to the document
  * @param pdf PDF document to add bookmark to
- * @param page Page to add barcode to
+ * @param page Page to add barcode to (NULL => most recently added page)
  * @param code Type of barcode to add (PDF_BARCODE_xxx)
  * @param x X offset to but barcode at
  * @param y Y offset to but barcode at
@@ -257,9 +257,9 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
 /**
  * Add a PPM file as an image to the document
  * @param pdf PDF document to add bookmark to
- * @param page Page to add barcode to
- * @param x X offset to but barcode at
- * @param y Y offset to but barcode at
+ * @param page Page to add PPM to (NULL => most recently added page)
+ * @param x X offset to but PPM at
+ * @param y Y offset to but PPM at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
  * @param ppm_file Filename of P6 (binary) ppm file to display
