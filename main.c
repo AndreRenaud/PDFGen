@@ -51,5 +51,7 @@ int main(int argc, char *argv[])
 #endif
     pdf_save(pdf, "output.pdf");
 
+    pdf_destroy(pdf);
+
     return 0;
 }

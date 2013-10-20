@@ -272,6 +272,16 @@ int pdf_height(struct pdf_doc *pdf)
 
 static inline void pdf_object_destroy(struct pdf_object *object)
 {
+    switch (object->type) {
+        case OBJ_stream:
+        case OBJ_image:
+            free(object->stream.text);
+            break;
+
+        case OBJ_page:
+            free(object->page.children);
+            break;
+    }
     /* FIXME: Do something */
     free(object);
 }
