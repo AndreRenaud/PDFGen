@@ -107,6 +107,8 @@ struct pdf_object {
     int type; /* See OBJ_xxxx */
     int index; /* PDF output index */
     int offset; /* Byte position within the output file */
+    struct pdf_object *prev; /* Previous of this type */
+    struct pdf_object *next; /* Next of this type */
     union {
         struct {
             struct pdf_object *page;
@@ -135,8 +137,8 @@ struct pdf_doc {
     int width;
     int height;
 
-    struct pdf_object *last_page;
-
+    struct pdf_object *last_objects[OBJ_count];
+    struct pdf_object *first_objects[OBJ_count];
 };
 
 static int pdf_set_err(struct pdf_doc *doc, int errval,
@@ -201,6 +203,14 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
     //printf("Adding object %d [%d] %p\n", type,
     //pdf->nobjects, pdf->objects[pdf->nobjects - 1]);
 
+    if (pdf->last_objects[type]) {
+        obj->prev = pdf->last_objects[type];
+        pdf->last_objects[type]->next = obj;
+    }
+    pdf->last_objects[type] = obj;
+
+    if (!pdf->first_objects[type])
+        pdf->first_objects[type] = obj;
 
     return obj;
 }
@@ -275,40 +285,16 @@ void pdf_destroy(struct pdf_doc *pdf)
     }
 }
 
-static struct pdf_object *pdf_find_object_before(struct pdf_doc *pdf,
-        int index, int type)
-{
-    int i;
-    for (i = index - 1; i >= 0; i--) {
-        struct pdf_object *obj = pdf->objects[i];
-        if (obj->type == type)
-            return obj;
-    }
-    return NULL;
-}
-
-static struct pdf_object *pdf_find_object_after(struct pdf_doc *pdf,
-        int index, int type)
-{
-    int i;
-    for (i = index + 1; i < pdf->nobjects; i++) {
-        struct pdf_object *obj = pdf->objects[i];
-        if (obj->type == type)
-            return obj;
-    }
-    return NULL;
-}
-
 static inline struct pdf_object *pdf_find_first_object(struct pdf_doc *pdf,
         int type)
 {
-    return pdf_find_object_after(pdf, -1, type);
+    return pdf->first_objects[type];
 }
 
 static inline struct pdf_object *pdf_find_last_object(struct pdf_doc *pdf,
         int type)
 {
-    return pdf_find_object_before(pdf, pdf->nobjects, type);
+    return pdf->last_objects[type];
 }
 
 static int pdf_object_type_count(struct pdf_doc *pdf, int type)
@@ -345,8 +331,6 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf)
 
     if (!page)
         return NULL;
-
-    pdf->last_page = page;
 
     return page;
 }
@@ -398,10 +382,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                     "  >>\r\n", font->index);
             if (image) {
                 fprintf(fp, "  /XObject <<");
-                while (image) {
+                for (;image; image = image->next)
                     fprintf(fp, "/Image%d %d 0 R ", image->index, image->index);
-                    image = pdf_find_object_after(pdf, image->index, OBJ_image);
-                }
                 fprintf(fp, ">>\r\n");
             }
 
@@ -429,10 +411,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                     pdf->height,
                     other->index, // they're all top level
                     object->bookmark.name);
-            other = pdf_find_object_before(pdf, index, OBJ_bookmark);
+            other = object->prev;
             if (other)
                 fprintf(fp, "/Prev %d 0 R\r\n", other->index);
-            other = pdf_find_object_after(pdf, index, OBJ_bookmark);
+            other = object->next;
             if (other)
                 fprintf(fp, "/Next %d 0 R\r\n", other->index);
             fprintf(fp, ">>\r\n");
@@ -474,11 +456,11 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             fprintf(fp, "<<\r\n"
                     "/Type /Pages\r\n"
                     "/Kids [ ");
-            page = pdf_find_first_object(pdf, OBJ_page);
-            while (page) {
+            for (page = pdf_find_first_object(pdf, OBJ_page);
+                 page;
+                 page = page->next) {
                 npages++;
                 fprintf(fp, "%d 0 R ", page->index);
-                page = pdf_find_object_after(pdf, page->index, OBJ_page);
             }
             fprintf(fp, "]\r\n");
             fprintf(fp, "/Count %d\r\n", npages);
@@ -586,7 +568,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     char suffix[128];
 
     if (!page)
-        page = pdf->last_page;
+        page = pdf->last_objects[OBJ_page];
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL, "Invalid pdf page\n");
@@ -627,7 +609,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -ENOMEM, "Insufficient memory");
 
     if (!page)
-        page = pdf->last_page;
+        page = pdf->last_objects[OBJ_page];
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL,
@@ -980,7 +962,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     int width, height;
 
     if (!page)
-        page = pdf->last_page;
+        page = pdf->last_objects[OBJ_page];
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
