@@ -1,14 +1,13 @@
 PDFGen
 ======
 
-Simple C PDF Creation/Generation library
+Simple C PDF Creation/Generation library.
+All contained a single C-file with header and no external library dependencies.
 
-Provides a very simple C api for creating PDF documents.
-
-Useful for embedded into other programs that require rudimentary PDF output.
+Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
-* Text
+* Text of various sizes/colours
 * Lines/Rectangles/Filled Rectangles
 * Bookmarks
 * Barcodes (Code-128)
