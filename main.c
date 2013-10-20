@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     pdf_append_page(pdf);
 
     for (i = 0; i < 1000; i++)
-        pdf_add_text(pdf, NULL, "Text blob", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(i, 0, 0));
+        pdf_add_text(pdf, NULL, "Text blob", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(i, (i * 4) & 0xff, (i * 8) & 0xff));
     pdf_add_text(pdf, NULL, "", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(0xff, 0, 0));
 #endif
     pdf_save(pdf, "output.pdf");
