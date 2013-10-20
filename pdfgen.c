@@ -101,6 +101,8 @@ enum {
     OBJ_catalog,
     OBJ_pages,
     OBJ_image,
+
+    OBJ_count,
 };
 
 struct pdf_object {
