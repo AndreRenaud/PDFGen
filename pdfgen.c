@@ -141,6 +141,7 @@ struct pdf_doc {
 
     struct pdf_object *last_objects[OBJ_count];
     struct pdf_object *first_objects[OBJ_count];
+    int counts[OBJ_count];
 };
 
 static int pdf_set_err(struct pdf_doc *doc, int errval,
@@ -213,6 +214,8 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 
     if (!pdf->first_objects[type])
         pdf->first_objects[type] = obj;
+
+    pdf->counts[type]++;
 
     return obj;
 }
@@ -307,16 +310,6 @@ static inline struct pdf_object *pdf_find_last_object(struct pdf_doc *pdf,
         int type)
 {
     return pdf->last_objects[type];
-}
-
-static int pdf_object_type_count(struct pdf_doc *pdf, int type)
-{
-    int i, count = 0;
-    for (i = 0; i < pdf->nobjects; i++) {
-        if (pdf->objects[i]->type == type)
-            count++;
-    }
-    return count;
 }
 
 int pdf_set_font(struct pdf_doc *pdf, const char *font)
@@ -434,7 +427,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         }
 
         case OBJ_outline: {
-            int count = pdf_object_type_count(pdf, OBJ_bookmark);
+            int count = pdf->counts[OBJ_bookmark];
 
             if (count) {
                 struct pdf_object *first, *last;
