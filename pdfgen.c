@@ -607,6 +607,10 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
     obj->stream.text = malloc(len + 1);
+    if (!obj->stream.text) {
+        obj->type = OBJ_none;
+        return pdf_set_err(pdf, -ENOMEM, "Insufficient memory for text (%d bytes)", len + 1);
+    }
     obj->stream.text[0] = '\0';
     strcat(obj->stream.text, prefix);
     strcat(obj->stream.text, buffer);
@@ -620,7 +624,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct pdf_object *obj = pdf_add_object(pdf, OBJ_bookmark);
     if (!obj)
-        return -ENOMEM;
+        return pdf_set_err(pdf, -ENOMEM, "Insufficient memory");
 
     if (!page)
         page = pdf->last_page;
@@ -885,7 +889,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (s = string; *s; s++)
         if (find_128_encoding(*s) < 0)
-            return -EINVAL;
+            return pdf_set_err(pdf, -EINVAL, "Invalid barcode character %x", *s);
 
     x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 104, 6);
     checksum = 104;
@@ -911,7 +915,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
             return pdf_add_barcode_128a(pdf, page, x, y,
                     width, height, string, colour);
         default:
-            return -EINVAL;
+            return pdf_set_err(pdf, -EINVAL, "Invalid barcode code %d", code);
     }
 }
 
@@ -979,33 +983,33 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         page = pdf->last_page;
 
     if (!page)
-        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page\n");
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
 
     /* Load the PPM file */
     fp = fopen(ppm_file, "rb");
     if (!fgets(line, sizeof(line) - 1, fp)) {
         fclose(fp);
-        return -1;
+        return pdf_set_err(pdf, -EINVAL, "Invalid PPM file");
     }
 
     /* We only support binary ppms */
     if (strncmp(line, "P6", 2) != 0) {
         fclose(fp);
-        return -1;
+        return pdf_set_err(pdf, -EINVAL, "Only binary PPM files supported");
     }
 
     /* Find the width line */
     do {
         if (!fgets(line, sizeof(line) - 1, fp)) {
             fclose(fp);
-            return -1;
+            return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
         }
         if (line[0] == '#')
             continue;
 
         if (sscanf(line, "%d %d\n", &width, &height) != 2) {
             fclose(fp);
-            return -1;
+            return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
         } else
             break;
     } while (1);
@@ -1016,11 +1020,12 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     data = malloc(width * height * 3);
     if (!data) {
         fclose(fp);
-        return -1;
+        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate memory for RGB data");
     }
     if (fread(data, 3, width * height, fp) != width * height) {
         fclose(fp);
-        return -1;
+        return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
+
     }
     fclose(fp);
     obj = pdf_add_raw_rgb24(pdf, data, width, height);
