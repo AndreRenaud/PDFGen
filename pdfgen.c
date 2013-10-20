@@ -560,7 +560,7 @@ static int pdf_page_add_obj(struct pdf_object *page,
 }
 
 static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
-    char *buffer)
+        char *buffer)
 {
     struct pdf_object *obj;
     int len;
