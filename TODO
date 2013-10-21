@@ -1,5 +1,3 @@
-Added embedded image support:
-http://forums.adobe.com/message/4425293
-/Subtype /Image
-http://www.codeproject.com/Articles/18623/Add-Images-and-Textboxes-to-PDF
-
+* Remove usage of realloc
+* Improve barcode type support
+* Allow for use of multiple fonts simultaneously
