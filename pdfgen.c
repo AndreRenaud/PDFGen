@@ -627,95 +627,166 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
     return 0;
 }
 
-#define ADDTEXT(a,b...) written += snprintf(&buffer[written],  \
-        sizeof(buffer) - written, a , ##b)
+struct dstr {
+    char *data;
+    int alloc_len;
+    int used_len;
+};
+
+static int dstr_ensure(struct dstr *str, int len)
+{
+    if (str->alloc_len <= len) {
+        int new_len = len + 4096;
+        char *new_data = realloc(str->data, new_len);
+        if (!new_data) {
+            return -ENOMEM;
+        }
+        str->data = new_data;
+        str->alloc_len = new_len;
+    }
+    return 0;
+}
+
+static int dstr_printf(struct dstr *str, const char *fmt, ...)
+{
+    va_list ap, aq;
+    int len;
+
+    va_start(ap, fmt);
+    va_copy(aq, ap);
+    len = vsnprintf(NULL, 0, fmt, ap);
+    if (dstr_ensure(str, str->used_len + len + 1) < 0) {
+        va_end(ap);
+        return -ENOMEM;
+    }
+    vsprintf(&str->data[str->used_len], fmt, aq);
+    str->used_len += len;
+    va_end(ap);
+
+    return len;
+}
+
+static int dstr_append(struct dstr *str, const char *extend)
+{
+    int len = strlen(extend);
+    if (dstr_ensure(str, str->used_len + len + 1) < 0)
+        return -ENOMEM;
+    strcpy(&str->data[str->used_len], extend);
+    str->used_len += len;
+    return len;
+}
+
+static void dstr_free(struct dstr *str)
+{
+    free(str->data);
+}
+
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
         const char *text, int size, int xoff, int yoff, uint32_t colour)
 {
-    char buffer[1024];
-    int written = 0;
-    int i;
+    int i, ret;
     int len = text ? strlen(text) : 0;
+    struct dstr str = {0, 0, 0};
 
     /* Don't bother adding empty/null strings */
     if (!len)
         return 0;
 
-    ADDTEXT("BT ");
-    ADDTEXT("%d %d TD ", xoff, yoff);
-    ADDTEXT("/F1 %d Tf ", size);
-    ADDTEXT("%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%d %d TD ", xoff, yoff);
+    dstr_printf(&str, "/F1 %d Tf ", size);
+    dstr_printf(&str, "%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0, (colour & 0xff) / 255.0);
-    ADDTEXT("(");
+    dstr_printf(&str, "(");
 
     /* Escape magic characters properly */
     for (i = 0; i < len; i++) {
         if (strchr("()\\", text[i])) {
+            char buf[3];
             /* Escape some characters */
-            buffer[written++] = '\\';
-            buffer[written++] = text[i];
+            buf[0] = '\\';
+            buf[1] = text[i];
+            buf[2] = '\0';
+            dstr_append(&str, buf);
         } else if (strrchr("\n\r\t", text[i])) {
             /* Skip over these characters */
             ;
-        } else
-            buffer[written++] = text[i];
+        } else {
+            char buf[2];
+            buf[0] = text[i];
+            buf[1] = '\0';
+            dstr_append(&str, buf);
+        }
     }
-    ADDTEXT(") Tj ");
-    ADDTEXT("ET");
+    dstr_printf(&str, ") Tj ");
+    dstr_printf(&str, "ET");
 
-    return pdf_add_stream(pdf, page, buffer);
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+    return ret;
 }
 
 int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
     int x1, int y1, int x2, int y2, int width, uint32_t colour)
 {
-    char buffer[1024];
-    int written = 0;
+    int ret;
+    struct dstr str = {0, 0, 0};
 
-    ADDTEXT("BT ");
-    ADDTEXT("%d w ", width);
-    ADDTEXT("%d %d m ", x1, y1);
-    ADDTEXT("%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%d w ", width);
+    dstr_printf(&str, "%d %d m ", x1, y1);
+    dstr_printf(&str, "%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0,
             (colour & 0xff) / 255.0);
-    ADDTEXT("%d %d l S ", x2, y2);
-    ADDTEXT("ET");
+    dstr_printf(&str, "%d %d l S ", x2, y2);
+    dstr_append(&str, "ET");
 
-    return pdf_add_stream(pdf, page, buffer);
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+
+    return ret;
 }
 
 int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     int x, int y, int width, int height, int border_width,
     uint32_t colour)
 {
-    char buffer[1024];
-    int written = 0;
-    ADDTEXT("BT ");
-    ADDTEXT("%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
+    int ret;
+    struct dstr str = {0, 0, 0};
+
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0,
             (colour & 0xff) / 255.0);
-    ADDTEXT("%d w ", border_width);
-    ADDTEXT("%d %d %d %d re S ", x, y, width, height);
-    ADDTEXT("ET");
+    dstr_printf(&str, "%d w ", border_width);
+    dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
+    dstr_append(&str, "ET");
 
-    return pdf_add_stream(pdf, page, buffer);
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+
+    return ret;
 }
 
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     int x, int y, int width, int height, int border_width,
     uint32_t colour)
 {
-    char buffer[1024];
-    int written = 0;
-    ADDTEXT("BT ");
-    ADDTEXT("%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
+    int ret;
+    struct dstr str = {0, 0, 0};
+
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0,
             (colour & 0xff) / 255.0);
-    ADDTEXT("%d w ", border_width);
-    ADDTEXT("%d %d %d %d re f ", x, y, width, height);
-    ADDTEXT("ET");
+    dstr_printf(&str, "%d w ", border_width);
+    dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
+    dstr_append(&str, "ET");
 
-    return pdf_add_stream(pdf, page, buffer);
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+
+    return ret;
 }
 
 static const struct {
@@ -947,14 +1018,17 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
 static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
         struct pdf_object *image, int x, int y, int width, int height)
 {
-    char buffer[1024];
-    int written = 0;
-    ADDTEXT("q ");
-    ADDTEXT("%d 0 0 %d %d %d cm ", width, height, x, y);
-    ADDTEXT("/Image%d Do ", image->index);
-    ADDTEXT("Q");
+    int ret;
+    struct dstr str = {0, 0, 0};
 
-    return pdf_add_stream(pdf, page, buffer);
+    dstr_append(&str, "q ");
+    dstr_printf(&str, "%d 0 0 %d %d %d cm ", width, height, x, y);
+    dstr_printf(&str, "/Image%d Do ", image->index);
+    dstr_append(&str, "Q");
+
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+    return ret;
 }
 
 int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
