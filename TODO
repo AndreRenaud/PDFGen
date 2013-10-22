@@ -1,3 +1,2 @@
 * Remove usage of realloc
 * Improve barcode type support
-* Allow for use of multiple fonts simultaneously

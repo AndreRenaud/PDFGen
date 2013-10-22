@@ -122,10 +122,10 @@ void pdf_destroy(struct pdf_doc *pdf);
 const char *pdf_get_err(struct pdf_doc *pdf, int *errval);
 
 /**
- * Sets the font to use in the output. Default value is Times-Roman if
+ * Sets the font to use for text objects. Default value is Times-Roman if
  * this function is not called
- * Note: Currently PDFGen only allows a single font for all text in the
- * document
+ * Note: The font selection should be done before text is output,
+ * and will remain until pdf_set_font is called again
  * @param pdf PDF document to update font on
  * @param font New font to use. This must be one of the standard PDF fonts:
  *  Courier, Courier-Bold, Courier-BoldOblique, Courier-Oblique,

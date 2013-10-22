@@ -126,6 +126,7 @@ struct pdf_object {
         struct pdf_info info;
         struct {
             char name[64];
+            int index;
         } font;
     };
 };
@@ -138,6 +139,8 @@ struct pdf_doc {
 
     int width;
     int height;
+
+    struct pdf_object *current_font;
 
     struct pdf_object *last_objects[OBJ_count];
     struct pdf_object *first_objects[OBJ_count];
@@ -257,8 +260,8 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
 
     pdf_add_object(pdf, OBJ_pages);
     pdf_add_object(pdf, OBJ_catalog);
-    obj = pdf_add_object(pdf, OBJ_font);
-    sprintf(obj->font.name, "Times-Roman");
+
+    pdf_set_font(pdf, "Times-Roman");
 
     return pdf;
 }
@@ -315,15 +318,26 @@ static inline struct pdf_object *pdf_find_last_object(struct pdf_doc *pdf,
 int pdf_set_font(struct pdf_doc *pdf, const char *font)
 {
     struct pdf_object *obj;
-    /* FIXME: We're only allowing one font in the entire document at this stage */
+    int last_index = 0;
 
-    obj = pdf_find_first_object(pdf, OBJ_font);
-    if (!obj)
+    /* See if we've used this font before */
+    for (obj = pdf_find_first_object(pdf, OBJ_font); obj; obj = obj->next) {
+        if (strcmp(obj->font.name, font) == 0)
+            break;
+        last_index = obj->font.index;
+    }
+
+    /* Create a new font object if we need it */
+    if (!obj) {
         obj = pdf_add_object(pdf, OBJ_font);
-    if (!obj)
-        return pdf->errval;
-    strncpy(obj->font.name, font, sizeof(obj->font.name));
-    obj->font.name[sizeof(obj->font.name) - 1] = '\0';
+        if (!obj)
+            return pdf->errval;
+        strncpy(obj->font.name, font, sizeof(obj->font.name));
+        obj->font.name[sizeof(obj->font.name) - 1] = '\0';
+        obj->font.index = last_index + 1;
+    }
+
+    pdf->current_font = obj;
 
     return 0;
 }
@@ -382,9 +396,12 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                     "/Type /Page\r\n"
                     "/Parent %d 0 R\r\n", pages->index);
             fprintf(fp, "/Resources <<\r\n");
-            fprintf(fp, "  /Font <<\r\n"
-                    "    /F1 %d 0 R\r\n"
-                    "  >>\r\n", font->index);
+            fprintf(fp, "  /Font <<\r\n");
+            for (font = pdf_find_first_object(pdf, OBJ_font); font; font = font->next)
+                        fprintf(fp, "    /F%d %d 0 R\r\n",
+                                font->font.index, font->index);
+            fprintf(fp, "  >>\r\n");
+
             if (image) {
                 fprintf(fp, "  /XObject <<");
                 for (;image; image = image->next)
@@ -694,7 +711,8 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%d %d TD ", xoff, yoff);
-    dstr_printf(&str, "/F1 %d Tf ", size);
+    dstr_printf(&str, "/F%d %d Tf ",
+            pdf->current_font->font.index, size);
     dstr_printf(&str, "%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
             ((colour >> 8) & 0xff) / 255.0, (colour & 0xff) / 255.0);
     dstr_printf(&str, "(");
