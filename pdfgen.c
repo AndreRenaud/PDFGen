@@ -77,6 +77,7 @@
  * y    curveto.
  */
 
+#define _POSIX_SOURCE /* For localtime_r */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,7 +92,7 @@
 typedef struct pdf_object pdf_object;
 
 enum {
-    OBJ_none, // skipped
+    OBJ_none, /* skipped */
     OBJ_info,
     OBJ_stream,
     OBJ_font,
@@ -206,9 +207,6 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
     obj->index = pdf->nobjects - 1;
     pdf->objects[pdf->nobjects - 1] = obj;
 
-    //printf("Adding object %d [%d] %p\n", type,
-    //pdf->nobjects, pdf->objects[pdf->nobjects - 1]);
-
     if (pdf->last_objects[type]) {
         obj->prev = pdf->last_objects[type];
         pdf->last_objects[type]->next = obj;
@@ -276,7 +274,7 @@ int pdf_height(struct pdf_doc *pdf)
     return pdf->height;
 }
 
-static inline void pdf_object_destroy(struct pdf_object *object)
+static void pdf_object_destroy(struct pdf_object *object)
 {
     switch (object->type) {
         case OBJ_stream:
@@ -303,13 +301,13 @@ void pdf_destroy(struct pdf_doc *pdf)
     }
 }
 
-static inline struct pdf_object *pdf_find_first_object(struct pdf_doc *pdf,
+static struct pdf_object *pdf_find_first_object(struct pdf_doc *pdf,
         int type)
 {
     return pdf->first_objects[type];
 }
 
-static inline struct pdf_object *pdf_find_last_object(struct pdf_doc *pdf,
+static struct pdf_object *pdf_find_last_object(struct pdf_doc *pdf,
         int type)
 {
     return pdf->last_objects[type];
@@ -431,7 +429,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                     "/Title (%s)\r\n",
                     object->bookmark.page->index,
                     pdf->height,
-                    other->index, // they're all top level
+                    other->index, /* FIXME: they're all top level */
                     object->bookmark.name);
             other = object->prev;
             if (other)
@@ -1094,7 +1092,10 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     } while (1);
 
     /* Skip over the byte-size line */
-    fgets(line, sizeof(line) - 1, fp);
+    if (!fgets(line, sizeof(line) - 1, fp)) {
+        fclose(fp);
+        return pdf_set_err(pdf, -EINVAL, "No byte-size line in PPM file");
+    }
 
     data = malloc(width * height * 3);
     if (!data) {
