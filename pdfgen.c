@@ -1103,6 +1103,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate memory for RGB data");
     }
     if (fread(data, 3, width * height, fp) != width * height) {
+        free(data);
         fclose(fp);
         return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
 
