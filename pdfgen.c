@@ -194,7 +194,7 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
     pdf->objects = new_objs;
     pdf->nobjects++;
 
-    obj = calloc(sizeof(struct pdf_object), 1);
+    obj = calloc(1, sizeof(struct pdf_object));
     if (!obj) {
         pdf->nobjects--;
         pdf_set_err(pdf, -errno, "Unable to allocate object %d: %s\n",
@@ -226,7 +226,7 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
     struct pdf_doc *pdf;
     struct pdf_object *obj;
 
-    pdf = calloc(sizeof(struct pdf_doc), 1);
+    pdf = calloc(1, sizeof(struct pdf_doc));
     pdf->width = width;
     pdf->height = height;
 
