@@ -636,7 +636,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
                 "Unable to add bookmark, no pages available\n");
 
     strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name));
-    obj->bookmark.name[sizeof(obj->bookmark.name)] = '\0';
+    obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
     obj->bookmark.page = page;
 
     return 0;
