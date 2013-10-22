@@ -1,4 +1,4 @@
-CFLAGS=-g -Wall -pipe
+CFLAGS=-g -Wall -pipe --std=c99 -O3 -pedantic
 default: testprog
 
 testprog: pdfgen.o main.o
