@@ -12,6 +12,7 @@ Supports the following PDF features
 * Bookmarks
 * Barcodes (Code-128)
 * PPM Images
+* JPEG Images
 
 Example usage
 =============
