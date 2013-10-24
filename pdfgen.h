@@ -268,5 +268,19 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     int x, int y, int display_width, int display_height,
     const char *ppm_file);
 
+/**
+ * Add a JPEG file as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add PPM to (NULL => most recently added page)
+ * @param x X offset to put JPEG at
+ * @param y Y offset to put JPEG at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param jpeg_file Filename of JPEG file to display
+ */
+int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
+        int x, int y, int display_width, int display_height,
+        const char *jpeg_file);
+
 #endif
 

@@ -78,12 +78,15 @@
  */
 
 #define _POSIX_SOURCE /* For localtime_r */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
-#include <errno.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "pdfgen.h"
 
@@ -119,6 +122,7 @@ struct pdf_object {
         } bookmark;
         struct {
             char *text;
+            int len;
         } stream;
         struct {
             int nchildren;
@@ -365,9 +369,11 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     switch (object->type) {
         case OBJ_stream:
-        case OBJ_image:
-            fwrite(object->stream.text, strlen(object->stream.text), 1, fp);
+        case OBJ_image: {
+            int len = object->stream.len ? object->stream.len : strlen(object->stream.text);
+            fwrite(object->stream.text, len, 1, fp);
             break;
+        }
         case OBJ_info: {
             struct pdf_info *info = &object->info;
 
@@ -1022,11 +1028,112 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
         *pos++ = "0123456789ABCDEF"[data[i] & 0xf];
     }
     strcpy((char *)pos, endstream);
+    pos += strlen(endstream);
 
     obj = pdf_add_object(pdf, OBJ_image);
     if (!obj)
         return NULL;
     obj->stream.text = (char *)final_data;
+    obj->stream.len = pos - final_data;
+
+    return obj;
+}
+
+/* See http://www.64lines.com/jpeg-width-height for details */
+static int jpeg_size(unsigned char* data, unsigned int data_size, int *width, int *height)
+{
+   int i = 0;
+   if (data[i] == 0xFF && data[i+1] == 0xD8 && data[i+2] == 0xFF && data[i+3] == 0xE0) {
+      i += 4;
+      if(data[i+2] == 'J' && data[i+3] == 'F' && data[i+4] == 'I' && data[i+5] == 'F' && data[i+6] == 0x00) {
+         unsigned short block_length = data[i] * 256 + data[i+1];
+         while(i<data_size) {
+            i+=block_length;
+            if(i >= data_size)
+                return -1;
+            if(data[i] != 0xFF)
+                return -1;
+            if(data[i+1] == 0xC0) {
+               *height = data[i+5]*256 + data[i+6];
+               *width = data[i+7]*256 + data[i+8];
+               return 0;
+            } else {
+               i+=2;
+               block_length = data[i] * 256 + data[i+1];
+            }
+         }
+      }
+   }
+
+   return -1;
+}
+
+static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf, const char *jpeg_file)
+{
+    struct stat buf;
+    off_t len;
+    char *final_data;
+    uint8_t *jpeg_data;
+    int written = 0;
+    FILE *fp;
+    struct pdf_object *obj;
+    int width, height;
+
+    if (stat(jpeg_file, &buf) < 0) {
+        pdf_set_err(pdf, -errno, "Unable to access %s: %s", jpeg_file, strerror(errno));
+        return NULL;
+    }
+
+    len = buf.st_size;
+
+    if ((fp = fopen(jpeg_file, "rb")) == NULL) {
+        pdf_set_err(pdf, -errno, "Unable to open %s: %s", jpeg_file, strerror(errno));
+        return NULL;
+    }
+
+    jpeg_data = malloc(len);
+    if (!jpeg_data) {
+        pdf_set_err(pdf, -errno, "Unable to allocate: %s", len);
+        fclose(fp);
+        return NULL;
+    }
+
+    if (fread(jpeg_data, len, 1, fp) != 1) {
+        pdf_set_err(pdf, -errno, "Unable to read full jpeg data");
+        free(jpeg_data);
+        fclose(fp);
+        return NULL;
+    }
+    fclose(fp);
+
+    if (jpeg_size(jpeg_data, len, &width, &height) < 0) {
+        free(jpeg_data);
+        pdf_set_err(pdf, -EINVAL, "Unable to determine jpeg width/height from %s", jpeg_file);
+        return NULL;
+    }
+
+    final_data = malloc(len + 1024);
+    if (!final_data) {
+        pdf_set_err(pdf, -errno, "Unable to allocate jpeg data %d", len + 1024);
+        return NULL;
+    }
+
+    written = sprintf(final_data, "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
+                  "/ColorSpace /DeviceRGB\r\n/Width %d\r\n/Height %d\r\n"
+                  "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
+                  "/Length %d\r\n>>\r\nstream\r\n",
+            pdf->nobjects, width, height, (int)len);
+    memcpy(&final_data[written], jpeg_data, len);
+    written += len;
+    written += sprintf(&final_data[written], "\r\nendstream\r\n");
+
+    free(jpeg_data);
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
+        return NULL;
+    obj->stream.text = (char *)final_data;
+    obj->stream.len = written;
 
     return obj;
 }
@@ -1111,6 +1218,18 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     fclose(fp);
     obj = pdf_add_raw_rgb24(pdf, data, width, height);
     free(data);
+    if (!obj)
+        return pdf->errval;
+
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
+int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
+        int x, int y, int display_width, int display_height, const char *jpeg_file)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_raw_jpeg(pdf, jpeg_file);
     if (!obj)
         return pdf->errval;
 
