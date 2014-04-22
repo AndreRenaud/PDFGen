@@ -594,9 +594,13 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
 static int pdf_page_add_obj(struct pdf_object *page,
                             struct pdf_object *obj)
 {
+    int size = (page->page.nchildren + 1) * sizeof (struct pdf_object *);
+    void *new_children;
+    new_children = realloc(page->page.children, size);
+    if (!new_children)
+	return -ENOMEM;
+    page->page.children = new_children;
     page->page.nchildren++;
-    page->page.children = realloc(page->page.children,
-                                  page->page.nchildren * sizeof (struct pdf_object *));
     page->page.children[page->page.nchildren - 1] = obj;
     return 0;
 }
