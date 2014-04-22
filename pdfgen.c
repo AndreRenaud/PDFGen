@@ -1164,8 +1164,10 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
     free(jpeg_data);
 
     obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj)
+    if (!obj) {
+	free(final_data);
         return NULL;
+    }
     obj->stream.text = (char *)final_data;
     obj->stream.len = written;
 
