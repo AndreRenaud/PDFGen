@@ -183,44 +183,59 @@ const char *pdf_get_err(struct pdf_doc *pdf, int *errval)
     return pdf->errstr;
 }
 
-static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
+static struct pdf_object *pdf_get_object(struct pdf_doc *pdf, int index)
+{
+    return pdf->objects[index];
+}
+
+static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
 {
     void *new_objs;
-    struct pdf_object *obj;
 
     new_objs = realloc(pdf->objects,
                        (pdf->nobjects + 1) * sizeof(struct pdf_object *));
     if (!new_objs) {
-        pdf_set_err(pdf, -errno, "Unable to allocate object array %d: %s\n",
+	int e = -errno;
+        pdf_set_err(pdf, e, "Unable to allocate object array %d: %s\n",
                     pdf->nobjects + 1, strerror(errno));
-        return NULL;
+        return e;
     }
     pdf->objects = new_objs;
     pdf->nobjects++;
+    obj->index = pdf->nobjects - 1;
+    pdf->objects[obj->index] = obj;
+
+    if (pdf->last_objects[obj->type]) {
+        obj->prev = pdf->last_objects[obj->type];
+        pdf->last_objects[obj->type]->next = obj;
+    }
+    pdf->last_objects[obj->type] = obj;
+
+    if (!pdf->first_objects[obj->type])
+        pdf->first_objects[obj->type] = obj;
+
+    pdf->counts[obj->type]++;
+
+    return 0;
+}
+
+static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
+{
+    struct pdf_object *obj;
 
     obj = calloc(1, sizeof(struct pdf_object));
     if (!obj) {
-        pdf->nobjects--;
         pdf_set_err(pdf, -errno, "Unable to allocate object %d: %s\n",
                     pdf->nobjects + 1, strerror(errno));
         return NULL;
     }
 
-    memset(obj, 0, sizeof(*obj));
     obj->type = type;
-    obj->index = pdf->nobjects - 1;
-    pdf->objects[pdf->nobjects - 1] = obj;
 
-    if (pdf->last_objects[type]) {
-        obj->prev = pdf->last_objects[type];
-        pdf->last_objects[type]->next = obj;
+    if (pdf_append_object(pdf, obj) < 0) {
+	free(obj);
+	return NULL;
     }
-    pdf->last_objects[type] = obj;
-
-    if (!pdf->first_objects[type])
-        pdf->first_objects[type] = obj;
-
-    pdf->counts[type]++;
 
     return obj;
 }
@@ -299,7 +314,7 @@ void pdf_destroy(struct pdf_doc *pdf)
     int i;
     if (pdf) {
         for (i = 0; i < pdf->nobjects; i++)
-            pdf_object_destroy(pdf->objects[i]);
+            pdf_object_destroy(pdf_get_object(pdf, i));
         free(pdf->objects);
         free(pdf);
     }
@@ -358,7 +373,7 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf)
 
 static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 {
-    struct pdf_object *object = pdf->objects[index];
+    struct pdf_object *object = pdf_get_object(pdf, index);
 
     if (object->type == OBJ_none)
         return -ENOENT;
@@ -552,7 +567,7 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
     fprintf(fp, "0 %d\r\n", xref_count + 1);
     fprintf(fp, "0000000000 65535 f\r\n");
     for (i = 0; i < pdf->nobjects; i++) {
-        obj = pdf->objects[i];
+        obj = pdf_get_object(pdf, i);
         if (obj->type != OBJ_none)
             fprintf(fp, "%10.10d 00000 n\r\n",
                     obj->offset);
