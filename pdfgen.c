@@ -610,7 +610,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     char suffix[128];
 
     if (!page)
-        page = pdf->last_objects[OBJ_page];
+        page = pdf_find_last_object(pdf, OBJ_page);
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL, "Invalid pdf page\n");
@@ -652,7 +652,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -ENOMEM, "Insufficient memory");
 
     if (!page)
-        page = pdf->last_objects[OBJ_page];
+        page = pdf_find_last_object(pdf, OBJ_page);
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL,
@@ -1198,7 +1198,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     int width, height;
 
     if (!page)
-        page = pdf->last_objects[OBJ_page];
+        page = pdf_find_last_object(pdf, OBJ_page);
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
