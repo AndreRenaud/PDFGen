@@ -720,7 +720,8 @@ static void dstr_free(struct dstr *str)
 }
 
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff, uint32_t colour)
+                 const char *text, int size, int xoff, int yoff,
+		 uint32_t colour)
 {
     int i, ret;
     int len = text ? strlen(text) : 0;
@@ -808,8 +809,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 }
 
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-                             int x, int y, int width, int height, int border_width,
-                             uint32_t colour)
+                             int x, int y, int width, int height,
+			     int border_width, uint32_t colour)
 {
     int ret;
     struct dstr str = {0, 0, 0};
@@ -951,10 +952,9 @@ static int find_128_encoding(char ch)
     return -1;
 }
 
-static int pdf_barcode_128a_ch(struct pdf_doc *pdf,
-                               struct pdf_object *page,
-                               int x, int y, int width, int height, uint32_t colour,
-                               int index, int code_len)
+static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
+                               int x, int y, int width, int height,
+			       uint32_t colour, int index, int code_len)
 {
     uint32_t code = code_128a_encoding[index].code;
     int i;
@@ -976,10 +976,9 @@ static int pdf_barcode_128a_ch(struct pdf_doc *pdf,
     return x;
 }
 
-static int pdf_add_barcode_128a(struct pdf_doc *pdf,
-                                struct pdf_object *page,
-                                int x, int y, int width, int height, const char *string,
-                                uint32_t colour)
+static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
+                                int x, int y, int width, int height,
+				const char *string, uint32_t colour)
 {
     const char *s;
     int len = strlen(string) + 3;
@@ -1008,8 +1007,8 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf,
 }
 
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
-                    int code, int x, int y, int width, int height, const char *string,
-                    uint32_t colour)
+                    int code, int x, int y, int width, int height,
+		    const char *string, uint32_t colour)
 {
     if (!string || !*string)
         return 0;
@@ -1175,7 +1174,8 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 }
 
 static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
-                         struct pdf_object *image, int x, int y, int width, int height)
+                         struct pdf_object *image, int x, int y, int width,
+			 int height)
 {
     int ret;
     struct dstr str = {0, 0, 0};
@@ -1191,7 +1191,8 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
 }
 
 int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
-                int x, int y, int display_width, int display_height, const char *ppm_file)
+                int x, int y, int display_width, int display_height,
+		const char *ppm_file)
 {
     struct pdf_object *obj;
     uint8_t *data;
@@ -1261,7 +1262,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
 }
 
 int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
-                 int x, int y, int display_width, int display_height, const char *jpeg_file)
+                 int x, int y, int display_width, int display_height,
+		 const char *jpeg_file)
 {
     struct pdf_object *obj;
 
