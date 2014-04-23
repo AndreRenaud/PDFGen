@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
     pdf_append_page(pdf);
     pdf_add_text(pdf, NULL, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "This is some weird text () \\ # : - Wi-Fi", 10, 50, 60, PDF_RGB(0, 0, 0));
+    pdf_add_text(pdf, NULL, "Control characters ( ) < > [ ] { } / % \n \r \t \b \f ending", 10, 50, 45, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "This one has a new line in it\nThere it was", 10, 50, 80, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "This is a really long line that will go off the edge of the screen, because it is so long. I like long text. The quick brown fox jumped over the lazy dog. The quick brown fox jumped over the lazy dog", 10, 100, 100, PDF_RGB(0, 0, 0));
     pdf_set_font(pdf, "Helvetica-Bold");

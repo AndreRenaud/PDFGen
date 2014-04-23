@@ -856,7 +856,7 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
             buf[1] = text[i];
             buf[2] = '\0';
             dstr_append(&str, buf);
-        } else if (strrchr("\n\r\t", text[i])) {
+        } else if (strrchr("\n\r\t\b\f", text[i])) {
             /* Skip over these characters */
             ;
         } else {
