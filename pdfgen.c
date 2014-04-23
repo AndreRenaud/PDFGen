@@ -801,7 +801,7 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
                 pdf->current_font->font.index, size);
     dstr_printf(&str, "%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
                 ((colour >> 8) & 0xff) / 255.0, (colour & 0xff) / 255.0);
-    dstr_printf(&str, "(");
+    dstr_append(&str, "(");
 
     /* Escape magic characters properly */
     for (i = 0; i < len; i++) {
@@ -822,8 +822,8 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
             dstr_append(&str, buf);
         }
     }
-    dstr_printf(&str, ") Tj ");
-    dstr_printf(&str, "ET");
+    dstr_append(&str, ") Tj ");
+    dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, str.data);
     dstr_free(&str);
