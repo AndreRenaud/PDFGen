@@ -1,3 +1,4 @@
+/* vim: set tabstop=8 shiftwidth=4 softtabstop=4 smarttab expandtab autoindent: */
 /**
  * The following sites have various bits & pieces about PDF document
  * generation
