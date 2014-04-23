@@ -297,7 +297,7 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 
     obj = calloc(1, sizeof(struct pdf_object));
     if (!obj) {
-        pdf_set_err(pdf, -errno, "Unable to allocate object %d: %s\n",
+        pdf_set_err(pdf, -errno, "Unable to allocate object %d: %s",
                     flexarray_size(&pdf->objects) + 1, strerror(errno));
         return NULL;
     }
@@ -601,7 +601,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     default:
-        return pdf_set_err(pdf, -EINVAL, "Invalid PDF object type %d\n",
+        return pdf_set_err(pdf, -EINVAL, "Invalid PDF object type %d",
                            object->type);
     }
 
@@ -623,7 +623,7 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
         pdf_add_object(pdf, OBJ_outline);
 
     if ((fp = fopen(filename, "wb")) == NULL)
-        return pdf_set_err(pdf, -errno, "Unable to open '%s': %s\n",
+        return pdf_set_err(pdf, -errno, "Unable to open '%s': %s",
                            filename, strerror(errno));
 
     fprintf(fp, "%%PDF-1.2\r\n");
@@ -677,7 +677,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
         page = pdf_find_last_object(pdf, OBJ_page);
 
     if (!page)
-        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page\n");
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
 
     len = strlen(buffer);
     /* We don't want any trailing whitespace in the stream */
@@ -720,7 +720,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
 
     if (!page)
         return pdf_set_err(pdf, -EINVAL,
-                           "Unable to add bookmark, no pages available\n");
+                           "Unable to add bookmark, no pages available");
 
     strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name));
     obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
