@@ -159,20 +159,55 @@ struct pdf_doc {
 
 /**
  * Simple flexible resizing array implementation
+ * The bins get larger in powers of two
+ * bin 0 = 1024 items
+ *     1 = 2048 items
+ *     2 = 4096 items
+ *     etc...
  */
-static int flexarray_get_bin(struct flexarray *flex, int index)
+/* What is the first index that will be in the given bin? */
+#define MIN_SHIFT 10
+#define MIN_OFFSET ((1 << MIN_SHIFT) - 1)
+static int bin_offset[] = {
+    (1 << (MIN_SHIFT + 0)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 1)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 2)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 3)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 4)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 5)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 6)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 7)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 8)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 9)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 10)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 11)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 12)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 13)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 14)) - 1 - MIN_OFFSET,
+    (1 << (MIN_SHIFT + 15)) - 1 - MIN_OFFSET,
+};
+
+static inline int flexarray_get_bin(struct flexarray *flex, int index)
 {
-    return index / 64;
+    int i;
+    for (i = 0; i < ARRAY_SIZE(bin_offset); i++)
+	if (index < bin_offset[i])
+	    return i - 1;
+    return -1;
+    //return index / 4096;
 }
 
-static int flexarray_get_bin_size(struct flexarray *flex, int bin)
+static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
 {
-    return 64;
+    if (bin >= ARRAY_SIZE(bin_offset))
+	return -1;
+    int next = bin_offset[bin + 1];
+    return next - bin_offset[bin];
 }
 
-static int flexarray_get_bin_offset(struct flexarray *flex, int bin, int index)
+static inline int flexarray_get_bin_offset(struct flexarray *flex, int bin, int index)
 {
-    return index % flexarray_get_bin_size(flex, bin);
+    return index - bin_offset[bin];
 }
 
 static void flexarray_clear(struct flexarray *flex)
@@ -185,7 +220,7 @@ static void flexarray_clear(struct flexarray *flex)
     flex->item_count = 0;
 }
 
-static int flexarray_size(struct flexarray *flex)
+static inline int flexarray_size(struct flexarray *flex)
 {
     return flex->item_count;
 }
@@ -213,12 +248,12 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
     return flex->item_count - 1;
 }
 
-static int flexarray_append(struct flexarray *flex, void *data)
+static inline int flexarray_append(struct flexarray *flex, void *data)
 {
     return flexarray_set(flex, flexarray_size(flex), data);
 }
 
-static void *flexarray_get(struct flexarray *flex, int index)
+static inline void *flexarray_get(struct flexarray *flex, int index)
 {
     int bin;
 
