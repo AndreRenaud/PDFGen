@@ -1,7 +1,9 @@
 /***
- * Simple engine for creating rudimentary PDFs
- * Doesn't support anything too fancy (use a proper PDF library
- * in that case)
+ * Simple engine for creating PDF files.
+ * It supports text, shapes, images etc...
+ * Capable of handling millions of objects without too much performance penalty
+ *
+ * Licensed under a 3-Clause BSD license. See LICENSE file for full details
  */
 
 #ifndef PDF_GEN_H

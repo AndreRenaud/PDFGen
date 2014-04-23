@@ -1,5 +1,13 @@
 /* vim: set tabstop=8 shiftwidth=4 softtabstop=4 smarttab expandtab autoindent: */
 /**
+ * Simple engine for creating PDF files.
+ * It supports text, shapes, images etc...
+ * Capable of handling millions of objects without too much performance penalty        *
+ * Licensed under a 3-Clause BSD license. See LICENSE file for full details
+ */
+
+/**
+ * PDF HINTS & TIPS
  * The following sites have various bits & pieces about PDF document
  * generation
  * http://www.mactech.com/articles/mactech/Vol.15/15.09/PDFIntro/index.html
