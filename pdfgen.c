@@ -1095,7 +1095,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (s = string; *s; s++)
         if (find_128_encoding(*s) < 0)
-            return pdf_set_err(pdf, -EINVAL, "Invalid barcode character %x", *s);
+            return pdf_set_err(pdf, -EINVAL, "Invalid barcode character 0x%x", *s);
 
     x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 104,
                             6);
