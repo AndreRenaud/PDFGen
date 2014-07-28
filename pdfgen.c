@@ -101,6 +101,10 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
+#define PDF_RGB_R(c) ((((c) >> 16) & 0xff) / 255.0)
+#define PDF_RGB_G(c) ((((c) >>  8) & 0xff) / 255.0)
+#define PDF_RGB_B(c) ((((c) >>  0) & 0xff) / 255.0)
+
 typedef struct pdf_object pdf_object;
 
 enum {
@@ -843,8 +847,8 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "%d %d TD ", xoff, yoff);
     dstr_printf(&str, "/F%d %d Tf ",
                 pdf->current_font->font.index, size);
-    dstr_printf(&str, "%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
-                ((colour >> 8) & 0xff) / 255.0, (colour & 0xff) / 255.0);
+    dstr_printf(&str, "%f %f %f rg ",
+            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
@@ -883,9 +887,8 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%d w ", width);
     dstr_printf(&str, "%d %d m ", x1, y1);
-    dstr_printf(&str, "%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
-                ((colour >> 8) & 0xff) / 255.0,
-                (colour & 0xff) / 255.0);
+    dstr_printf(&str, "%f %f %f RG ",
+            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d %d l S ", x2, y2);
     dstr_append(&str, "ET");
 
@@ -903,9 +906,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = {0, 0, 0};
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%f %f %f RG ", ((colour >> 16) & 0xff) / 255.0,
-                ((colour >> 8) & 0xff) / 255.0,
-                (colour & 0xff) / 255.0);
+    dstr_printf(&str, "%f %f %f RG ",
+            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
     dstr_append(&str, "ET");
@@ -924,9 +926,8 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = {0, 0, 0};
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%f %f %f rg ", ((colour >> 16) & 0xff) / 255.0,
-                ((colour >> 8) & 0xff) / 255.0,
-                (colour & 0xff) / 255.0);
+    dstr_printf(&str, "%f %f %f rg ",
+            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
     dstr_append(&str, "ET");
