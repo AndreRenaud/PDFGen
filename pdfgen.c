@@ -563,7 +563,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     case OBJ_bookmark: {
         struct pdf_object *other;
 
-        other = pdf_find_first_object(pdf, OBJ_catalog);
+        other = pdf_find_first_object(pdf, OBJ_outline);
         fprintf(fp, "<<\r\n"
                 "/A << /Type /Action\r\n"
                 "      /S /GoTo\r\n"
@@ -665,10 +665,6 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
     struct pdf_object *obj;
     int xref_offset;
     int xref_count = 0;
-
-    if (pdf_find_first_object(pdf, OBJ_bookmark) &&
-        !pdf_find_first_object(pdf, OBJ_outline))
-        pdf_add_object(pdf, OBJ_outline);
 
     if ((fp = fopen(filename, "wb")) == NULL)
         return pdf_set_err(pdf, -errno, "Unable to open '%s': %s",
@@ -773,6 +769,9 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
     strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name));
     obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
     obj->bookmark.page = page;
+
+    if (!pdf_find_first_object(pdf, OBJ_outline))
+        pdf_add_object(pdf, OBJ_outline);
 
     return 0;
 }
