@@ -748,6 +748,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     strcat(obj->stream.text, prefix);
     strcat(obj->stream.text, buffer);
     strcat(obj->stream.text, suffix);
+    obj->stream.len = 0;
 
     return flexarray_append(&page->page.children, obj);
 }
