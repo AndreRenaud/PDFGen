@@ -550,10 +550,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         }
 
         fprintf(fp, ">>\r\n");
-        fprintf(fp, "/Contents [ ");
+        fprintf(fp, "/Contents [\r\n");
         for (i = 0; i < flexarray_size(&object->page.children); i++) {
 	    struct pdf_object *child = flexarray_get(&object->page.children, i);
-            fprintf(fp, "%d 0 R ", child->index);
+            fprintf(fp, "%d 0 R\r\n", child->index);
 	}
         fprintf(fp, "]\r\n");
         fprintf(fp, ">>\r\n");
@@ -731,7 +731,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
         len--;
     }
 
-    sprintf(prefix, "<< /Length %d >>\r\nstream\r\n", len);
+    sprintf(prefix, "<< /Length %d >>stream\r\n", len);
     sprintf(suffix, "\r\nendstream\r\n");
     len += strlen(prefix) + strlen(suffix);
 
@@ -883,12 +883,13 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
     int ret;
     struct dstr str = {0, 0, 0};
 
-    dstr_append(&str, "BT ");
-    dstr_printf(&str, "%d w ", width);
-    dstr_printf(&str, "%d %d m ", x1, y1);
-    dstr_printf(&str, "%f %f %f RG ",
+    dstr_append(&str, "BT\r\n");
+    dstr_printf(&str, "%d w\r\n", width);
+    dstr_printf(&str, "%d %d m\r\n", x1, y1);
+    dstr_printf(&str, "/DeviceRGB CS\r\n");
+    dstr_printf(&str, "%f %f %f RG\r\n",
             PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
-    dstr_printf(&str, "%d %d l S ", x2, y2);
+    dstr_printf(&str, "%d %d l S\r\n", x2, y2);
     dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, str.data);
@@ -1143,7 +1144,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
             "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
             "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
             "/BitsPerComponent 8\r\n/Filter /ASCIIHexDecode\r\n"
-            "/Length %d\r\n>>\r\nstream\r\n",
+            "/Length %d\r\n>>stream\r\n",
             flexarray_size(&pdf->objects), height, width, width * height * 3 * 2 + 1);
 
     len = strlen(line) + width * height * 3 * 2 + strlen(endstream) + 1;
@@ -1262,7 +1263,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
                       "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
                       "/Width %d\r\n/Height %d\r\n"
                       "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
-                      "/Length %d\r\n>>\r\nstream\r\n",
+                      "/Length %d\r\n>>stream\r\n",
                       flexarray_size(&pdf->objects), width, height, (int)len);
     memcpy(&final_data[written], jpeg_data, len);
     written += len;
