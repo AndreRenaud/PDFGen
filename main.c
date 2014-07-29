@@ -5,15 +5,19 @@
 
 int main(int argc, char *argv[])
 {
-    struct pdf_doc *pdf;
-    struct pdf_info info;
+    struct pdf_info info = {
+	    .creator = "My software",
+	    .producer = "My software",
+	    .title = "My document",
+	    .author = "My name",
+	    .subject = "My subject",
+	    .date = "Today"
+    };
+    struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
     int i;
     int height;
 
-    memset(&info, 0, sizeof(info));
-    strcpy(info.author, "Andre Renaud");
 
-    pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
     pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
 
