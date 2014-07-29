@@ -8,14 +8,23 @@ int main(int argc, char *argv[])
     struct pdf_doc *pdf;
     struct pdf_info info;
     int i;
+    int height;
 
     memset(&info, 0, sizeof(info));
     strcpy(info.author, "Andre Renaud");
 
     pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
-    pdf_set_font(pdf, "Helvetica");
+    pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
 
+    height = pdf_add_text_wrap(pdf, NULL,
+    	"This is a great big long string that I hope will wrap properly "
+	"around several lines.\nI've put some embedded line breaks in to "
+	"see how it copes with them. Hopefully it all works properly.\n\n\n"
+	"We even include multiple breaks\n"
+	"thisisanenourmouswordthatwillneverfitandwillhavetobecut",
+	16, 60, 600, PDF_RGB(0, 0, 0), 300);
+    pdf_add_rectangle(pdf, NULL, 60, 600 + 16, 300, -height, 1, PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm");
 
     pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "penguin.jpg");
@@ -54,10 +63,14 @@ int main(int argc, char *argv[])
     pdf_append_page(pdf);
 
     pdf_set_font(pdf, "Times-Roman");
-    for (i = 0; i < 1000; i++)
-        pdf_add_text(pdf, NULL, "Text blob", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(i, (i * 4) & 0xff, (i * 8) & 0xff));
+    for (i = 0; i < 3000; i++) {
+    	int xpos = (i / 100) * 40;
+	int ypos = (i % 100) * 10;
+        pdf_add_text(pdf, NULL, "Text blob", 8, xpos, ypos, PDF_RGB(i, (i * 4) & 0xff, (i * 8) & 0xff));
+    }
     pdf_add_text(pdf, NULL, "", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(0xff, 0, 0));
 #endif
+
     pdf_save(pdf, "output.pdf");
 
     pdf_destroy(pdf);
