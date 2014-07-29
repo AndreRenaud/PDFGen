@@ -17,9 +17,11 @@
  * This is useful for producing easily printed output from C code, where advanced
  * formatting is not required
  *
- * Note: All coordinates/sizes are in points (1/72 of an inch)
- * All coordinates are based on 0,0 being the bottom left of the page
- * All colours are specified as a packed 32-bit value - see @ref PDF_RGB
+ * Note: All coordinates/sizes are in points (1/72 of an inch).
+ * All coordinates are based on 0,0 being the bottom left of the page.
+ * All colours are specified as a packed 32-bit value - see @ref PDF_RGB.
+ * All text strings must be 7-bit ASCII only, not UTF-8 or other wide
+ * 	character support.
  *
  * @par PDF library example:
  * @code
@@ -139,6 +141,22 @@ const char *pdf_get_err(struct pdf_doc *pdf, int *errval);
 int pdf_set_font(struct pdf_doc *pdf, const char *font);
 
 /**
+ * Returns the width of a given string in the current font
+ * @param pdf PDF document
+ * @param font_name Name of the font to get the width of.
+ *  This must be one of the standard PDF fonts:
+ *  Courier, Courier-Bold, Courier-BoldOblique, Courier-Oblique,
+ *  Helvetica, Helvetica-Bold, Helvetica-BoldOblique, Helvetica-Oblique,
+ *  Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic,
+ *  Symbol or ZapfDingbats
+ * @param text Text to determine width of
+ * @param size Size of the text, in points
+ * @return < 0 on failure, 0 on success
+ */
+int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
+        const char *text, int size);
+
+/**
  * Retrieves a PDF document height
  */
 int pdf_height(struct pdf_doc *pdf);
@@ -172,6 +190,23 @@ int pdf_save(struct pdf_doc *pdf, const char *filename);
  */
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
         const char *text, int size, int xoff, int yoff, uint32_t colour);
+
+/**
+ * Add a text string to the document, making it wrap if it is too
+ * long
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param text String to display
+ * @param size Point size of the font
+ * @param xoff X location to put it in
+ * @param yoff Y location to put it in
+ * @param colour Colour to draw the text
+ * @param wrap_width Width at which to wrap the text
+ * @return height of drawn text on success, < 0 on failure
+ */
+int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
+                 const char *text, int size, int xoff, int yoff,
+		 uint32_t colour, int wrap_width);
 
 /**
  * Add a line to the document
