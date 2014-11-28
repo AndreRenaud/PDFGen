@@ -529,7 +529,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     case OBJ_page: {
         int i;
-        struct pdf_object *font = pdf_find_first_object(pdf, OBJ_font);
+        struct pdf_object *font;
         struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
         struct pdf_object *image = pdf_find_first_object(pdf, OBJ_image);
 
@@ -1629,7 +1629,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
     }
     x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour,
                             checksum % 103, 6);
-    x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 106,
+    pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 106,
                             7);
     return 0;
 }
@@ -1683,8 +1683,10 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
     pos += strlen(endstream);
 
     obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj)
+    if (!obj) {
+        free(final_data);
         return NULL;
+    }
     obj->stream.text = (char *)final_data;
     obj->stream.len = pos - final_data;
 
@@ -1774,6 +1776,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
     final_data = malloc(len + 1024);
     if (!final_data) {
         pdf_set_err(pdf, -errno, "Unable to allocate jpeg data %d", len + 1024);
+        free(jpeg_data);
         return NULL;
     }
 
