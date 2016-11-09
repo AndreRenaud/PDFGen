@@ -426,14 +426,13 @@ static void pdf_object_destroy(struct pdf_object *object)
 	flexarray_clear(&object->page.children);
         break;
     }
-    /* FIXME: Do something */
     free(object);
 }
 
 void pdf_destroy(struct pdf_doc *pdf)
 {
-    int i;
     if (pdf) {
+        int i;
         for (i = 0; i < flexarray_size(&pdf->objects); i++)
             pdf_object_destroy(pdf_get_object(pdf, i));
 	flexarray_clear(&pdf->objects);
@@ -808,11 +807,13 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     len = vsnprintf(NULL, 0, fmt, ap);
     if (dstr_ensure(str, str->used_len + len + 1) < 0) {
         va_end(ap);
+        va_end(aq);
         return -ENOMEM;
     }
     vsprintf(&str->data[str->used_len], fmt, aq);
     str->used_len += len;
     va_end(ap);
+    va_end(aq);
 
     return len;
 }
