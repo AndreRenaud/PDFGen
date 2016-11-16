@@ -1,9 +1,9 @@
-/***
+/**
  * Simple engine for creating PDF files.
  * It supports text, shapes, images etc...
- * Capable of handling millions of objects without too much performance penalty
- *
- * Licensed under a 3-Clause BSD license. See LICENSE file for full details
+ * Capable of handling millions of objects without too much performance 
+ * penalty.
+ * Public domain license - no warrenty implied; use at your own risk.
  */
 
 #ifndef PDF_GEN_H
