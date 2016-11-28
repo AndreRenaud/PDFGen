@@ -1,7 +1,7 @@
 /**
  * Simple engine for creating PDF files.
  * It supports text, shapes, images etc...
- * Capable of handling millions of objects without too much performance 
+ * Capable of handling millions of objects without too much performance
  * penalty.
  * Public domain license - no warrenty implied; use at your own risk.
  */
@@ -163,7 +163,7 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font);
  * @return < 0 on failure, 0 on success
  */
 int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
-        const char *text, int size);
+                            const char *text, int size);
 
 /**
  * Retrieves a PDF document height
@@ -198,7 +198,7 @@ int pdf_save(struct pdf_doc *pdf, const char *filename);
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
-        const char *text, int size, int xoff, int yoff, uint32_t colour);
+                 const char *text, int size, int xoff, int yoff, uint32_t colour);
 
 /**
  * Add a text string to the document, making it wrap if it is too
@@ -214,8 +214,8 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
  * @return height of drawn text on success, < 0 on failure
  */
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff,
-		 uint32_t colour, int wrap_width);
+                      const char *text, int size, int xoff, int yoff,
+                      uint32_t colour, int wrap_width);
 
 /**
  * Add a line to the document
@@ -230,7 +230,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
-    int x1, int y1, int x2, int y2, int width, uint32_t colour);
+                 int x1, int y1, int x2, int y2, int width, uint32_t colour);
 
 /**
  * Add an outline rectangle to the document
@@ -245,7 +245,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
  * @return 0 on succss, < 0 on failure
  */
 int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-    int x, int y, int width, int height, int border_width, uint32_t colour);
+                      int x, int y, int width, int height, int border_width, uint32_t colour);
 
 /**
  * Add a filled rectangle to the document
@@ -260,8 +260,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * @return 0 on succss, < 0 on failure
  */
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-    int x, int y, int width, int height, int border_width,
-    uint32_t colour);
+                             int x, int y, int width, int height, int border_width,
+                             uint32_t colour);
 
 /**
  * Add a bookmark to the document
@@ -275,7 +275,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * @return < 0 on failure, new bookmark id on success
  */
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
-        const char *name);
+                     const char *name);
 
 /**
  * List of different barcode encodings that are supported
@@ -297,8 +297,8 @@ enum {
  * @param colour Colour to draw barcode
  */
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
-    int code, int x, int y, int width, int height, const char *string,
-    uint32_t colour);
+                    int code, int x, int y, int width, int height, const char *string,
+                    uint32_t colour);
 
 /**
  * Add a PPM file as an image to the document
@@ -311,8 +311,8 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
  * @param ppm_file Filename of P6 (binary) ppm file to display
  */
 int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
-    int x, int y, int display_width, int display_height,
-    const char *ppm_file);
+                int x, int y, int display_width, int display_height,
+                const char *ppm_file);
 
 /**
  * Add a JPEG file as an image to the document
@@ -325,8 +325,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
  * @param jpeg_file Filename of JPEG file to display
  */
 int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
-        int x, int y, int display_width, int display_height,
-        const char *jpeg_file);
+                 int x, int y, int display_width, int display_height,
+                 const char *jpeg_file);
 
 #endif
 

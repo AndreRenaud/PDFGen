@@ -1,7 +1,7 @@
 /**
  * Simple engine for creating PDF files.
  * It supports text, shapes, images etc...
- * Capable of handling millions of objects without too much performance 
+ * Capable of handling millions of objects without too much performance
  * penalty.
  * Public domain license - no warrenty implied; use at your own risk.
  */
@@ -145,7 +145,7 @@ struct pdf_object {
             int len;
         } stream;
         struct {
-	    struct flexarray children;
+            struct flexarray children;
         } page;
         struct pdf_info info;
         struct {
@@ -204,8 +204,8 @@ static inline int flexarray_get_bin(struct flexarray *flex, int index)
 {
     int i;
     for (i = 0; i < ARRAY_SIZE(bin_offset); i++)
-	if (index < bin_offset[i])
-	    return i - 1;
+        if (index < bin_offset[i])
+            return i - 1;
     return -1;
     //return index / 4096;
 }
@@ -213,7 +213,7 @@ static inline int flexarray_get_bin(struct flexarray *flex, int index)
 static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
 {
     if (bin >= ARRAY_SIZE(bin_offset))
-	return -1;
+        return -1;
     int next = bin_offset[bin + 1];
     return next - bin_offset[bin];
 }
@@ -227,7 +227,7 @@ static void flexarray_clear(struct flexarray *flex)
 {
     int i;
     for (i = 0; i < flex->bin_count; i++)
-	free(flex->bins[i]);
+        free(flex->bins[i]);
     free(flex->bins);
     flex->bin_count = 0;
     flex->item_count = 0;
@@ -242,19 +242,19 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
 {
     int bin = flexarray_get_bin(flex, index);
     if (bin >= flex->bin_count) {
-	void *bins = realloc(flex->bins, (flex->bin_count + 1) *
-		sizeof(flex->bins));
-	if (!bins)
-	    return -ENOMEM;
-	flex->bin_count++;
-	flex->bins = bins;
-	flex->bins[flex->bin_count - 1] =
-	    calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
-		    sizeof(void *));
-	if (!flex->bins[flex->bin_count - 1]) {
-	    flex->bin_count--;
-	    return -ENOMEM;
-	}
+        void *bins = realloc(flex->bins, (flex->bin_count + 1) *
+                             sizeof(flex->bins));
+        if (!bins)
+            return -ENOMEM;
+        flex->bin_count++;
+        flex->bins = bins;
+        flex->bins[flex->bin_count - 1] =
+            calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
+                   sizeof(void *));
+        if (!flex->bins[flex->bin_count - 1]) {
+            flex->bin_count--;
+            return -ENOMEM;
+        }
     }
     flex->item_count++;
     flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)] = data;
@@ -271,10 +271,10 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
     int bin;
 
     if (index >= flex->item_count)
-	return NULL;
+        return NULL;
     bin = flexarray_get_bin(flex, index);
     if (bin >= flex->bin_count)
-	return NULL;
+        return NULL;
     return flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)];
 }
 
@@ -323,7 +323,7 @@ static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
     int index = flexarray_append(&pdf->objects, obj);
 
     if (index < 0)
-	return index;
+        return index;
     obj->index = index;
 
     if (pdf->last_objects[obj->type]) {
@@ -354,8 +354,8 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
     obj->type = type;
 
     if (pdf_append_object(pdf, obj) < 0) {
-	free(obj);
-	return NULL;
+        free(obj);
+        return NULL;
     }
 
     return obj;
@@ -423,7 +423,7 @@ static void pdf_object_destroy(struct pdf_object *object)
         break;
 
     case OBJ_page:
-	flexarray_clear(&object->page.children);
+        flexarray_clear(&object->page.children);
         break;
     }
     free(object);
@@ -435,7 +435,7 @@ void pdf_destroy(struct pdf_doc *pdf)
         int i;
         for (i = 0; i < flexarray_size(&pdf->objects); i++)
             pdf_object_destroy(pdf_get_object(pdf, i));
-	flexarray_clear(&pdf->objects);
+        flexarray_clear(&pdf->objects);
         free(pdf);
     }
 }
@@ -552,9 +552,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, ">>\r\n");
         fprintf(fp, "/Contents [\r\n");
         for (i = 0; i < flexarray_size(&object->page.children); i++) {
-	    struct pdf_object *child = flexarray_get(&object->page.children, i);
+            struct pdf_object *child = flexarray_get(&object->page.children, i);
             fprintf(fp, "%d 0 R\r\n", child->index);
-	}
+        }
         fprintf(fp, "]\r\n");
         fprintf(fp, ">>\r\n");
         break;
@@ -621,8 +621,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "/Type /Pages\r\n"
                 "/Kids [ ");
         for (page = pdf_find_first_object(pdf, OBJ_page);
-             page;
-             page = page->next) {
+                page;
+                page = page->next) {
             npages++;
             fprintf(fp, "%d 0 R ", page->index);
         }
@@ -835,7 +835,7 @@ static void dstr_free(struct dstr *str)
 
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
                  const char *text, int size, int xoff, int yoff,
-		 uint32_t colour)
+                 uint32_t colour)
 {
     int i, ret;
     int len = text ? strlen(text) : 0;
@@ -850,7 +850,7 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "/F%d %d Tf ",
                 pdf->current_font->font.index, size);
     dstr_printf(&str, "%f %f %f rg ",
-            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
+                PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
@@ -1018,7 +1018,8 @@ static uint16_t helvetica_oblique_widths[256] = {
     556, 556, 556, 556, 556, 556, 889, 500,
     556, 556, 556, 556, 278, 278, 278, 278,
     556, 556, 556, 556, 556, 556, 556, 584,
-    611, 556, 556, 556, 556, 500, 556, 500};
+    611, 556, 556, 556, 556, 500, 556, 500
+};
 
 static uint16_t symbol_widths[256] = {
     250, 250, 250, 250, 250, 250, 250, 250,
@@ -1122,7 +1123,8 @@ static uint16_t times_bold_widths[256] = {
     500, 500, 500, 500, 500, 500, 722, 444,
     444, 444, 444, 444, 278, 278, 278, 278,
     500, 556, 500, 500, 500, 500, 500, 570,
-    500, 556, 556, 556, 556, 500, 556, 500} ;
+    500, 556, 556, 556, 556, 500, 556, 500
+} ;
 
 static uint16_t times_bold_italic_widths[256] = {
     250, 250, 250, 250, 250, 250, 250, 250,
@@ -1265,7 +1267,7 @@ static uint16_t courier_widths[256] = {
 };
 
 static int pdf_text_pixel_width(const char *text, int text_len, int size,
-        const uint16_t *widths)
+                                const uint16_t *widths)
 {
     int i;
     int len = 0;
@@ -1311,13 +1313,13 @@ static const uint16_t *find_font_widths(const char *font_name)
 }
 
 int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
-        const char *text, int size)
+                            const char *text, int size)
 {
     const uint16_t *widths = find_font_widths(pdf->current_font->font.name);
 
     if (!widths)
         return pdf_set_err(pdf, -EINVAL, "Unable to determine width for font '%s'",
-                pdf->current_font->font.name);
+                           pdf->current_font->font.name);
     return pdf_text_pixel_width(text, -1, size, widths);
 }
 
@@ -1331,8 +1333,8 @@ static const char *find_word_break(const char *string)
 }
 
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff,
-		 uint32_t colour, int wrap_width)
+                      const char *text, int size, int xoff, int yoff,
+                      uint32_t colour, int wrap_width)
 {
     /* Move through the text string, stopping at word boundaries,
      * trying to find the longest text string we can fit in the given width
@@ -1347,7 +1349,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
     widths = find_font_widths(pdf->current_font->font.name);
     if (!widths)
         return pdf_set_err(pdf, -EINVAL, "Unable to determine width for font '%s'",
-                pdf->current_font->font.name);
+                           pdf->current_font->font.name);
 
     while (start && *start) {
         const char *new_end = find_word_break(end + 1);
@@ -1408,7 +1410,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "%d %d m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
     dstr_printf(&str, "%f %f %f RG\r\n",
-            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
+                PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d %d l S\r\n", x2, y2);
     dstr_append(&str, "ET");
 
@@ -1427,7 +1429,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f RG ",
-            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
+                PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
     dstr_append(&str, "ET");
@@ -1440,14 +1442,14 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              int x, int y, int width, int height,
-			     int border_width, uint32_t colour)
+                             int border_width, uint32_t colour)
 {
     int ret;
     struct dstr str = {0, 0, 0};
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f rg ",
-            PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
+                PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
     dstr_append(&str, "ET");
@@ -1583,7 +1585,7 @@ static int find_128_encoding(char ch)
 
 static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
                                int x, int y, int width, int height,
-			       uint32_t colour, int index, int code_len)
+                               uint32_t colour, int index, int code_len)
 {
     uint32_t code = code_128a_encoding[index].code;
     int i;
@@ -1607,7 +1609,7 @@ static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
 
 static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
                                 int x, int y, int width, int height,
-				const char *string, uint32_t colour)
+                                const char *string, uint32_t colour)
 {
     const char *s;
     int len = strlen(string) + 3;
@@ -1631,13 +1633,13 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
     x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour,
                             checksum % 103, 6);
     pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour, 106,
-                            7);
+                        7);
     return 0;
 }
 
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
                     int code, int x, int y, int width, int height,
-		    const char *string, uint32_t colour)
+                    const char *string, uint32_t colour)
 {
     if (!string || !*string)
         return 0;
@@ -1700,10 +1702,10 @@ static int jpeg_size(unsigned char* data, unsigned int data_size,
 {
     int i = 0;
     if (data[i] == 0xFF && data[i+1] == 0xD8 && data[i+2] == 0xFF
-        && data[i+3] == 0xE0) {
+            && data[i+3] == 0xE0) {
         i += 4;
         if(data[i+2] == 'J' && data[i+3] == 'F' && data[i+4] == 'I'
-           && data[i+5] == 'F' && data[i+6] == 0x00) {
+                && data[i+5] == 'F' && data[i+6] == 0x00) {
             unsigned short block_length = data[i] * 256 + data[i+1];
             while(i<data_size) {
                 i+=block_length;
@@ -1796,7 +1798,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 
     obj = pdf_add_object(pdf, OBJ_image);
     if (!obj) {
-	free(final_data);
+        free(final_data);
         return NULL;
     }
     obj->stream.text = (char *)final_data;
@@ -1807,7 +1809,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 
 static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
                          struct pdf_object *image, int x, int y, int width,
-			 int height)
+                         int height)
 {
     int ret;
     struct dstr str = {0, 0, 0};
@@ -1824,7 +1826,7 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
 
 int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
                 int x, int y, int display_width, int display_height,
-		const char *ppm_file)
+                const char *ppm_file)
 {
     struct pdf_object *obj;
     uint8_t *data;
@@ -1895,7 +1897,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
 
 int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
                  int x, int y, int display_width, int display_height,
-		 const char *jpeg_file)
+                 const char *jpeg_file)
 {
     struct pdf_object *obj;
 
