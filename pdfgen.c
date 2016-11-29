@@ -139,6 +139,8 @@ struct pdf_object {
         struct {
             struct pdf_object *page;
             char name[64];
+            struct pdf_object *parent;
+            struct flexarray children;
         } bookmark;
         struct {
             char *text;
@@ -561,9 +563,11 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_bookmark: {
-        struct pdf_object *other;
+        struct pdf_object *parent, *other;
 
-        other = pdf_find_first_object(pdf, OBJ_outline);
+        parent = object->bookmark.parent;
+        if (!parent)
+            parent = pdf_find_first_object(pdf, OBJ_outline);
         fprintf(fp, "<<\r\n"
                 "/A << /Type /Action\r\n"
                 "      /S /GoTo\r\n"
@@ -573,12 +577,28 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "/Title (%s)\r\n",
                 object->bookmark.page->index,
                 pdf->height,
-                other->index, /* FIXME: they're all top level */
+                parent->index,
                 object->bookmark.name);
-        other = object->prev;
+        int nchildren = flexarray_size(&object->bookmark.children);
+        if (nchildren > 0) {
+            struct pdf_object *f, *l;
+            f = flexarray_get(&object->bookmark.children, 0);
+            l = flexarray_get(&object->bookmark.children, nchildren - 1);
+            fprintf(fp, "/First %d 0 R\r\n", f->index);
+            fprintf(fp, "/Last %d 0 R\r\n", l->index);
+        }
+        // Find the previous bookmark with the same parent
+        for (other = object->prev;
+                other && other->bookmark.parent != object->bookmark.parent;
+                other = other->prev)
+            ;
         if (other)
             fprintf(fp, "/Prev %d 0 R\r\n", other->index);
-        other = object->next;
+        // Find the next bookmark with the same parent
+        for (other = object->next;
+                other && other->bookmark.parent != object->bookmark.parent;
+                other = other->next)
+            ;
         if (other)
             fprintf(fp, "/Next %d 0 R\r\n", other->index);
         fprintf(fp, ">>\r\n");
@@ -641,7 +661,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, "<<\r\n"
                 "/Type /Catalog\r\n");
         if (outline)
-            fprintf(fp, "/Outlines %d 0 R\r\n", outline->index);
+            fprintf(fp,
+                    "/Outlines %d 0 R\r\n"
+                    "/PageMode /UseOutlines\r\n", outline->index);
         fprintf(fp, "/Pages %d 0 R\r\n"
                 ">>\r\n",
                 pages->index);
@@ -754,11 +776,16 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 }
 
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
-                     const char *name)
+                     int parent, const char *name)
 {
-    struct pdf_object *obj = pdf_add_object(pdf, OBJ_bookmark);
+    struct pdf_object *obj;
+    if (!pdf_find_first_object(pdf, OBJ_outline))
+        if (!pdf_add_object(pdf, OBJ_outline))
+            return pdf->errval;
+
+    obj = pdf_add_object(pdf, OBJ_bookmark);
     if (!obj)
-        return pdf_set_err(pdf, -ENOMEM, "Insufficient memory");
+        return pdf->errval;
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -770,11 +797,13 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
     strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name));
     obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
     obj->bookmark.page = page;
+    if (parent >= 0) {
+        struct pdf_object *parent_obj = pdf_get_object(pdf, parent);
+        obj->bookmark.parent = parent_obj;
+        flexarray_append(&parent_obj->bookmark.children, obj);
+    }
 
-    if (!pdf_find_first_object(pdf, OBJ_outline))
-        pdf_add_object(pdf, OBJ_outline);
-
-    return 0;
+    return obj->index;
 }
 
 struct dstr {

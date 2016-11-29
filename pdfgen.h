@@ -266,16 +266,16 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 /**
  * Add a bookmark to the document
  *
- * Note: At the moment all bookmarks are at the top level -
- * there is no support for the full bookmark tree structure yet.
  * @param pdf PDF document to add bookmark to
  * @param page Page to jump to for bookmark
                (or NULL for the most recently added page)
+ * @param parent ID of a previosly created bookmark that is the parent
+               of this one. -1 if this should be a top-level bookmark.
  * @param name String to associate with the bookmark
  * @return < 0 on failure, new bookmark id on success
  */
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
-                     const char *name);
+                     int parent, const char *name);
 
 /**
  * List of different barcode encodings that are supported

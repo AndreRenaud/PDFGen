@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
     int i;
     int height;
-
+    int bm;
 
     pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "", 20, 20, 30, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "Date (YYYY-MM-DD):", 20, 220, 30, PDF_RGB(0, 0, 0));
 
-    pdf_add_bookmark(pdf, NULL, "First page");
+    bm = pdf_add_bookmark(pdf, NULL, -1, "First page");
 
     pdf_append_page(pdf);
     pdf_add_text(pdf, NULL, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
@@ -63,7 +63,10 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "Pass", 8, 567, 556, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "(5.6.3) RS485 pins", 8, 317, 556, PDF_RGB(0, 0, 0));
 
-    pdf_add_bookmark(pdf, NULL, "Another Page");
+    bm = pdf_add_bookmark(pdf, NULL, -1, "Another Page");
+    bm = pdf_add_bookmark(pdf, NULL, bm, "Another Page again");
+    bm = pdf_add_bookmark(pdf, NULL, bm, "A child page");
+    bm = pdf_add_bookmark(pdf, NULL, -1, "Top level again");
     pdf_append_page(pdf);
 
     pdf_set_font(pdf, "Times-Roman");
