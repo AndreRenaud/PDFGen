@@ -8,7 +8,7 @@ testprog: pdfgen.o main.o
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 check: testprog pdfgen.c pdfgen.h
-	cppcheck pdfgen.c pdfgen.h
+	cppcheck --quiet pdfgen.c pdfgen.h
 	valgrind --quiet ./testprog
 	astyle -s4 < pdfgen.c | colordiff -u pdfgen.c -
 	astyle -s4 < pdfgen.h | colordiff -u pdfgen.h -
