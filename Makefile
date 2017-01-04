@@ -24,4 +24,4 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm *.o testprog
+	rm -f *.o testprog
