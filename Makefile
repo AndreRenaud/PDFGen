@@ -14,8 +14,8 @@ check: testprog pdfgen.c pdfgen.h
 	astyle -s4 < pdfgen.h | colordiff -u pdfgen.h -
 
 format: pdfgen.c pdfgen.h
-	astyle -s4 pdfgen.c
-	astyle -s4 pdfgen.h
+	astyle -q -n -s4 pdfgen.c
+	astyle -q -n -s4 pdfgen.h
 
 docs: FORCE
 	doxygen pdfgen.dox
