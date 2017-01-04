@@ -106,6 +106,17 @@
 #define PDF_RGB_G(c) ((((c) >>  8) & 0xff) / 255.0)
 #define PDF_RGB_B(c) ((((c) >>  0) & 0xff) / 255.0)
 
+#if defined(_MSC_VER)
+/*
+ * As stated here: http://stackoverflow.com/questions/70013/how-to-detect-if-im-compiling-code-with-visual-studio-2008
+ * Visual Studio 2015 has better support for C99
+ * We need to use __inline for older version.
+ */
+#if _MSC_VER < 1900
+#define inline __inline
+#endif
+#endif // _MSC_VER
+
 typedef struct pdf_object pdf_object;
 
 enum {
@@ -383,7 +394,13 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
     if (!obj->info.date[0]) {
         time_t now = time(NULL);
         struct tm tm;
+#ifdef _WIN32
+        struct tm *tmp;
+        tmp = localtime(&now);
+        tm = *tmp;
+#else
         localtime_r(&now, &tm);
+#endif
         strftime(obj->info.date, sizeof(obj->info.date),
                  "%Y%m%d%H%M%SZ", &tm);
     }
