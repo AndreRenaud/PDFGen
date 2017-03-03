@@ -816,6 +816,9 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
     obj->bookmark.page = page;
     if (parent >= 0) {
         struct pdf_object *parent_obj = pdf_get_object(pdf, parent);
+        if (!parent_obj)
+            return pdf_set_err(pdf, -EINVAL,
+                               "Invalid parent ID %d supplied", parent);
         obj->bookmark.parent = parent_obj;
         flexarray_append(&parent_obj->bookmark.children, obj);
     }
