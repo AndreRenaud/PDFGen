@@ -96,7 +96,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#if !defined(WIN32)
 #include <unistd.h>
+#endif
 
 #include "pdfgen.h"
 
@@ -212,6 +215,22 @@ static int bin_offset[] = {
     (1 << (MIN_SHIFT + 14)) - 1 - MIN_OFFSET,
     (1 << (MIN_SHIFT + 15)) - 1 - MIN_OFFSET,
 };
+
+
+/*
+ * workaround for localtime_r on Windows
+ */
+#if defined(WIN32)
+struct tm *localtime_r(time_t *_clock, struct tm *_result)
+{
+  struct tm *p = localtime(_clock);
+
+  if (p)
+    *(_result) = *p;
+
+  return p;
+}
+#endif
 
 static inline int flexarray_get_bin(struct flexarray *flex, int index)
 {

@@ -11,6 +11,18 @@
 
 #include <stdint.h>
 
+
+#if defined(_MSC_VER)
+/*
+ * As stated Here: http://stackoverflow.com/questions/70013/how-to-detect-if-im-compiling-code-with-visual-studio-2008
+ * Visual Studio 2015 has better support for C99
+ * We need to use __inline for older version.
+ */
+#if _MSC_VER < 1900
+#define inline __inline
+#endif
+#endif // defined
+
 /**
  * @defgroup subsystem Simple PDF Generation
  * Allows for quick generation of simple PDF documents.
@@ -21,20 +33,20 @@
  * All coordinates are based on 0,0 being the bottom left of the page.
  * All colours are specified as a packed 32-bit value - see @ref PDF_RGB.
  * All text strings must be 7-bit ASCII only, not UTF-8 or other wide
- * 	character support.
+ *  character support.
  *
  * @par PDF library example:
  * @code
 #include "pdfgen.h"
  ...
 struct pdf_info info = {
-	 .creator = "My software",
-	 .producer = "My software",
-	 .title = "My document",
-	 .author = "My name",
-	 .subject = "My subject",
-	 .date = "Today"
-	 };
+   .creator = "My software",
+   .producer = "My software",
+   .title = "My document",
+   .author = "My name",
+   .subject = "My subject",
+   .date = "Today"
+   };
 struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
 pdf_set_font(pdf, "Times-Roman");
 pdf_append_page(pdf);
