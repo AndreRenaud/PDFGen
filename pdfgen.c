@@ -220,7 +220,6 @@ static inline int flexarray_get_bin(struct flexarray *flex, int index)
         if (index < bin_offset[i])
             return i - 1;
     return -1;
-    //return index / 4096;
 }
 
 static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
@@ -254,6 +253,8 @@ static inline int flexarray_size(struct flexarray *flex)
 static int flexarray_set(struct flexarray *flex, int index, void *data)
 {
     int bin = flexarray_get_bin(flex, index);
+    if (bin < 0)
+        return -EINVAL;
     if (bin >= flex->bin_count) {
         void *bins = realloc(flex->bins, (flex->bin_count + 1) *
                              sizeof(flex->bins));
@@ -286,7 +287,7 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
     if (index >= flex->item_count)
         return NULL;
     bin = flexarray_get_bin(flex, index);
-    if (bin >= flex->bin_count)
+    if (bin < 0 || bin >= flex->bin_count)
         return NULL;
     return flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)];
 }
