@@ -39,3 +39,4 @@ pdf_destroy(pdf);
 License
 =======
 The source here is public domain.
+If you find it useful, please drop me a line at andre@ignavus.net.
