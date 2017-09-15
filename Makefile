@@ -1,10 +1,10 @@
-CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format
+CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter
 default: testprog
 
 testprog: pdfgen.o main.o
 	$(CC) -o testprog pdfgen.o main.o
 
-%.o: %.c
+%.o: %.c Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 check: testprog pdfgen.c pdfgen.h
