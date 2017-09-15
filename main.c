@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "", 20, 20, 30, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "Date (YYYY-MM-DD):", 20, 220, 30, PDF_RGB(0, 0, 0));
 
-    bm = pdf_add_bookmark(pdf, NULL, -1, "First page");
+    pdf_add_bookmark(pdf, NULL, -1, "First page");
 
     pdf_append_page(pdf);
     pdf_add_text(pdf, NULL, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     bm = pdf_add_bookmark(pdf, NULL, -1, "Another Page");
     bm = pdf_add_bookmark(pdf, NULL, bm, "Another Page again");
     bm = pdf_add_bookmark(pdf, NULL, bm, "A child page");
-    bm = pdf_add_bookmark(pdf, NULL, -1, "Top level again");
+    pdf_add_bookmark(pdf, NULL, -1, "Top level again");
     pdf_append_page(pdf);
 
     pdf_set_font(pdf, "Times-Roman");
