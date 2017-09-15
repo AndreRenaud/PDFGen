@@ -298,6 +298,9 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
 
 static int pdf_set_err(struct pdf_doc *doc, int errval,
                        const char *buffer, ...)
+                       __attribute__ ((format(printf, 3, 4)));
+static int pdf_set_err(struct pdf_doc *doc, int errval,
+                       const char *buffer, ...)
 {
     va_list ap;
     int len;
@@ -849,6 +852,8 @@ static int dstr_ensure(struct dstr *str, int len)
     return 0;
 }
 
+static int dstr_printf(struct dstr *str, const char *fmt, ...)
+                      __attribute__((format(printf,2,3)));
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
 {
     va_list ap, aq;
@@ -1808,7 +1813,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 
     jpeg_data = malloc(len);
     if (!jpeg_data) {
-        pdf_set_err(pdf, -errno, "Unable to allocate: %s", len);
+        pdf_set_err(pdf, -errno, "Unable to allocate: %zd", len);
         fclose(fp);
         return NULL;
     }
@@ -1830,7 +1835,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 
     final_data = malloc(len + 1024);
     if (!final_data) {
-        pdf_set_err(pdf, -errno, "Unable to allocate jpeg data %d", len + 1024);
+        pdf_set_err(pdf, -errno, "Unable to allocate jpeg data %zd", len + 1024);
         free(jpeg_data);
         return NULL;
     }
