@@ -1,4 +1,4 @@
-CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic
+CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format
 default: testprog
 
 testprog: pdfgen.o main.o
