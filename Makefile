@@ -15,6 +15,7 @@ check: testprog pdfgen.c pdfgen.h
 	valgrind --quiet --leak-check=full --error-exitcode=1 ./testprog
 	astyle -s4 < pdfgen.c | colordiff -u pdfgen.c -
 	astyle -s4 < pdfgen.h | colordiff -u pdfgen.h -
+	gcov -r pdfgen.c
 
 format: pdfgen.c pdfgen.h
 	astyle -q -n -s4 pdfgen.c
