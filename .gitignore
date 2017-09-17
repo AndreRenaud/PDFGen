@@ -1,5 +1,8 @@
 *.o
 .*.swp
+*.gcda
+*.gcno
+*.gcov
 testprog
 output.pdf
 docs/
