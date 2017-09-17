@@ -1,8 +1,11 @@
-CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter
+CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
+LFLAGS=-fprofile-arcs -ftest-coverage
+
+
 default: testprog
 
 testprog: pdfgen.o main.o
-	$(CC) -o testprog pdfgen.o main.o
+	$(CC) -o testprog pdfgen.o main.o $(LFLAGS)
 
 %.o: %.c Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
@@ -24,4 +27,4 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o testprog
+	rm -f *.o testprog *.gcda *.gcno *.gcov
