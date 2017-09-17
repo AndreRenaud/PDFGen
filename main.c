@@ -18,6 +18,18 @@ int main(int argc, char *argv[])
     int height;
     int bm;
 
+    if (pdf_width(pdf) != PDF_A4_WIDTH ||
+        pdf_height(pdf) != PDF_A4_HEIGHT) {
+        fprintf(stderr, "PDF Size mismatch: %dx%d\n", pdf_width(pdf), pdf_height(pdf));
+        return -1;
+    }
+
+    i = pdf_get_font_text_width(pdf, "Times-BoldItalic", "foo", 14);
+    if (i < 18) {
+        fprintf(stderr, "Font width invalid: %d\n", i);
+        return -1;
+    }
+
     pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
 
@@ -80,6 +92,13 @@ int main(int argc, char *argv[])
 
     pdf_save(pdf, "output.pdf");
 
+    int err;
+    const char *err_str = pdf_get_err(pdf, &err);
+    if (err_str) {
+        fprintf(stderr, "PDF Error: %d - %s\n", err, err_str);
+        pdf_destroy(pdf);
+	return -1;
+    }
     pdf_destroy(pdf);
 
     return 0;

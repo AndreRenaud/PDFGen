@@ -8,7 +8,7 @@ testprog: pdfgen.o main.o
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 check: testprog pdfgen.c pdfgen.h
-	cppcheck --std=c99 --enable=style,warning,performance,portability --quiet pdfgen.c pdfgen.h main.c
+	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h main.c
 	valgrind --quiet --leak-check=full --error-exitcode=1 ./testprog
 	astyle -s4 < pdfgen.c | colordiff -u pdfgen.c -
 	astyle -s4 < pdfgen.h | colordiff -u pdfgen.h -
