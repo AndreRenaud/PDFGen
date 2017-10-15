@@ -216,6 +216,7 @@ static int bin_offset[] = {
 static inline int flexarray_get_bin(struct flexarray *flex, int index)
 {
     int i;
+    (void)flex;
     for (i = 0; i < ARRAY_SIZE(bin_offset); i++)
         if (index < bin_offset[i])
             return i - 1;
@@ -224,6 +225,7 @@ static inline int flexarray_get_bin(struct flexarray *flex, int index)
 
 static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
 {
+    (void)flex;
     if (bin >= ARRAY_SIZE(bin_offset))
         return -1;
     int next = bin_offset[bin + 1];
@@ -232,6 +234,7 @@ static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
 
 static inline int flexarray_get_bin_offset(struct flexarray *flex, int bin, int index)
 {
+    (void)flex;
     return index - bin_offset[bin];
 }
 
@@ -1342,37 +1345,37 @@ static const uint16_t *find_font_widths(const char *font_name)
 {
     if (strcmp(font_name, "Helvetica") == 0)
         return helvetica_widths;
-    else if (strcmp(font_name, "Helvetica-Bold") == 0)
+    if (strcmp(font_name, "Helvetica-Bold") == 0)
         return helvetica_bold_widths;
-    else if (strcmp(font_name, "Helvetica-BoldOblique") == 0)
+    if (strcmp(font_name, "Helvetica-BoldOblique") == 0)
         return helvetica_bold_oblique_widths;
-    else if (strcmp(font_name, "Helvetica-Oblique") == 0)
+    if (strcmp(font_name, "Helvetica-Oblique") == 0)
         return helvetica_oblique_widths;
-    else if (strcmp(font_name, "Courier") == 0 ||
-             strcmp(font_name, "Courier-Bold") == 0 ||
-             strcmp(font_name, "Courier-BoldOblique") == 0 ||
-             strcmp(font_name, "Courier-Oblique") == 0)
+    if (strcmp(font_name, "Courier") == 0 ||
+            strcmp(font_name, "Courier-Bold") == 0 ||
+            strcmp(font_name, "Courier-BoldOblique") == 0 ||
+            strcmp(font_name, "Courier-Oblique") == 0)
         return courier_widths;
-    else if (strcmp(font_name, "Times-Roman") == 0)
+    if (strcmp(font_name, "Times-Roman") == 0)
         return times_widths;
-    else if (strcmp(font_name, "Times-Bold") == 0)
+    if (strcmp(font_name, "Times-Bold") == 0)
         return times_bold_widths;
-    else if (strcmp(font_name, "Times-Italic") == 0)
+    if (strcmp(font_name, "Times-Italic") == 0)
         return times_italic_widths;
-    else if (strcmp(font_name, "Times-BoldItalic") == 0)
+    if (strcmp(font_name, "Times-BoldItalic") == 0)
         return times_bold_italic_widths;
-    else if (strcmp(font_name, "Symbol") == 0)
+    if (strcmp(font_name, "Symbol") == 0)
         return symbol_widths;
-    else if (strcmp(font_name, "ZapfDingbats") == 0)
+    if (strcmp(font_name, "ZapfDingbats") == 0)
         return zapfdingbats_widths;
-    else
-        return NULL;
+
+    return NULL;
 }
 
 int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
                             const char *text, int size)
 {
-    const uint16_t *widths = find_font_widths(pdf->current_font->font.name);
+    const uint16_t *widths = find_font_widths(font_name);
 
     if (!widths)
         return pdf_set_err(pdf, -EINVAL, "Unable to determine width for font '%s'",
@@ -1774,10 +1777,9 @@ static int jpeg_size(unsigned char* data, unsigned int data_size,
                     *height = data[i+5]*256 + data[i+6];
                     *width = data[i+7]*256 + data[i+8];
                     return 0;
-                } else {
-                    i+=2;
-                    block_length = data[i] * 256 + data[i+1];
                 }
+                i+=2;
+                block_length = data[i] * 256 + data[i+1];
             }
         }
     }
@@ -1858,7 +1860,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
         free(final_data);
         return NULL;
     }
-    obj->stream.text = (char *)final_data;
+    obj->stream.text = final_data;
     obj->stream.len = written;
 
     return obj;
@@ -1899,6 +1901,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
 
     /* Load the PPM file */
     fp = fopen(ppm_file, "rb");
+    if (!fp)
+        return pdf_set_err(pdf, -errno, "Unable to open '%s'", ppm_file);
     if (!fgets(line, sizeof(line) - 1, fp)) {
         fclose(fp);
         return pdf_set_err(pdf, -EINVAL, "Invalid PPM file");
@@ -1922,8 +1926,9 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         if (sscanf(line, "%d %d\n", &width, &height) != 2) {
             fclose(fp);
             return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
-        } else
-            break;
+        }
+
+        break;
     } while (1);
 
     /* Skip over the byte-size line */
