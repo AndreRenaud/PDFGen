@@ -18,6 +18,10 @@ int main(int argc, char *argv[])
     int height;
     int bm;
 
+    /* Unused */
+    (void)argc;
+    (void)argv;
+
     if (pdf_width(pdf) != PDF_A4_WIDTH ||
         pdf_height(pdf) != PDF_A4_HEIGHT) {
         fprintf(stderr, "PDF Size mismatch: %dx%d\n", pdf_width(pdf), pdf_height(pdf));
@@ -77,7 +81,7 @@ int main(int argc, char *argv[])
 
     bm = pdf_add_bookmark(pdf, NULL, -1, "Another Page");
     bm = pdf_add_bookmark(pdf, NULL, bm, "Another Page again");
-    bm = pdf_add_bookmark(pdf, NULL, bm, "A child page");
+    pdf_add_bookmark(pdf, NULL, bm, "A child page");
     pdf_add_bookmark(pdf, NULL, -1, "Top level again");
     pdf_append_page(pdf);
 
