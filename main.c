@@ -34,6 +34,22 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    /* These calls should fail, since we haven't added a page yet */
+    if (pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm") >= 0)
+        return -1;
+
+    if (pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "penguin.jpg") >= 0)
+        return -1;
+
+    if (pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0)) >= 0)
+        return -1;
+
+    if (pdf_add_bookmark(pdf, NULL, -1, "Another Page") >= 0)
+        return -1;
+
+    pdf_clear_err(pdf);
+    /* From now on, we shouldn't see any errors */
+
     pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
 
