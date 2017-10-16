@@ -5,9 +5,8 @@
  * penalty.
  * Public domain license - no warrenty implied; use at your own risk.
  */
-
-#ifndef PDF_GEN_H
-#define PDF_GEN_H
+#ifndef PDFGEN_H
+#define PDFGEN_H
 
 #include <stdint.h>
 
@@ -334,5 +333,4 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
                  int x, int y, int display_width, int display_height,
                  const char *jpeg_file);
 
-#endif
-
+#endif // PDFGEN_H
