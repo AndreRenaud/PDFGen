@@ -602,6 +602,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         parent = object->bookmark.parent;
         if (!parent)
             parent = pdf_find_first_object(pdf, OBJ_outline);
+        if (!object->bookmark.page)
+            break;
         fprintf(fp, "<<\r\n"
                 "/A << /Type /Action\r\n"
                 "      /S /GoTo\r\n"
@@ -1900,12 +1902,6 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     FILE *fp;
     char line[1024];
     int width, height;
-
-    if (!page)
-        page = pdf_find_last_object(pdf, OBJ_page);
-
-    if (!page)
-        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
 
     /* Load the PPM file */
     fp = fopen(ppm_file, "rb");
