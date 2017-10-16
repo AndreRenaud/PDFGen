@@ -318,8 +318,6 @@ static int pdf_set_err(struct pdf_doc *doc, int errval,
     doc->errstr[sizeof(doc->errstr) - 1] = '\0';
     doc->errval = errval;
 
-    fprintf(stderr, "PDFERR: %s", doc->errstr);
-
     return errval;
 }
 
