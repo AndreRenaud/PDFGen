@@ -135,6 +135,12 @@ void pdf_destroy(struct pdf_doc *pdf);
 const char *pdf_get_err(struct pdf_doc *pdf, int *errval);
 
 /**
+ * Acknowledge an outstanding pdf error
+ * @param pdf pdf document to clear the error message from
+ */
+void pdf_clear_err(struct pdf_doc *pdf);
+
+/**
  * Sets the font to use for text objects. Default value is Times-Roman if
  * this function is not called
  * Note: The font selection should be done before text is output,

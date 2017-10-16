@@ -333,6 +333,14 @@ const char *pdf_get_err(struct pdf_doc *pdf, int *errval)
     return pdf->errstr;
 }
 
+void pdf_clear_err(struct pdf_doc *pdf)
+{
+    if (!pdf)
+        return;
+    pdf->errstr[0] = '\0';
+    pdf->errval = 0;
+}
+
 static struct pdf_object *pdf_get_object(struct pdf_doc *pdf, int index)
 {
     return flexarray_get(&pdf->objects, index);
