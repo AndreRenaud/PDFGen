@@ -315,7 +315,7 @@ static int pdf_set_err(struct pdf_doc *doc, int errval,
     /* Make sure we're properly terminated */
     if (doc->errstr[len] != '\n')
         doc->errstr[len] = '\n';
-    doc->errstr[sizeof(doc->errstr) - 1] = '\0';
+    doc->errstr[len] = '\0';
     doc->errval = errval;
 
     return errval;
