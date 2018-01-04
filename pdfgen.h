@@ -19,8 +19,9 @@
  * Note: All coordinates/sizes are in points (1/72 of an inch).
  * All coordinates are based on 0,0 being the bottom left of the page.
  * All colours are specified as a packed 32-bit value - see @ref PDF_RGB.
- * All text strings must be 7-bit ASCII only, not UTF-8 or other wide
- * 	character support.
+ * Text strings are interpreted as UTF-8 encoded, but only a small subset of
+ * characters beyond 7-bit ascii are supported (see @ref pdf_add_text for
+ * details).
  *
  * @par PDF library example:
  * @code
