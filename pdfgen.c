@@ -966,33 +966,28 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
             return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
         }
 
-        if (code > 127) {
+        if (code > 255) {
             /* We support *some* minimal UTF-8 characters */
             char buf[5] = {0};
-            if (code <= 0xff) {
-                buf[0] = (char)code;
-                buf[1] = 0x0;
-            } else {
-                switch (code) {
-                case 0x160:
-                    buf[0] = (char)0x8a;
-                    break;
-                case 0x161:
-                    buf[0] = (char)0x9a;
-                    break;
-                case 0x17d:
-                    buf[0] = (char)0x8e;
-                    break;
-                case 0x17e:
-                    buf[0] = (char)0x9e;
-                    break;
-                case 0x20ac:
-                    strcpy(buf, "\\200");
-                    break;
-                default:
-                    dstr_free(&str);
-                    return pdf_set_err(pdf, -EINVAL, "Unsupported UTF-8 character: 0x%x 0o%o", code, code);
-                }
+            switch (code) {
+            case 0x160:
+                buf[0] = (char)0x8a;
+                break;
+            case 0x161:
+                buf[0] = (char)0x9a;
+                break;
+            case 0x17d:
+                buf[0] = (char)0x8e;
+                break;
+            case 0x17e:
+                buf[0] = (char)0x9e;
+                break;
+            case 0x20ac:
+                strcpy(buf, "\\200");
+                break;
+            default:
+                dstr_free(&str);
+                return pdf_set_err(pdf, -EINVAL, "Unsupported UTF-8 character: 0x%x 0o%o", code, code);
             }
             dstr_append(&str, buf);
         } else if (strchr("()\\", code)) {
