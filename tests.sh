@@ -1,9 +1,14 @@
 #!/bin/sh
 
+fail() {
+	echo $*
+	exit 1
+}
+
 run() {
 	name=$1
 	shift
-	"$@" || ( echo "Failed to run $name" ; exit 1 )
+	"$@" || fail "Failed to run '$name'"
 }
 
 run_fail() {
@@ -11,16 +16,17 @@ run_fail() {
 	shift
 	"$@"
 	if [ $? -eq 0 ] ; then
-		echo "Successfully ran $name (expected failure)"
-		exit 1
+		fail "Successfully ran '$name' (expected failure)"
 	fi
 }
 
 # Run the test program
-valgrind --quiet --leak-check=full --error-exitcode=1 ./testprog
-pdftotext -layout output.pdf
+run "valgrind" valgrind --quiet --leak-check=full --error-exitcode=1 ./testprog
+run "pdftotext" pdftotext -layout output.pdf
 
 # Check for various output strings
 run "check utf8 characters" grep -q "Special characters: €ÜŽžŠšÁáüöäÄÜÖß" output.txt
 run "check special charactesr" grep -q "( ) < > \[ \] { } / %" output.txt
 run_fail "check for line wrapping" grep -q "This is a great big long string that I hope will wrap properly around several lines." output.txt
+
+echo "Tests completed successfully"

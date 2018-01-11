@@ -28,4 +28,4 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf
+	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt
