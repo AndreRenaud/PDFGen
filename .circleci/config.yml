@@ -1,22 +1,24 @@
 version: 2
 jobs:
   build:
-    docker:
-      - image: debian:stretch
+    machine: true
     steps:
-      - run:
-          name: Install build requirements
-          command: |
-            set -x
-            apt-get update
-            apt-get install -y ca-certificates make gcc cppcheck valgrind astyle poppler-utils colordiff
       - checkout
       - run:
+          name: Build Environment
+          command: docker build -t build_image .
+      - run:
+          name: Start Build Environment
+          command: docker run --volume "$(pwd):$(pwd)" --workdir "$(pwd)" --tty --detach build_image bash > container_id
+      - run:
           name: Build
-          command: make
+          command: docker exec $(cat container_id) make
       - run:
           name: Test
-          command: make check
+          command: docker exec $(cat container_id) make check
+      - run:
+          command: docker stop $(cat container_id)
+          when: always
       - store_artifacts:
           path: output.pdf
       - store_artifacts:
