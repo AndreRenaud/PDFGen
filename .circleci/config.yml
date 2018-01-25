@@ -3,6 +3,7 @@ jobs:
   build:
     docker:
       - image: debian:stretch
+      - run: apt-get install make gcc cppcheck astyle valgrind
     steps:
       - checkout
       - run:
