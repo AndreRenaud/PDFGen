@@ -9,7 +9,7 @@ jobs:
           command: |
             set -x
             apt-get update
-            apt-get install -y make gcc cppcheck valgrind astyle poppler-utils colordiff
+            apt-get install -y ca-certificates make gcc cppcheck valgrind astyle poppler-utils colordiff
       - checkout
       - run:
           name: Build
