@@ -17,3 +17,9 @@ jobs:
       - run:
           name: Test
           command: make check
+      - store_artifacts:
+          path: output.pdf
+      - store_artifacts:
+          path: pdfgen.h
+      - store_artifacts:
+          path: pdfgen.o
