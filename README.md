@@ -1,3 +1,5 @@
+![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)
+
 PDFGen
 ======
 
