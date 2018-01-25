@@ -8,8 +8,8 @@ jobs:
           name: Install build requirements
           command: |
             set -x
-            sudo apt-get update
-            sudo apt-get install -y make gcc cppcheck valgrind astyle pdftotext
+            apt-get update
+            apt-get install -y make gcc cppcheck valgrind astyle pdftotext
       - checkout
       - run:
           name: Build
