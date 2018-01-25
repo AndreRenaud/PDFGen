@@ -9,7 +9,7 @@ jobs:
           command: |
             set -x
             apt-get update
-            apt-get install -y make gcc cppcheck valgrind astyle pdftotext
+            apt-get install -y make gcc cppcheck valgrind astyle poppler-utils
       - checkout
       - run:
           name: Build
