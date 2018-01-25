@@ -1,5 +1,3 @@
-![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)
-
 PDFGen
 ======
 
@@ -42,3 +40,7 @@ License
 =======
 The source here is public domain.
 If you find it useful, please drop me a line at andre@ignavus.net.
+
+Builds
+======
+[CircleCI Build](https://circleci.com/gh/AndreRenaud/PDFGen) status: ![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)
