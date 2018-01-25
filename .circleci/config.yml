@@ -5,7 +5,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build Environment
+          name: Construct Build Environment
           command: docker build -t build_image .
       - run:
           name: Start Build Environment
@@ -17,6 +17,7 @@ jobs:
           name: Test
           command: docker exec $(cat container_id) make check
       - run:
+          name: Stop Build Environment
           command: docker stop $(cat container_id)
           when: always
       - store_artifacts:
