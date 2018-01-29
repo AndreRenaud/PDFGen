@@ -90,6 +90,16 @@ struct pdf_info {
 #define PDF_A4_HEIGHT PDF_MM_TO_POINT(297)
 
 /**
+ * Point width of a standard A3 page
+ */
+#define PDF_A3_WIDTH PDF_MM_TO_POINT(297)
+
+/**
+ * Point height of a standard A3 page
+ */
+#define PDF_A3_HEIGHT PDF_MM_TO_POINT(420)
+
+/**
  * Convert three 8-bit RGB values into a single packed 32-bit
  * colour. These 32-bit colours are used by various functions
  * in PDFGen
@@ -186,6 +196,15 @@ int pdf_width(struct pdf_doc *pdf);
  * @return new page object
  */
 struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
+
+/**
+ * Adjust the width/height of a specific page
+ * @param page object returned from @ref pdf_append_page
+ * @param width Width of the page in points
+ * @param height Height of the page in points
+ * @return < 0 on failure, 0 on success
+ */
+int pdf_page_set_size(struct pdf_object *page, int width, int height);
 
 /**
  * Save the given pdf document to the supplied filename

@@ -158,6 +158,8 @@ struct pdf_object {
             int len;
         } stream;
         struct {
+            int width;
+            int height;
             struct flexarray children;
         } page;
         struct pdf_info info;
@@ -522,7 +524,19 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf)
     if (!page)
         return NULL;
 
+    page->page.width = pdf->width;
+    page->page.height = pdf->height;
+
     return page;
+}
+
+int pdf_page_set_size(struct pdf_object *page, int width, int height)
+{
+    if (page->type != OBJ_page)
+        return -EINVAL;
+    page->page.width = width;
+    page->page.height = height;
+    return 0;
 }
 
 static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
@@ -569,6 +583,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, "<<\r\n"
                 "/Type /Page\r\n"
                 "/Parent %d 0 R\r\n", pages->index);
+        fprintf(fp, "/MediaBox [0 0 %d %d]\r\n",
+                object->page.width, object->page.height);
         fprintf(fp, "/Resources <<\r\n");
         fprintf(fp, "  /Font <<\r\n");
         for (font = pdf_find_first_object(pdf, OBJ_font); font; font = font->next)
@@ -683,9 +699,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         }
         fprintf(fp, "]\r\n");
         fprintf(fp, "/Count %d\r\n", npages);
-        fprintf(fp, "/MediaBox [0 0 %d %d]\r\n"
-                ">>\r\n",
-                pdf->width, pdf->height);
+        fprintf(fp, ">>\r\n");
         break;
     }
 

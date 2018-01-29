@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
 	    .date = "Today"
     };
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
+    struct pdf_object *obj;
     int i;
     int height;
     int bm;
@@ -69,7 +70,6 @@ int main(int argc, char *argv[])
 
     pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0));
     pdf_add_text(pdf, NULL, "PjGQji", 18, 20, 130, PDF_RGB(0, 0xff, 0xff));
-#if 1
     pdf_add_line(pdf, NULL, 10, 24, 100, 24, 4, PDF_RGB(0xff, 0, 0));
     pdf_add_rectangle(pdf, NULL, 150, 150, 100, 100, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4, PDF_RGB(0, 0xff, 0));
@@ -109,7 +109,10 @@ int main(int argc, char *argv[])
         pdf_add_text(pdf, NULL, "Text blob", 8, xpos, ypos, PDF_RGB(i, (i * 4) & 0xff, (i * 8) & 0xff));
     }
     pdf_add_text(pdf, NULL, "", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(0xff, 0, 0));
-#endif
+
+    obj = pdf_append_page(pdf);
+    pdf_page_set_size(obj, PDF_A3_HEIGHT, PDF_A3_WIDTH);
+    pdf_add_text(pdf, NULL, "This is an A3 landscape page", 10, 20, 30, PDF_RGB(0xff, 0, 0));
 
     pdf_save(pdf, "output.pdf");
 
