@@ -15,11 +15,13 @@ check: testprog pdfgen.c pdfgen.h
 	./tests.sh
 	astyle -s4 < pdfgen.c | colordiff -u pdfgen.c -
 	astyle -s4 < pdfgen.h | colordiff -u pdfgen.h -
+	astyle -s4 < main.c | colordiff -u main.c -
 	gcov -r pdfgen.c
 
-format: pdfgen.c pdfgen.h
+format: pdfgen.c pdfgen.h main.c
 	astyle -q -n -s4 pdfgen.c
 	astyle -q -n -s4 pdfgen.h
+	astyle -q -n -s4 main.c
 
 docs: FORCE
 	doxygen pdfgen.dox
