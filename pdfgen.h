@@ -199,12 +199,13 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
 
 /**
  * Adjust the width/height of a specific page
+ * @param pdf PDF document that the page belongs to
  * @param page object returned from @ref pdf_append_page
  * @param width Width of the page in points
  * @param height Height of the page in points
  * @return < 0 on failure, 0 on success
  */
-int pdf_page_set_size(struct pdf_object *page, int width, int height);
+int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width, int height);
 
 /**
  * Save the given pdf document to the supplied filename

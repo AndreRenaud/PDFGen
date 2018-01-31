@@ -6,15 +6,14 @@
 int main(int argc, char *argv[])
 {
     struct pdf_info info = {
-	    .creator = "My software",
-	    .producer = "My software",
-	    .title = "My document",
-	    .author = "My name",
-	    .subject = "My subject",
-	    .date = "Today"
+        .creator = "My software",
+        .producer = "My software",
+        .title = "My document",
+        .author = "My name",
+        .subject = "My subject",
+        .date = "Today"
     };
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
-    struct pdf_object *obj;
     int i;
     int height;
     int bm;
@@ -24,7 +23,7 @@ int main(int argc, char *argv[])
     (void)argv;
 
     if (pdf_width(pdf) != PDF_A4_WIDTH ||
-        pdf_height(pdf) != PDF_A4_HEIGHT) {
+            pdf_height(pdf) != PDF_A4_HEIGHT) {
         fprintf(stderr, "PDF Size mismatch: %dx%d\n", pdf_width(pdf), pdf_height(pdf));
         return -1;
     }
@@ -55,12 +54,12 @@ int main(int argc, char *argv[])
     pdf_append_page(pdf);
 
     height = pdf_add_text_wrap(pdf, NULL,
-    	"This is a great big long string that I hope will wrap properly "
-	"around several lines.\nI've put some embedded line breaks in to "
-	"see how it copes with them. Hopefully it all works properly.\n\n\n"
-	"We even include multiple breaks\n"
-	"thisisanenourmouswordthatwillneverfitandwillhavetobecut",
-	16, 60, 600, PDF_RGB(0, 0, 0), 300);
+                               "This is a great big long string that I hope will wrap properly "
+                               "around several lines.\nI've put some embedded line breaks in to "
+                               "see how it copes with them. Hopefully it all works properly.\n\n\n"
+                               "We even include multiple breaks\n"
+                               "thisisanenourmouswordthatwillneverfitandwillhavetobecut",
+                               16, 60, 600, PDF_RGB(0, 0, 0), 300);
     pdf_add_rectangle(pdf, NULL, 60, 600 + 16, 300, -height, 1, PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm");
 
@@ -104,14 +103,14 @@ int main(int argc, char *argv[])
 
     pdf_set_font(pdf, "Times-Roman");
     for (i = 0; i < 3000; i++) {
-    	int xpos = (i / 100) * 40;
-	int ypos = (i % 100) * 10;
+        int xpos = (i / 100) * 40;
+        int ypos = (i % 100) * 10;
         pdf_add_text(pdf, NULL, "Text blob", 8, xpos, ypos, PDF_RGB(i, (i * 4) & 0xff, (i * 8) & 0xff));
     }
     pdf_add_text(pdf, NULL, "", 10, (i / 100) * 100, (i % 100) * 12, PDF_RGB(0xff, 0, 0));
 
-    obj = pdf_append_page(pdf);
-    pdf_page_set_size(obj, PDF_A3_HEIGHT, PDF_A3_WIDTH);
+    pdf_append_page(pdf);
+    pdf_page_set_size(pdf, NULL, PDF_A3_HEIGHT, PDF_A3_WIDTH);
     pdf_add_text(pdf, NULL, "This is an A3 landscape page", 10, 20, 30, PDF_RGB(0xff, 0, 0));
 
     pdf_save(pdf, "output.pdf");
@@ -121,7 +120,7 @@ int main(int argc, char *argv[])
     if (err_str) {
         fprintf(stderr, "PDF Error: %d - %s\n", err, err_str);
         pdf_destroy(pdf);
-	return -1;
+        return -1;
     }
     pdf_destroy(pdf);
 
