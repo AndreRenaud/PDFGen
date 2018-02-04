@@ -17,6 +17,9 @@ jobs:
           name: Test
           command: docker exec $(cat container_id) make check
       - run:
+          name: Docs
+          command: docker exec $(cat container_id) make docs
+      - run:
           name: Stop Build Environment
           command: docker stop $(cat container_id)
           when: always
@@ -26,3 +29,5 @@ jobs:
           path: pdfgen.h
       - store_artifacts:
           path: pdfgen.o
+      - store_artifacts:
+          path: docs/html

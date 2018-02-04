@@ -25,7 +25,6 @@ format: pdfgen.c pdfgen.h main.c
 
 docs: FORCE
 	doxygen pdfgen.dox
-	cd docs/latex ; make
 
 FORCE:
 
