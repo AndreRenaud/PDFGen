@@ -9,6 +9,7 @@
 #define PDFGEN_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @defgroup subsystem Simple PDF Generation
@@ -257,6 +258,21 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
  */
 int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
                  int x1, int y1, int x2, int y2, int width, uint32_t colour);
+
+/**
+ * Add a circle to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x X offset of the center of the circle
+ * @param y Y offset of the center of the circle
+ * @param radius Radius of the circle
+ * @param width Width of the circle
+ * @param colour Colour to draw the circle
+ * @param filled If set, circle will be drawn filled
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page,
+                   int x, int y, int radius, int width, uint32_t colour, bool filled);
 
 /**
  * Add an outline rectangle to the document
