@@ -210,6 +210,7 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width, i
 
 /**
  * Save the given pdf document to the supplied filename
+ * If the filename is NULL, defaults to stdout
  */
 int pdf_save(struct pdf_doc *pdf, const char *filename);
 

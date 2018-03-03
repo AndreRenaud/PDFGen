@@ -741,7 +741,9 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
     int xref_offset;
     int xref_count = 0;
 
-    if ((fp = fopen(filename, "wb")) == NULL)
+    if (filename == NULL)
+        fp = stdout;
+    else if ((fp = fopen(filename, "wb")) == NULL)
         return pdf_set_err(pdf, -errno, "Unable to open '%s': %s",
                            filename, strerror(errno));
 
