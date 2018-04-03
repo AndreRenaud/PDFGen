@@ -10,7 +10,7 @@ Supports the following PDF features
 * Text of various fonts/sizes/colours
 * Lines/Rectangles/Filled Rectangles
 * Bookmarks
-* Barcodes (Code-128)
+* Barcodes (Code-128 & Code-39)
 * PPM Images
 * JPEG Images
 
