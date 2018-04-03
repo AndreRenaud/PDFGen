@@ -1827,6 +1827,122 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
     return 0;
 }
 
+/* Code 39 character encoding. Each 4-bit value indicates:
+ * 0 => wide bar
+ * 1 => narrow bar
+ * 2 => wide space
+ */
+static const struct {
+    uint32_t code;
+    char ch;
+} code_39_encoding[] = {
+    {0x012110, '1'},
+    {0x102110, '2'},
+    {0x002111, '3'},
+    {0x112010, '4'},
+    {0x012011, '5'},
+    {0x102011, '6'},
+    {0x112100, '7'},
+    {0x012101, '8'},
+    {0x102101, '9'},
+    {0x112001, '0'},
+    {0x011210, 'A'},
+    {0x101210, 'B'},
+    {0x001211, 'C'},
+    {0x110210, 'D'},
+    {0x010211, 'E'},
+    {0x100211, 'F'},
+    {0x111200, 'G'},
+    {0x011201, 'H'},
+    {0x101201, 'I'},
+    {0x110201, 'J'},
+    {0x011120, 'K'},
+    {0x101120, 'L'},
+    {0x001121, 'M'},
+    {0x110120, 'N'},
+    {0x010121, 'O'},
+    {0x100121, 'P'},
+    {0x111020, 'Q'},
+    {0x011021, 'R'},
+    {0x101021, 'S'},
+    {0x110021, 'T'},
+    {0x021110, 'U'},
+    {0x120110, 'V'},
+    {0x020111, 'W'},
+    {0x121010, 'X'},
+    {0x021011, 'Y'},
+    {0x120011, 'Z'},
+    {0x121100, '-'},
+    {0x021101, '.'},
+    {0x120101, ' '},
+    {0x121001, '*'}, // 'stop' character
+};
+
+
+static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page, int x, int y, int char_width, int height, uint32_t colour, char ch)
+{
+    int nw = char_width / 12;
+    int ww = char_width / 4;
+    int i;
+    uint32_t code;
+
+    if (nw <= 1 || ww <= 1)
+        return pdf_set_err(pdf, -EINVAL, "Insufficient width for each character");
+
+    for (i = 0; i < ARRAY_SIZE(code_39_encoding); i++) {
+        if (code_39_encoding[i].ch == ch) {
+            code = code_39_encoding[i].code;
+            break;
+        }
+    }
+    if (i == ARRAY_SIZE(code_39_encoding))
+        return pdf_set_err(pdf, -EINVAL, "Invalid Code 39 character %c 0x%x", ch, ch);
+
+
+    for (i = 5; i >= 0; i--) {
+        int pattern = (code >> i * 4) & 0xf;
+        if (pattern == 0) { // wide
+            if (pdf_add_filled_rectangle(pdf, page, x, y, ww - 1, height, 0, colour) < 0)
+                return pdf->errval;
+            x += ww;
+        }
+        if (pattern == 1) { // narrow
+            if (pdf_add_filled_rectangle(pdf, page, x, y, nw - 1, height, 0, colour) < 0)
+                return pdf->errval;
+            x += nw;
+        }
+        if (pattern == 2) { // space
+            x += nw;
+        }
+    }
+    return x;
+}
+
+static int pdf_add_barcode_39(struct pdf_doc *pdf, struct pdf_object *page,
+                              int x, int y, int width, int height,
+                              const char *string, uint32_t colour)
+{
+    int len = strlen(string);
+    int char_width = width / (len + 2);
+
+    x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
+    if (x < 0)
+        return x;
+
+    while (string && *string) {
+        x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, *string);
+        if (x < 0)
+            return x;
+        string++;
+    };
+
+    x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
+    if (x < 0)
+        return x;
+
+    return 0;
+}
+
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
                     int code, int x, int y, int width, int height,
                     const char *string, uint32_t colour)
@@ -1837,6 +1953,8 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
     case PDF_BARCODE_128A:
         return pdf_add_barcode_128a(pdf, page, x, y,
                                     width, height, string, colour);
+    case PDF_BARCODE_39:
+        return pdf_add_barcode_39(pdf, page, x, y, width, height, string, colour);
     default:
         return pdf_set_err(pdf, -EINVAL, "Invalid barcode code %d", code);
     }

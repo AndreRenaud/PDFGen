@@ -325,6 +325,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
  */
 enum {
     PDF_BARCODE_128A,
+    PDF_BARCODE_39,
 };
 
 /**
