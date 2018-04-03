@@ -65,7 +65,8 @@ int main(int argc, char *argv[])
 
     pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "penguin.jpg");
 
-    pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 100, "ABCDEF", PDF_RGB(0, 0, 0));
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 50, "Code128", PDF_RGB(0, 0, 0));
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_39, 50, 400, 400, 50, "CODE39", PDF_RGB(0, 0, 0));
 
     pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0));
     pdf_add_text(pdf, NULL, "PjGQji", 18, 20, 130, PDF_RGB(0, 0xff, 0xff));
