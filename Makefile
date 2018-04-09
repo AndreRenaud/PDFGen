@@ -1,5 +1,6 @@
 CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
 LFLAGS=-fprofile-arcs -ftest-coverage
+CLANG=clang
 
 
 default: testprog
@@ -23,6 +24,10 @@ check: testprog pdfgen.c pdfgen.h
 	astyle -s4 < pdfgen.h | colordiff -u pdfgen.h -
 	astyle -s4 < main.c | colordiff -u main.c -
 	gcov -r pdfgen.c
+
+fuzz-check: fuzz-ppm fuzz-jpg
+	./fuzz-ppm -verbosity=0 -runs=50000 -max_len=4096
+	./fuzz-jpg -verbosity=0 -runs=50000 -max_len=4096
 
 format: pdfgen.c pdfgen.h main.c
 	astyle -q -n -s4 pdfgen.c
