@@ -38,5 +38,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt fuzz-ppm fuzz-jpg output.pdftk fuzz.jpg fuzz.ppm
+	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt fuzz-ppm fuzz-jpg fuzz-header output.pdftk fuzz.jpg fuzz.ppm
 	rm -rf docs
