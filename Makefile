@@ -7,6 +7,12 @@ default: testprog
 testprog: pdfgen.o main.o
 	$(CC) -o testprog pdfgen.o main.o $(LFLAGS)
 
+fuzz-ppm: fuzz-ppm.c pdfgen.c
+	$(CLANG) -o $@ fuzz-ppm.c pdfgen.c -fsanitize=fuzzer,address
+
+fuzz-jpg: fuzz-jpg.c pdfgen.c
+	$(CLANG) -o $@ fuzz-jpg.c pdfgen.c -fsanitize=fuzzer,address
+
 %.o: %.c Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
@@ -29,4 +35,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt
+	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt fuzz-ppm fuzz-jpg output.pdftk
+	rm -rf docs
