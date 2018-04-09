@@ -26,8 +26,8 @@ check: testprog pdfgen.c pdfgen.h
 	gcov -r pdfgen.c
 
 fuzz-check: fuzz-ppm fuzz-jpg
-	./fuzz-ppm -verbosity=0 -runs=50000 -max_len=4096
-	./fuzz-jpg -verbosity=0 -runs=50000 -max_len=4096
+	./fuzz-ppm -verbosity=0 -runs=50000 -max_len=4096 -rss_limit_mb=1024
+	./fuzz-jpg -verbosity=0 -runs=50000 -max_len=4096 -rss_limit_mb=1024
 
 format: pdfgen.c pdfgen.h main.c
 	astyle -q -n -s4 pdfgen.c
