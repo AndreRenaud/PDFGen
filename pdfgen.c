@@ -405,8 +405,15 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
 
     /* Create the 'info' object */
     obj = pdf_add_object(pdf, OBJ_info);
-    if (info)
+    if (info) {
         obj->info = *info;
+        obj->info.creator[sizeof(obj->info.creator) - 1] = '\0';
+        obj->info.producer[sizeof(obj->info.producer) - 1] = '\0';
+        obj->info.title[sizeof(obj->info.title) - 1] = '\0';
+        obj->info.author[sizeof(obj->info.author) - 1] = '\0';
+        obj->info.subject[sizeof(obj->info.subject) - 1] = '\0';
+        obj->info.date[sizeof(obj->info.date) - 1] = '\0';
+    }
     /* FIXME: Should be quoting PDF strings? */
     if (!obj->info.date[0]) {
         time_t now = time(NULL);
