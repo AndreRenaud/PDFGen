@@ -8,11 +8,8 @@ default: testprog
 testprog: pdfgen.o main.o
 	$(CC) -o testprog pdfgen.o main.o $(LFLAGS)
 
-fuzz-ppm: fuzz-ppm.c pdfgen.c
-	$(CLANG) -o $@ fuzz-ppm.c pdfgen.c -fsanitize=fuzzer,address
-
-fuzz-jpg: fuzz-jpg.c pdfgen.c
-	$(CLANG) -o $@ fuzz-jpg.c pdfgen.c -fsanitize=fuzzer,address
+fuzz-%: fuzz-%.c pdfgen.c
+	$(CLANG) -g -o $@ $^ -fsanitize=fuzzer,address
 
 %.o: %.c Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
@@ -25,9 +22,10 @@ check: testprog pdfgen.c pdfgen.h
 	astyle -s4 < main.c | colordiff -u main.c -
 	gcov -r pdfgen.c
 
-fuzz-check: fuzz-ppm fuzz-jpg
+fuzz-check: fuzz-ppm fuzz-jpg fuzz-header
 	./fuzz-ppm -verbosity=0 -max_total_time=120 -max_len=4096 -rss_limit_mb=1024
 	./fuzz-jpg -verbosity=0 -max_total_time=120 -max_len=4096 -rss_limit_mb=1024
+	./fuzz-header -verbosity=0 -max_total_time=120 -max_len=4096 -rss_limit_mb=1024
 
 format: pdfgen.c pdfgen.h main.c
 	astyle -q -n -s4 pdfgen.c
