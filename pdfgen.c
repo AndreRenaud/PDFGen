@@ -2026,7 +2026,7 @@ static int jpeg_size(unsigned char* data, unsigned int data_size,
             unsigned short block_length = data[i] * 256 + data[i+1];
             while(i<data_size) {
                 i+=block_length;
-                if((i + 1) >= data_size)
+                if((i + 8) >= data_size)
                     return -1;
                 if(data[i] != 0xFF)
                     return -1;
@@ -2036,8 +2036,7 @@ static int jpeg_size(unsigned char* data, unsigned int data_size,
                     return 0;
                 }
                 i+=2;
-                if (i + 1 < data_size)
-                    block_length = data[i] * 256 + data[i+1];
+                block_length = data[i] * 256 + data[i+1];
             }
         }
     }
