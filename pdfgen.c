@@ -95,6 +95,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2147,7 +2148,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
     uint8_t *data;
     FILE *fp;
     char line[1024];
-    int width, height;
+    unsigned width, height, size;
 
     /* Load the PPM file */
     fp = fopen(ppm_file, "rb");
@@ -2173,11 +2174,10 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         if (line[0] == '#')
             continue;
 
-        if (sscanf(line, "%d %d\n", &width, &height) != 2) {
+        if (sscanf(line, "%u %u\n", &width, &height) != 2) {
             fclose(fp);
             return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
         }
-
         break;
     } while (1);
 
@@ -2187,12 +2187,18 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "No byte-size line in PPM file");
     }
 
-    data = malloc(width * height * 3);
+    if (width > INT_MAX || height > INT_MAX) {
+        fclose(fp);
+        return pdf_set_err(pdf, -EINVAL, "Invalid width/height in PPM file: %ux%u", width, height);
+    }
+
+    size = width * height * 3;
+    data = malloc(size);
     if (!data) {
         fclose(fp);
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate memory for RGB data");
     }
-    if (fread(data, 3, width * height, fp) != width * height) {
+    if (fread(data, 1, size, fp) != size) {
         free(data);
         fclose(fp);
         return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
