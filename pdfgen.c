@@ -186,7 +186,6 @@ struct pdf_doc {
 
     struct pdf_object *last_objects[OBJ_count];
     struct pdf_object *first_objects[OBJ_count];
-    int counts[OBJ_count];
 };
 
 /**
@@ -366,8 +365,6 @@ static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
 
     if (!pdf->first_objects[obj->type])
         pdf->first_objects[obj->type] = obj;
-
-    pdf->counts[obj->type]++;
 
     return 0;
 }
@@ -663,12 +660,18 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_outline: {
-        int count = pdf->counts[OBJ_bookmark];
+        struct pdf_object *first, *last, *cur;
+        first = pdf_find_first_object(pdf, OBJ_bookmark);
+        last = pdf_find_last_object(pdf, OBJ_bookmark);
 
-        if (count) {
-            struct pdf_object *first, *last;
-            first = pdf_find_first_object(pdf, OBJ_bookmark);
-            last = pdf_find_last_object(pdf, OBJ_bookmark);
+        if (first && last) {
+            int count = 0;
+            cur = first;
+            while (cur) {
+                if (!cur->bookmark.parent)
+                    count++;
+                cur = cur->next;
+            }
 
             /* Bookmark outline */
             fprintf(fp, "<<\r\n"
