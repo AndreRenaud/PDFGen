@@ -2165,21 +2165,20 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "Only binary PPM files supported");
     }
 
-    /* Find the width line */
+    /* Skip the header comments until we get to the dimensions info */
     do {
         if (!fgets(line, sizeof(line) - 1, fp)) {
             fclose(fp);
             return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
         }
-        if (line[0] == '#')
-            continue;
-
-        if (sscanf(line, "%u %u\n", &width, &height) != 2) {
-            fclose(fp);
-            return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
-        }
-        break;
+        if (line[0] != '#')
+            break;
     } while (1);
+
+    if (sscanf(line, "%u %u\n", &width, &height) != 2) {
+        fclose(fp);
+        return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
+    }
 
     /* Skip over the byte-size line */
     if (!fgets(line, sizeof(line) - 1, fp)) {
@@ -2187,7 +2186,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "No byte-size line in PPM file");
     }
 
-    if (width > INT_MAX || height > INT_MAX) {
+    /* Try and limit the memory usage to sane images */
+    if (width > 2 << 14 || height > 2 << 14) {
         fclose(fp);
         return pdf_set_err(pdf, -EINVAL, "Invalid width/height in PPM file: %ux%u", width, height);
     }
