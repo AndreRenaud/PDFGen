@@ -22,6 +22,9 @@
  * http://www.datalogics.com/products/callas/callaspdfA-onlinedemo.asp
  * http://www.pdf-tools.com/pdf/validate-pdfa-online.aspx
  *
+ * In addition the 'pdftk' server can be used to analyse the output:
+ * https://www.pdflabs.com/docs/pdftk-cli-examples/
+ *
  * PDF page markup operators:
  * b    closepath, fill,and stroke path.
  * B    fill and stroke path.
