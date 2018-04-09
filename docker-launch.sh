@@ -2,4 +2,4 @@
 # Utility script to build the docker development environment,
 # and then launch it with the current directory mounted inside.
 docker build -t pdfgen_image .
-docker run -ti -v `pwd`:`pwd` -w `pwd` -u `id -u`:`id -g` pdfgen_image
+docker run --privileged -ti -v `pwd`:`pwd` -w `pwd` -u `id -u`:`id -g` pdfgen_image
