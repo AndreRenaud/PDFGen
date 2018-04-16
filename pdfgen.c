@@ -1800,14 +1800,9 @@ static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
         uint8_t shift = (code_len - 1 - i) * 4;
         uint8_t mask = (code >> shift) & 0xf;
 
-        if (!(i % 2)) {
-            int j;
-            for (j = 0; j < mask; j++) {
-                pdf_add_line(pdf, page, x, y, x, y + height, line_width, colour);
-                x += line_width;
-            }
-        } else
-            x += line_width * mask;
+        if (!(i % 2))
+            pdf_add_filled_rectangle(pdf, page, x, y, line_width * mask, height, 0, colour);
+        x += line_width * mask;
     }
     return x;
 }
