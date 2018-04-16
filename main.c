@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
     int i;
     int height;
     int bm;
+    int err;
 
     /* Unused */
     (void)argc;
@@ -45,6 +46,9 @@ int main(int argc, char *argv[])
         return -1;
 
     if (pdf_add_bookmark(pdf, NULL, -1, "Another Page") >= 0)
+        return -1;
+
+    if (!pdf_get_err(pdf, &err))
         return -1;
 
     pdf_clear_err(pdf);
@@ -118,7 +122,6 @@ int main(int argc, char *argv[])
 
     pdf_save(pdf, "output.pdf");
 
-    int err;
     const char *err_str = pdf_get_err(pdf, &err);
     if (err_str) {
         fprintf(stderr, "PDF Error: %d - %s\n", err, err_str);
