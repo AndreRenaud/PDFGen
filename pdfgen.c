@@ -1816,6 +1816,9 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
     int char_width = width / len;
     int checksum, i;
 
+    if (char_width / 11 <= 0)
+        return pdf_set_err(pdf, -EINVAL, "Insufficient width to draw barcode");
+
     for (s = string; *s; s++)
         if (find_128_encoding(*s) < 0)
             return pdf_set_err(pdf, -EINVAL, "Invalid barcode character 0x%x", *s);
