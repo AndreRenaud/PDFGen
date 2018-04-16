@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
 	ca-certificates \
 	colordiff \
 	cppcheck \
-        doxygen \
+	doxygen \
 	gcc \
 	make \
 	pdftk \
