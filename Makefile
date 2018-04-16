@@ -22,10 +22,10 @@ check: testprog pdfgen.c pdfgen.h
 	astyle -s4 < main.c | colordiff -u main.c -
 	gcov -r pdfgen.c
 
-fuzz-check: fuzz-ppm fuzz-jpg fuzz-header
-	./fuzz-ppm -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
-	./fuzz-jpg -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
-	./fuzz-header -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
+check-fuzz-%: fuzz-% FORCE
+	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
+
+fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header
 
 format: pdfgen.c pdfgen.h main.c
 	astyle -q -n -s4 pdfgen.c
