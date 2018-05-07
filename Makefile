@@ -33,7 +33,8 @@ format: pdfgen.c pdfgen.h main.c
 	astyle -q -n -s4 main.c
 
 docs: FORCE
-	doxygen pdfgen.dox
+	doxygen pdfgen.dox 2>&1 | tee doxygen.log
+	cat doxygen.log | test `wc -c` -le 0
 
 FORCE:
 
