@@ -15,8 +15,7 @@
  * @defgroup subsystem Simple PDF Generation
  * Allows for quick generation of simple PDF documents.
  * This is useful for producing easily printed output from C code, where
-advanced
- * formatting is not required
+ * advanced formatting is not required
  *
  * Note: All coordinates/sizes are in points (1/72 of an inch).
  * All coordinates are based on 0,0 being the bottom left of the page.
