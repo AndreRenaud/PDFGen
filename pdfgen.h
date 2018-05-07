@@ -128,6 +128,12 @@ struct pdf_info {
  */
 #define PDF_TRANSPARENT (0xff << 24)
 
+enum {
+    PDF_ALIGN_LEFT,
+    PDF_ALIGN_RIGHT,
+    PDF_ALIGN_CENTER,
+};
+
 /**
  * Create a new PDF object, with the given page
  * width/height
@@ -246,11 +252,12 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
  * @param yoff Y location to put it in
  * @param colour Colour to draw the text
  * @param wrap_width Width at which to wrap the text
+ * @param align Text alignment (see PDF_ALIGN_xxx)
  * @return height of drawn text on success, < 0 on failure
  */
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                       const char *text, int size, int xoff, int yoff,
-                      uint32_t colour, int wrap_width);
+                      uint32_t colour, int wrap_width, int align);
 
 /**
  * Add a line to the document

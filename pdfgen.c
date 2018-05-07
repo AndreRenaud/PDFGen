@@ -1512,7 +1512,7 @@ static const char *find_word_break(const char *string)
 
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                       const char *text, int size, int xoff, int yoff,
-                      uint32_t colour, int wrap_width)
+                      uint32_t colour, int wrap_width, int align)
 {
     /* Move through the text string, stopping at word boundaries,
      * trying to find the longest text string we can fit in the given width
@@ -1533,6 +1533,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         const char *new_end = find_word_break(end + 1);
         int line_width;
         int output = 0;
+        int xoff_align = xoff;
 
         end = new_end;
 
@@ -1562,7 +1563,21 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             int len = end - start;
             strncpy(line, start, len);
             line[len] = '\0';
-            pdf_add_text(pdf, page, line, size, xoff, yoff, colour);
+
+            line_width=pdf_text_pixel_width(start, len, size, widths);
+
+            switch(align) {
+            case PDF_ALIGN_RIGHT:
+                xoff_align += wrap_width - line_width;
+                break;
+            case PDF_ALIGN_CENTER:
+                xoff_align += (wrap_width - line_width) / 2;
+                break;
+
+            }
+
+            pdf_add_text(pdf, page, line, size, xoff_align, yoff, colour);
+
 
             if (*end == ' ')
                 end++;

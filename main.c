@@ -63,8 +63,8 @@ int main(int argc, char *argv[])
                                "see how it copes with them. Hopefully it all works properly.\n\n\n"
                                "We even include multiple breaks\n"
                                "thisisanenourmouswordthatwillneverfitandwillhavetobecut",
-                               16, 60, 600, PDF_RGB(0, 0, 0), 300);
-    pdf_add_rectangle(pdf, NULL, 60, 600 + 16, 300, -height, 1, PDF_RGB(0, 0, 0));
+                               16, 60, 600, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_CENTER);
+    pdf_add_rectangle(pdf, NULL, 58, 600 + 16, 304, -height, 2, PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm");
 
     pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "penguin.jpg");
