@@ -8,13 +8,14 @@
 #ifndef PDFGEN_H
 #define PDFGEN_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @defgroup subsystem Simple PDF Generation
  * Allows for quick generation of simple PDF documents.
- * This is useful for producing easily printed output from C code, where advanced
+ * This is useful for producing easily printed output from C code, where
+advanced
  * formatting is not required
  *
  * Note: All coordinates/sizes are in points (1/72 of an inch).
@@ -29,13 +30,13 @@
 #include "pdfgen.h"
  ...
 struct pdf_info info = {
-	 .creator = "My software",
-	 .producer = "My software",
-	 .title = "My document",
-	 .author = "My name",
-	 .subject = "My subject",
-	 .date = "Today"
-	 };
+         .creator = "My software",
+         .producer = "My software",
+         .title = "My document",
+         .author = "My name",
+         .subject = "My subject",
+         .date = "Today"
+         };
 struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
 pdf_set_font(pdf, "Times-Roman");
 pdf_append_page(pdf);
@@ -62,13 +63,13 @@ struct pdf_info {
  * Convert a value in inches into a number of points.
  * Always returns an integer value
  */
-#define PDF_INCH_TO_POINT(inch) ((int)((inch) * 72 + 0.5))
+#define PDF_INCH_TO_POINT(inch) ((int)((inch)*72 + 0.5))
 
 /**
  * Convert a value in milli-meters into a number of points.
  * Always returns an integer value
  */
-#define PDF_MM_TO_POINT(mm) ((int)((mm) * 72 / 25.4 + 0.5))
+#define PDF_MM_TO_POINT(mm) ((int)((mm)*72 / 25.4 + 0.5))
 
 /**
  * Point width of a standard US-Letter page
@@ -105,7 +106,8 @@ struct pdf_info {
  * colour. These 32-bit colours are used by various functions
  * in PDFGen
  */
-#define PDF_RGB(r,g,b) ((((r) & 0xff) << 16) | (((g) & 0xff) << 8) | (((b) & 0xff)))
+#define PDF_RGB(r, g, b)                                                     \
+    ((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
 
 /**
  * Utility macro to provide bright red
@@ -218,14 +220,14 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
  * @param height Height of the page in points
  * @return < 0 on failure, 0 on success
  */
-int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width, int height);
+int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
+                      int height);
 
 /**
  * Save the given pdf document to the supplied filename
  * If the filename is NULL, defaults to stdout
  */
 int pdf_save(struct pdf_doc *pdf, const char *filename);
-
 
 /**
  * Add a text string to the document
@@ -239,7 +241,8 @@ int pdf_save(struct pdf_doc *pdf, const char *filename);
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff, uint32_t colour);
+                 const char *text, int size, int xoff, int yoff,
+                 uint32_t colour);
 
 /**
  * Add a text string to the document, making it wrap if it is too
@@ -271,8 +274,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
  * @param colour Colour to draw the line
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
-                 int x1, int y1, int x2, int y2, int width, uint32_t colour);
+int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
+                 int x2, int y2, int width, uint32_t colour);
 
 /**
  * Add an ellipse to the document
@@ -287,9 +290,9 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
  * @param fill_colour Colour to fill the ellipse
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page,
-                    int x, int y, int xradius, int yradius,
-                    int width, uint32_t colour, uint32_t fill_colour);
+int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int x,
+                    int y, int xradius, int yradius, int width,
+                    uint32_t colour, uint32_t fill_colour);
 
 /**
  * Add a circle to the document
@@ -303,8 +306,9 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page,
  * @param fill_colour Colour to fill the circle
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page,
-                   int x, int y, int radius, int width, uint32_t colour, uint32_t fill_colour);
+int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
+                   int radius, int width, uint32_t colour,
+                   uint32_t fill_colour);
 
 /**
  * Add an outline rectangle to the document
@@ -318,8 +322,9 @@ int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page,
  * @param colour Colour to draw the rectangle
  * @return 0 on succss, < 0 on failure
  */
-int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-                      int x, int y, int width, int height, int border_width, uint32_t colour);
+int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
+                      int y, int width, int height, int border_width,
+                      uint32_t colour);
 
 /**
  * Add a filled rectangle to the document
@@ -334,8 +339,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * @return 0 on succss, < 0 on failure
  */
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-                             int x, int y, int width, int height, int border_width,
-                             uint32_t colour);
+                             int x, int y, int width, int height,
+                             int border_width, uint32_t colour);
 
 /**
  * Add a bookmark to the document
@@ -348,8 +353,8 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * @param name String to associate with the bookmark
  * @return < 0 on failure, new bookmark id on success
  */
-int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page,
-                     int parent, const char *name);
+int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
+                     const char *name);
 
 /**
  * List of different barcode encodings that are supported
@@ -371,8 +376,8 @@ enum {
  * @param string Barcode contents
  * @param colour Colour to draw barcode
  */
-int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
-                    int code, int x, int y, int width, int height, const char *string,
+int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
+                    int x, int y, int width, int height, const char *string,
                     uint32_t colour);
 
 /**
@@ -385,9 +390,8 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page,
  * @param display_height Displayed height of image
  * @param ppm_file Filename of P6 (binary) ppm file to display
  */
-int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
-                int x, int y, int display_width, int display_height,
-                const char *ppm_file);
+int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
+                int display_width, int display_height, const char *ppm_file);
 
 /**
  * Add a JPEG file as an image to the document
@@ -399,8 +403,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page,
  * @param display_height Displayed height of image
  * @param jpeg_file Filename of JPEG file to display
  */
-int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page,
-                 int x, int y, int display_width, int display_height,
+int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
+                 int display_width, int display_height,
                  const char *jpeg_file);
 
 #endif // PDFGEN_H
