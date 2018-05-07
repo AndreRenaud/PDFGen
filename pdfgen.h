@@ -123,6 +123,12 @@ struct pdf_info {
 #define PDF_BLUE PDF_RGB(0, 0, 0xff)
 
 /**
+ * Utility macro to provide a transparent colour
+ * This is used in some places for 'fill' colours, where no fill is required
+ */
+#define PDF_TRANSPARENT (0xff << 24)
+
+/**
  * Create a new PDF object, with the given page
  * width/height
  * @param width Width of the page
@@ -214,6 +220,7 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width, i
  */
 int pdf_save(struct pdf_doc *pdf, const char *filename);
 
+
 /**
  * Add a text string to the document
  * @param pdf PDF document to add to
@@ -261,19 +268,36 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
                  int x1, int y1, int x2, int y2, int width, uint32_t colour);
 
 /**
+ * Add an ellipse to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x X offset of the center of the ellipse
+ * @param y Y offset of the center of the ellipse
+ * @param xradius Radius of the ellipse in the X axis
+ * @param yradius Radius of the ellipse in the Y axis
+ * @param colour Colour to draw the ellipse outline stroke
+ * @param width Width of the ellipse outline stroke
+ * @param fill_colour Colour to fill the ellipse
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page,
+                    int x, int y, int xradius, int yradius,
+                    int width, uint32_t colour, uint32_t fill_colour);
+
+/**
  * Add a circle to the document
  * @param pdf PDF document to add to
  * @param page Page to add object to (NULL => most recently added page)
  * @param x X offset of the center of the circle
  * @param y Y offset of the center of the circle
  * @param radius Radius of the circle
- * @param width Width of the circle
- * @param colour Colour to draw the circle
- * @param filled If set, circle will be drawn filled
+ * @param width Width of the circle outline stroke
+ * @param colour Colour to draw the circle outline stroke
+ * @param fill_colour Colour to fill the circle
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page,
-                   int x, int y, int radius, int width, uint32_t colour, bool filled);
+                   int x, int y, int radius, int width, uint32_t colour, uint32_t fill_colour);
 
 /**
  * Add an outline rectangle to the document

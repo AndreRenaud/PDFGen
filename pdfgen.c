@@ -96,6 +96,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,6 +111,7 @@
 #define PDF_RGB_R(c) ((((c) >> 16) & 0xff) / 255.0)
 #define PDF_RGB_G(c) ((((c) >>  8) & 0xff) / 255.0)
 #define PDF_RGB_B(c) ((((c) >>  0) & 0xff) / 255.0)
+#define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
 #if defined(_MSC_VER)
 /*
@@ -121,6 +123,10 @@
 #define inline __inline
 #endif
 #endif // _MSC_VER
+
+#ifndef M_SQRT2
+#define M_SQRT2 1.41421356237309504880f
+#endif
 
 typedef struct pdf_object pdf_object;
 
@@ -1592,37 +1598,78 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
-int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page,
-                   int x, int y, int radius, int width, uint32_t colour, bool filled)
+int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page,
+                    int xr, int yr, int xradius, int yradius,
+                    int width, uint32_t colour, uint32_t fill_colour)
 {
     int ret;
     struct dstr str = {0, 0, 0};
 
+    float rx = xradius*1.0f;
+    float ry = yradius*1.0f;
+    float lx, ly;
+    float x = xr*1.0f;
+    float y = yr*1.0f;
+
+    lx=(4.0f/3.0f)*(M_SQRT2-1)*rx;
+    ly=(4.0f/3.0f)*(M_SQRT2-1)*ry;
+
+    if (!PDF_IS_TRANSPARENT(fill_colour)) {
+        dstr_append(&str, "BT ");
+        dstr_printf(&str, "/DeviceRGB CS\r\n");
+        dstr_printf(&str, "%f %f %f rg\r\n", PDF_RGB_R(fill_colour),
+                    PDF_RGB_G(fill_colour), PDF_RGB_B(fill_colour));
+        dstr_append(&str, "ET\r\n");
+    }
+
     dstr_append(&str, "BT ");
-    if (filled)
-        dstr_printf(&str, "%f %f %f rg ",
-                    PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
-    else
-        dstr_printf(&str, "%f %f %f RG ",
-                    PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
+
+    /* stroke color */
+    dstr_printf(&str, "/DeviceRGB CS\r\n");
+    dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour), PDF_RGB_B(colour));
+
     dstr_printf(&str, "%d w ", width);
-    /* This is a bit of a rough approximation of a circle based on bezier curves.
-     * It's not exact
-     */
-    dstr_printf(&str, "%d %d m ", x + radius, y);
-    dstr_printf(&str, "%d %d %d %d v ", x + radius, y + radius, x, y + radius);
-    dstr_printf(&str, "%d %d %d %d v ", x - radius, y + radius, x - radius, y);
-    dstr_printf(&str, "%d %d %d %d v ", x - radius, y - radius, x, y - radius);
-    dstr_printf(&str, "%d %d %d %d v ", x + radius, y - radius, x + radius, y);
-    if (filled)
-        dstr_append(&str, "f ");
+
+    dstr_printf(&str, "%.2f %.2f m ", (x+rx),(y) );
+
+    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ",
+                (x+rx),(y-ly),
+                (x+lx),(y-ry),
+                x,(y-ry) );
+
+    dstr_printf(&str,"%.2f %.2f %.2f %.2f %.2f %.2f c ",
+                (x-lx),(y-ry),
+                (x-rx),(y-ly),
+                (x-rx),y);
+
+    dstr_printf(&str,"%.2f %.2f %.2f %.2f %.2f %.2f c ",
+                (x-rx),(y+ly),
+                (x-lx),(y+ry),
+                x,(y+ry) );
+
+    dstr_printf(&str,"%.2f %.2f %.2f %.2f %.2f %.2f c ",
+                (x+lx),(y+ry),
+                (x+rx),(y+ly),
+                (x+rx),y);
+
+    if (PDF_IS_TRANSPARENT(fill_colour))
+        dstr_printf(&str,"%s","S ");
     else
-        dstr_append(&str, "S ");
+        dstr_printf(&str,"%s","B ");
+
     dstr_append(&str, "ET");
+
     ret = pdf_add_stream(pdf, page, str.data);
     dstr_free(&str);
 
     return ret;
+}
+
+int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page,
+                   int xr, int yr, int radius,
+                   int width, uint32_t colour, uint32_t fill_colour)
+{
+    return pdf_add_ellipse(pdf, page, xr, yr, radius, radius, width, colour, fill_colour);
 }
 
 int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page,

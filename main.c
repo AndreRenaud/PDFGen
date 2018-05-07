@@ -75,8 +75,8 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0));
     pdf_add_text(pdf, NULL, "PjGQji", 18, 20, 130, PDF_RGB(0, 0xff, 0xff));
     pdf_add_line(pdf, NULL, 10, 24, 100, 24, 4, PDF_RGB(0xff, 0, 0));
-    pdf_add_circle(pdf, NULL, 100, 240, 50, 2, PDF_RGB(0xff, 0, 0), false);
-    pdf_add_circle(pdf, NULL, 100, 240, 49, 2, PDF_RGB(0xff, 0xff, 0), true);
+    pdf_add_circle(pdf, NULL, 100, 240, 50, 5, PDF_RGB(0xff, 0, 0), PDF_TRANSPARENT);
+    pdf_add_ellipse(pdf, NULL, 100, 240, 40, 30, 2, PDF_RGB(0xff, 0xff, 0), PDF_RGB(0, 0, 0));
     pdf_add_rectangle(pdf, NULL, 150, 150, 100, 100, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4, PDF_RGB(0, 0xff, 0));
     pdf_add_text(pdf, NULL, "", 20, 20, 30, PDF_RGB(0, 0, 0));
