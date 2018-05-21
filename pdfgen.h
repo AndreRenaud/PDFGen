@@ -124,6 +124,16 @@ struct pdf_info {
 #define PDF_BLUE PDF_RGB(0, 0, 0xff)
 
 /**
+ * Utility macro to provide black
+ */
+#define PDF_BLACK PDF_RGB(0, 0, 0)
+
+/**
+ * Utility macro to provide white
+ */
+#define PDF_WHITE PDF_RGB(0xff, 0xff, 0xff)
+
+/**
  * Utility macro to provide a transparent colour
  * This is used in some places for 'fill' colours, where no fill is required
  */

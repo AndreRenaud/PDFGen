@@ -15,13 +15,19 @@ fuzz-%: fuzz-%.c pdfgen.c
 %.o: %.c Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-check: testprog pdfgen.c pdfgen.h
+check: testprog pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h main.c
 	./tests.sh
 	$(CLANG_FORMAT) pdfgen.c | colordiff -u pdfgen.c -
 	$(CLANG_FORMAT) pdfgen.h | colordiff -u pdfgen.h -
 	$(CLANG_FORMAT) main.c | colordiff -u main.c -
 	gcov -r pdfgen.c
+
+example-check: FORCE
+	# Extract the code block from the README & make sure it compiles
+	sed -n '/^```/,/^```/ p' < README.md | sed '/^```/ d' > example-check.c
+	$(CC) $(CFLAGS) -o example-check example-check.c pdfgen.c $(LFLAGS)
+	rm example-check example-check.c
 
 check-fuzz-%: fuzz-% FORCE
 	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
