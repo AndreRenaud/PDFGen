@@ -15,7 +15,7 @@ jobs:
           command: docker exec $(cat container_id) make
       - run:
           name: Test
-          command: docker exec $(cat container_id) scan-build-7 make check CLANG_FORMAT=clang-format-7
+          command: docker exec $(cat container_id) scan-build-7 --status-bugs make check CLANG_FORMAT=clang-format-7
       - run:
           name: Fuzz Test
           command: docker exec $(cat container_id) make fuzz-check CLANG=clang-7 CLANG_FORMAT=clang-format-7 -j4
