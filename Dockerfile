@@ -20,4 +20,4 @@ RUN apt-get update && apt-get install -y \
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - \
  && apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main" \
  && apt-get update \
- && apt-get install -y clang-7 clang-format-7
+ && apt-get install -y clang-7 clang-format-7 clang-tools-7

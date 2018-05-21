@@ -1422,6 +1422,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         if (output) {
             int len = end - start;
+            if (len >= sizeof(line))
+                len = sizeof(line) - 1;
             strncpy(line, start, len);
             line[len] = '\0';
 
