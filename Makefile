@@ -7,7 +7,7 @@ CLANG_FORMAT=clang-format
 default: testprog
 
 testprog: pdfgen.o main.o
-	$(CC) -o testprog pdfgen.o main.o $(LFLAGS)
+	$(CC) -o $@ pdfgen.o main.o $(LFLAGS)
 
 fuzz-%: fuzz-%.c pdfgen.c
 	$(CLANG) -g -o $@ $^ -fsanitize=fuzzer,address
@@ -34,10 +34,8 @@ check-fuzz-%: fuzz-% FORCE
 
 fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text
 
-format: pdfgen.c pdfgen.h main.c
-	$(CLANG_FORMAT) -i pdfgen.c
-	$(CLANG_FORMAT) -i pdfgen.h
-	$(CLANG_FORMAT) -i main.c
+format: FORCE
+	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h main.c fuzz-ppm.c fuzz-jpg.c fuzz-header.c fuzz-text.c
 
 docs: FORCE
 	doxygen pdfgen.dox 2>&1 | tee doxygen.log
