@@ -32,7 +32,7 @@ example-check: FORCE
 check-fuzz-%: fuzz-% FORCE
 	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
 
-fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header
+fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text
 
 format: pdfgen.c pdfgen.h main.c
 	$(CLANG_FORMAT) -i pdfgen.c
@@ -47,5 +47,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt fuzz-ppm fuzz-jpg fuzz-header output.pdftk fuzz.jpg fuzz.ppm
+	rm -f *.o testprog *.gcda *.gcno *.gcov output.pdf output.txt fuzz-ppm fuzz-jpg fuzz-header fuzz-text output.pdftk fuzz.jpg fuzz.ppm
 	rm -rf docs
