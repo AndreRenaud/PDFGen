@@ -314,7 +314,7 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
  */
 
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
-                       ...) __attribute__((format(printf, 3, 4)));
+                       ...) __attribute__((format(gnu_printf, 3, 4)));
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
                        ...)
 {
@@ -913,7 +913,7 @@ static int dstr_ensure(struct dstr *str, int len)
 }
 
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
-    __attribute__((format(printf, 2, 3)));
+    __attribute__((format(gnu_printf, 2, 3)));
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
 {
     va_list ap, aq;
@@ -1871,7 +1871,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
                                     const char *jpeg_file)
 {
     struct stat buf;
-    off_t len;
+    size_t len;
     char *final_data;
     uint8_t *jpeg_data;
     int written = 0;
