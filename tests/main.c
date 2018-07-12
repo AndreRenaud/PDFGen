@@ -34,10 +34,10 @@ int main(int argc, char *argv[])
     }
 
     /* These calls should fail, since we haven't added a page yet */
-    if (pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm") >= 0)
+    if (pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm") >= 0)
         return -1;
 
-    if (pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "penguin.jpg") >= 0)
+    if (pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg") >= 0)
         return -1;
 
     if (pdf_add_text(pdf, NULL, "Page One", 10, 20, 30,
@@ -66,9 +66,9 @@ int main(int argc, char *argv[])
         16, 60, 600, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_CENTER);
     pdf_add_rectangle(pdf, NULL, 58, 600 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
-    pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "teapot.ppm");
+    pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
 
-    pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "penguin.jpg");
+    pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg");
 
     pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 50, "Code128",
                     PDF_RGB(0, 0, 0));
