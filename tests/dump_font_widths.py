@@ -1,38 +1,32 @@
 #!/usr/bin/env python
+# Utility script to dump font widths via fpdf
 
 from fpdf import FPDF
 import sys
 
 pdf = FPDF()
 
-fonts = [("Helvetica", ""),
-		 ("Helvetica", "B"),
-		 #("Helvetica", "BO"),
-		 #("Helvetica", "O"),
-		 ("Symbol", ""),
-		 ("Times", ""),
-		 ("Times", "B"),
-		 ("Times", "BI"),
-		 ("Times", "I"),
-		 ("ZapfDingbats", ""),
-		 ("Courier", "")]
+fonts = [("Helvetica", "", "helvetica"),
+		 ("Helvetica", "B", "helvetica_bold"),
+		 ("Helvetica", "BI", "helvetica_bold_oblique"),
+		 ("Helvetica", "I", "helvetica_oblique"),
+		 ("Symbol", "", "symbol"),
+		 ("Times", "", "times"),
+		 ("Times", "B", "times_bold"),
+		 ("Times", "BI", "times_bold_italic"),
+		 ("Times", "I", "times_italic"),
+		 ("ZapfDingbats", "", "zapfdingbats"),
+		 ("Courier", "", "courier"),
+		 # All the courier fonts are the same width
+		 #("Courier", "B", "courier_bold"),
+		 #("Courier", "BI", "courier_bold_oblique"),
+		 #("Courier", "I", "courier_oblique"),
+		 ]
 
 for f in fonts:
 	pdf.set_font(f[0], f[1], 14)
-	font = f[0].lower()
-	style = f[1].lower()
-	if style == "b":
-		style = "_bold"
-	if style == "bi":
-		style = "_bold_italic"
-	if style == "bo":
-		style = "_bold_oblique"
-	if style == "i":
-		style = "_italic"
-	if style == "o":
-		style = "_oblique"
 
-	sys.stdout.write("static const uint16_t %s%s_widths[256] = {\n" % (font, style))
+	sys.stdout.write("static const uint16_t %s_widths[256] = {\n" % (f[2]))
 	for i in range(0, 256):
 		if i % 14 == 0:
 			sys.stdout.write("    ")
