@@ -985,9 +985,9 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
     return len;
 }
 
-int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff,
-                 uint32_t colour)
+static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
+                                const char *text, int size, int xoff,
+                                int yoff, uint32_t colour, double spacing)
 {
     int i, ret;
     int len = text ? strlen(text) : 0;
@@ -1002,6 +1002,7 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "/F%d %d Tf ", pdf->current_font->font.index, size);
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
+    dstr_printf(&str, "%f Tc ", spacing);
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
@@ -1065,6 +1066,13 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
     ret = pdf_add_stream(pdf, page, str.data);
     dstr_free(&str);
     return ret;
+}
+
+int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
+                 const char *text, int size, int xoff, int yoff,
+                 uint32_t colour)
+{
+    return pdf_add_text_spacing(pdf, page, text, size, xoff, yoff, colour, 0);
 }
 
 /* How wide is each character, in points, at size 14 */
@@ -1432,6 +1440,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         if (output) {
             int len = end - start;
+            double char_spacing = 0;
             if (len >= sizeof(line))
                 len = sizeof(line) - 1;
             strncpy(line, start, len);
@@ -1446,9 +1455,16 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             case PDF_ALIGN_CENTER:
                 xoff_align += (wrap_width - line_width) / 2;
                 break;
+            case PDF_ALIGN_JUSTIFY:
+                if ((len - 1) > 0 && *end != '\r' && *end != '\n' &&
+                    *end != '\0')
+                    char_spacing =
+                        ((double)(wrap_width - line_width)) / (len - 2);
+                break;
             }
 
-            pdf_add_text(pdf, page, line, size, xoff_align, yoff, colour);
+            pdf_add_text_spacing(pdf, page, line, size, xoff_align, yoff,
+                                 colour, char_spacing);
 
             if (*end == ' ')
                 end++;

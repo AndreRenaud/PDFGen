@@ -143,6 +143,7 @@ enum {
     PDF_ALIGN_LEFT,
     PDF_ALIGN_RIGHT,
     PDF_ALIGN_CENTER,
+    PDF_ALIGN_JUSTIFY,
 };
 
 /**
