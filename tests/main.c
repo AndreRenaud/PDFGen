@@ -59,12 +59,14 @@ int main(int argc, char *argv[])
     height = pdf_add_text_wrap(
         pdf, NULL,
         "This is a great big long string that I hope will wrap properly "
-        "around several lines.\nI've put some embedded line breaks in to "
+        "around several lines.\nThere are some odd length "
+        "linesthatincludelongwords to check the justification. "
+        "I've put some embedded line breaks in to "
         "see how it copes with them. Hopefully it all works properly.\n\n\n"
         "We even include multiple breaks\n"
         "thisisanenourmouswordthatwillneverfitandwillhavetobecut",
-        16, 60, 600, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_CENTER);
-    pdf_add_rectangle(pdf, NULL, 58, 600 + 16, 304, -height, 2,
+        16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY);
+    pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
 
