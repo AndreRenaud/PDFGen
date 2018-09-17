@@ -240,6 +240,11 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
 int pdf_save(struct pdf_doc *pdf, const char *filename);
 
 /**
+ * Save the given pdf document to the given FILE output
+ */
+int pdf_save_file(struct pdf_doc *pdf, FILE *fp);
+
+/**
  * Add a text string to the document
  * @param pdf PDF document to add to
  * @param page Page to add object to (NULL => most recently added page)

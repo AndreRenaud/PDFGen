@@ -761,19 +761,12 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     return 0;
 }
 
-int pdf_save(struct pdf_doc *pdf, const char *filename)
+int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 {
-    FILE *fp;
     int i;
     struct pdf_object *obj;
     int xref_offset;
     int xref_count = 0;
-
-    if (filename == NULL)
-        fp = stdout;
-    else if ((fp = fopen(filename, "wb")) == NULL)
-        return pdf_set_err(pdf, -errno, "Unable to open '%s': %s", filename,
-                           strerror(errno));
 
     fprintf(fp, "%%PDF-1.2\r\n");
     /* Hibit bytes */
@@ -810,9 +803,29 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
                 "startxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
-    fclose(fp);
 
     return 0;
+}
+
+int pdf_save(struct pdf_doc *pdf, const char *filename)
+{
+    FILE *fp;
+    int e;
+
+    if (filename == NULL)
+        fp = stdout;
+    else if ((fp = fopen(filename, "wb")) == NULL)
+        return pdf_set_err(pdf, -errno, "Unable to open '%s': %s", filename,
+                           strerror(errno));
+
+    e = pdf_save_file(pdf, fp);
+
+    if (fp != stdout)
+        if (fclose(fp) != 0 && e >= 0)
+            return pdf_set_err(pdf, -errno, "Unable to close '%s': %s",
+                               filename, strerror(errno));
+
+    return e;
 }
 
 static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
