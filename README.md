@@ -8,7 +8,7 @@ Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
 * Text of various fonts/sizes/colours
-* Lines/Rectangles/Filled Rectangles
+* Lines/Rectangles/Filled Rectangles/Polygons/Filled Polygons
 * Bookmarks
 * Barcodes (Code-128 & Code-39)
 * PPM Images

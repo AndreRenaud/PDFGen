@@ -87,6 +87,13 @@ int main(int argc, char *argv[])
     pdf_add_rectangle(pdf, NULL, 150, 150, 100, 100, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4,
                              PDF_RGB(0, 0xff, 0));
+    int p1X[] = {200, 200, 300, 300};
+    int p1Y[] = {200, 300, 200, 300};
+    pdf_add_polygon(pdf, NULL, p1X, p1Y, 4, 4, PDF_RGB(0xaa, 0xff, 0xee));
+    int p2X[] = {400, 400, 500, 500};
+    int p2Y[] = {400, 500, 400, 500};
+    pdf_add_filled_polygon(pdf, NULL, p2X, p2Y, 4, 4,
+                           PDF_RGB(0xff, 0x77, 0x77));
     pdf_add_text(pdf, NULL, "", 20, 20, 30, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "Date (YYYY-MM-DD):", 20, 220, 30,
                  PDF_RGB(0, 0, 0));

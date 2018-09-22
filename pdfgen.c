@@ -1620,6 +1620,57 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
+int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
+                    int y[], int count, int border_width, uint32_t colour)
+{
+    int ret;
+    struct dstr str = {0, 0, 0};
+
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%d w ", border_width);
+    dstr_printf(&str, "%d %d m ", x[0], y[0]);
+    for (int i = 1; i < count; i++) {
+        dstr_printf(&str, "%d %d l ", x[i], y[i]);
+    }
+    dstr_printf(&str, "h S ");
+
+    dstr_append(&str, "ET");
+
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+
+    return ret;
+}
+
+int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
+                           int x[], int y[], int count, int border_width,
+                           uint32_t colour)
+{
+    int ret;
+    struct dstr str = {0, 0, 0};
+
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%d w ", border_width);
+    dstr_printf(&str, "%d %d m ", x[0], y[0]);
+    for (int i = 1; i < count; i++) {
+        dstr_printf(&str, "%d %d l ", x[i], y[i]);
+    }
+    dstr_printf(&str, "h f ");
+
+    dstr_append(&str, "ET");
+
+    ret = pdf_add_stream(pdf, page, str.data);
+    dstr_free(&str);
+
+    return ret;
+}
+
 static const struct {
     uint32_t code;
     char ch;
