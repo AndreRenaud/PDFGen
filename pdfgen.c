@@ -1336,13 +1336,22 @@ static const uint16_t courier_widths[256] = {
 static int pdf_text_pixel_width(const char *text, int text_len, int size,
                                 const uint16_t *widths)
 {
-    int i;
     int len = 0;
     if (text_len < 0)
         text_len = strlen(text);
 
-    for (i = 0; i < text_len; i++)
-        len += widths[(uint8_t)text[i]];
+    for (int i = 0; i < text_len;) {
+        uint32_t code;
+        int code_len;
+        code_len = utf8_to_utf32(&text[i], text_len - i, &code);
+        if (code_len < 0)
+            return code_len;
+        if (code >= 255)
+            return -EINVAL;
+        i += code_len;
+
+        len += widths[(uint8_t)code];
+    }
 
     /* Our widths arrays are for 14pt fonts */
     return len * size / (14 * 72);
@@ -1383,12 +1392,16 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
                             const char *text, int size)
 {
     const uint16_t *widths = find_font_widths(font_name);
+    int err;
 
     if (!widths)
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to determine width for font '%s'",
                            pdf->current_font->font.name);
-    return pdf_text_pixel_width(text, -1, size, widths);
+    err = pdf_text_pixel_width(text, -1, size, widths);
+    if (err < 0)
+        return pdf_set_err(pdf, err, "Unable to determine text width");
+    return err;
 }
 
 static const char *find_word_break(const char *string)
@@ -1429,16 +1442,23 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         end = new_end;
 
         line_width = pdf_text_pixel_width(start, end - start, size, widths);
+        if (line_width < 0)
+            return pdf_set_err(pdf, line_width,
+                               "Unable to determine text width");
 
         if (line_width >= wrap_width) {
             if (last_best == start) {
                 /* There is a single word that is too long for the line */
                 int i;
                 /* Find the best character to chop it at */
-                for (i = end - start - 1; i > 0; i--)
-                    if (pdf_text_pixel_width(start, i, size, widths) <
-                        wrap_width)
+                for (i = end - start - 1; i > 0; i--) {
+                    int e = pdf_text_pixel_width(start, i, size, widths);
+                    if (e < 0)
+                        return pdf_set_err(pdf, e,
+                                           "Unable to determine text width");
+                    if (e < wrap_width)
                         break;
+                }
 
                 end = start + i;
             } else
@@ -1460,6 +1480,9 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             line[len] = '\0';
 
             line_width = pdf_text_pixel_width(start, len, size, widths);
+            if (line_width < 0)
+                return pdf_set_err(pdf, line_width,
+                                   "Unable to determine text width");
 
             switch (align) {
             case PDF_ALIGN_RIGHT:
