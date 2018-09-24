@@ -155,6 +155,17 @@ struct flexarray {
     int bin_count;
 };
 
+/**
+ * Simple dynamic string object. Tries to store a reasonable amount on the
+ * stack before falling back to malloc once things get large
+ */
+struct dstr {
+    char static_data[128];
+    char *data;
+    int alloc_len;
+    int used_len;
+};
+
 struct pdf_object {
     int type;                /* See OBJ_xxxx */
     int index;               /* PDF output index */
@@ -168,10 +179,7 @@ struct pdf_object {
             struct pdf_object *parent;
             struct flexarray children;
         } bookmark;
-        struct {
-            char *text;
-            int len;
-        } stream;
+        struct dstr stream;
         struct {
             int width;
             int height;
@@ -310,6 +318,97 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
     if (bin < 0 || bin >= flex->bin_count)
         return NULL;
     return flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)];
+}
+
+/**
+ * Simple dynamic string object. Tries to store a reasonable amount on the
+ * stack before falling back to malloc once things get large
+ */
+struct dstr {
+    char static_data[128];
+    char *data;
+    int alloc_len;
+    int used_len;
+};
+
+#define INIT_DSTR                                                            \
+    (struct dstr)                                                            \
+    {                                                                        \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
+    }
+
+static char *dstr_data(struct dstr *str)
+{
+    return str->data ? str->data : str->static_data;
+}
+
+static int dstr_ensure(struct dstr *str, int len)
+{
+    if (len <= str->alloc_len)
+        return 0;
+    if (!str->data && len <= sizeof(str->static_data))
+        str->alloc_len = len;
+    else if (str->alloc_len < len) {
+        char *new_data;
+        int new_len;
+
+        new_len = len + 4096;
+        new_data = realloc(str->data, new_len);
+        if (!new_data)
+            return -ENOMEM;
+        // If we move beyond the on-stack buffer, copy the old data out
+        if (!str->data && str->used_len > 0)
+            memcpy(new_data, str->static_data, str->used_len + 1);
+        str->data = new_data;
+        if (str->used_len > 0 && str->alloc_len <= sizeof(str->static_data)) {
+            // We've grown beyond the stack buffer. Migrate the existing data
+            // across
+            memcpy(str->data, str->static_data, str->used_len + 1);
+            str->static_data[0] = '\0';
+        }
+        str->alloc_len = new_len;
+    }
+    return 0;
+}
+
+static int dstr_printf(struct dstr *str, const char *fmt, ...)
+    __attribute__((format(gnu_printf, 2, 3)));
+static int dstr_printf(struct dstr *str, const char *fmt, ...)
+{
+    va_list ap, aq;
+    int len;
+
+    va_start(ap, fmt);
+    va_copy(aq, ap);
+    len = vsnprintf(NULL, 0, fmt, ap);
+    if (dstr_ensure(str, str->used_len + len + 1) < 0) {
+        va_end(ap);
+        va_end(aq);
+        return -ENOMEM;
+    }
+    vsprintf(dstr_data(str) + str->used_len, fmt, aq);
+    str->used_len += len;
+    va_end(ap);
+    va_end(aq);
+
+    return len;
+}
+
+static int dstr_append(struct dstr *str, const char *extend)
+{
+    int len = strlen(extend);
+    if (dstr_ensure(str, str->used_len + len + 1) < 0)
+        return -ENOMEM;
+    memcpy(dstr_data(str) + str->used_len, extend, len + 1);
+    str->used_len += len;
+    return len;
+}
+
+static void dstr_free(struct dstr *str)
+{
+    if (str->data)
+        free(str->data);
+    *str = INIT_DSTR;
 }
 
 /**
@@ -473,7 +572,7 @@ static void pdf_object_destroy(struct pdf_object *object)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
-        free(object->stream.text);
+        dstr_free(&object->stream);
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
@@ -575,9 +674,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image: {
-        int len = object->stream.len ? object->stream.len
-                                     : strlen(object->stream.text);
-        fwrite(object->stream.text, len, 1, fp);
+        fwrite(dstr_data(&object->stream), object->stream.used_len, 1, fp);
         break;
     }
     case OBJ_info: {
@@ -854,22 +951,19 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 
     sprintf(prefix, "<< /Length %d >>stream\r\n", len);
     sprintf(suffix, "\r\nendstream\r\n");
-    len += strlen(prefix) + strlen(suffix);
+    len += strlen(prefix) + strlen(suffix) + 1;
 
     obj = pdf_add_object(pdf, OBJ_stream);
     if (!obj)
         return pdf->errval;
-    obj->stream.text = malloc(len + 1);
-    if (!obj->stream.text) {
+    if (dstr_ensure(&obj->stream, len) < 0) {
         obj->type = OBJ_none;
         return pdf_set_err(
             pdf, -ENOMEM, "Insufficient memory for text (%d bytes)", len + 1);
     }
-    obj->stream.text[0] = '\0';
-    strcat(obj->stream.text, prefix);
-    strcat(obj->stream.text, buffer);
-    strcat(obj->stream.text, suffix);
-    obj->stream.len = 0;
+    dstr_append(&obj->stream, prefix);
+    dstr_append(&obj->stream, buffer);
+    dstr_append(&obj->stream, suffix);
 
     return flexarray_append(&page->page.children, obj);
 }
@@ -907,97 +1001,6 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
     }
 
     return obj->index;
-}
-
-/**
- * Simple dynamic string object. Tries to store a reasonable amount on the
- * stack before falling back to malloc once things get large
- */
-struct dstr {
-    char static_data[128];
-    char *data;
-    int alloc_len;
-    int used_len;
-};
-
-#define INIT_DSTR                                                            \
-    (struct dstr)                                                            \
-    {                                                                        \
-        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
-    }
-
-static char *dstr_data(struct dstr *str)
-{
-    return str->data ? str->data : str->static_data;
-}
-
-static int dstr_ensure(struct dstr *str, int len)
-{
-    if (len <= str->alloc_len)
-        return 0;
-    if (!str->data && len <= sizeof(str->static_data))
-        str->alloc_len = len;
-    else if (str->alloc_len < len) {
-        char *new_data;
-        int new_len;
-
-        new_len = len + 4096;
-        new_data = realloc(str->data, new_len);
-        if (!new_data)
-            return -ENOMEM;
-        // If we move beyond the on-stack buffer, copy the old data out
-        if (!str->data && str->used_len > 0)
-            memcpy(new_data, str->static_data, str->used_len + 1);
-        str->data = new_data;
-        if (str->used_len > 0 && str->alloc_len <= sizeof(str->static_data)) {
-            // We've grown beyond the stack buffer. Migrate the existing data
-            // across
-            memcpy(str->data, str->static_data, str->used_len + 1);
-            str->static_data[0] = '\0';
-        }
-        str->alloc_len = new_len;
-    }
-    return 0;
-}
-
-static int dstr_printf(struct dstr *str, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3)));
-static int dstr_printf(struct dstr *str, const char *fmt, ...)
-{
-    va_list ap, aq;
-    int len;
-
-    va_start(ap, fmt);
-    va_copy(aq, ap);
-    len = vsnprintf(NULL, 0, fmt, ap);
-    if (dstr_ensure(str, str->used_len + len + 1) < 0) {
-        va_end(ap);
-        va_end(aq);
-        return -ENOMEM;
-    }
-    vsprintf(dstr_data(str) + str->used_len, fmt, aq);
-    str->used_len += len;
-    va_end(ap);
-    va_end(aq);
-
-    return len;
-}
-
-static int dstr_append(struct dstr *str, const char *extend)
-{
-    int len = strlen(extend);
-    if (dstr_ensure(str, str->used_len + len + 1) < 0)
-        return -ENOMEM;
-    memcpy(dstr_data(str) + str->used_len, extend, len + 1);
-    str->used_len += len;
-    return len;
-}
-
-static void dstr_free(struct dstr *str)
-{
-    if (str->data)
-        free(str->data);
-    *str = INIT_DSTR;
 }
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
@@ -1896,9 +1899,12 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
     struct pdf_object *obj;
     char line[1024];
     int len;
-    uint8_t *final_data;
     const char *endstream = ">\r\nendstream\r\n";
     int i;
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
+        return NULL;
 
     sprintf(line,
             "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
@@ -1909,28 +1915,18 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
             width * height * 3 * 2 + 1);
 
     len = strlen(line) + width * height * 3 * 2 + strlen(endstream) + 1;
-    final_data = malloc(len);
-    if (!final_data) {
+    if (dstr_ensure(&obj->stream, len) < 0) {
         pdf_set_err(pdf, -ENOMEM,
                     "Unable to allocate %d bytes memory for image", len);
         return NULL;
     }
-    strcpy((char *)final_data, line);
-    uint8_t *pos = &final_data[strlen(line)];
+    dstr_append(&obj->stream, line);
     for (i = 0; i < width * height * 3; i++) {
-        *pos++ = "0123456789ABCDEF"[(data[i] >> 4) & 0xf];
-        *pos++ = "0123456789ABCDEF"[data[i] & 0xf];
+        char buf[2] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
+                       "0123456789ABCDEF"[data[i] & 0xf]};
+        dstr_append_data(&obj->stream, buf, 2);
     }
-    strcpy((char *)pos, endstream);
-    pos += strlen(endstream);
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        free(final_data);
-        return NULL;
-    }
-    obj->stream.text = (char *)final_data;
-    obj->stream.len = pos - final_data;
+    dstr_append(&obj->stream, endstream);
 
     return obj;
 }
@@ -1971,9 +1967,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 {
     struct stat buf;
     size_t len;
-    char *final_data;
     uint8_t *jpeg_data;
-    int written = 0;
     FILE *fp;
     struct pdf_object *obj;
     int width, height;
@@ -2015,34 +2009,21 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
         return NULL;
     }
 
-    final_data = malloc(len + 1024);
-    if (!final_data) {
-        pdf_set_err(pdf, -errno, "Unable to allocate jpeg data %zd",
-                    len + 1024);
-        free(jpeg_data);
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
         return NULL;
-    }
+    dstr_printf(&obj->stream,
+                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                "/Width %d\r\n/Height %d\r\n"
+                "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
+                "/Length %d\r\n>>stream\r\n",
+                flexarray_size(&pdf->objects), width, height, (int)len);
+    dstr_append_data(&obj->stream, jpeg_data, len);
 
-    written = sprintf(final_data,
-                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                      "/Width %d\r\n/Height %d\r\n"
-                      "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
-                      "/Length %d\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects), width, height, (int)len);
-    memcpy(&final_data[written], jpeg_data, len);
-    written += len;
-    written += sprintf(&final_data[written], "\r\nendstream\r\n");
+    dstr_printf(&obj->stream, "\r\nendstream\r\n");
 
     free(jpeg_data);
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        free(final_data);
-        return NULL;
-    }
-    obj->stream.text = final_data;
-    obj->stream.len = written;
 
     return obj;
 }
