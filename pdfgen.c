@@ -909,19 +909,45 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
     return obj->index;
 }
 
+/**
+ * Simple dynamic string object. Tries to store a reasonable amount on the
+ * stack before falling back to malloc once things get large
+ */
 struct dstr {
+    char static_data[128];
     char *data;
     int alloc_len;
     int used_len;
 };
 
+#define INIT_DSTR                                                            \
+    (struct dstr)                                                            \
+    {                                                                        \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
+    }
+
+static char *dstr_data(struct dstr *str)
+{
+    return str->data ? str->data : str->static_data;
+}
+
 static int dstr_ensure(struct dstr *str, int len)
 {
-    if (str->alloc_len < len) {
-        int new_len = len + 4096;
-        char *new_data = realloc(str->data, new_len);
+    if (len <= str->alloc_len)
+        return 0;
+    if (!str->data && len <= sizeof(str->static_data))
+        str->alloc_len = len;
+    else if (str->alloc_len < len) {
+        char *new_data;
+        int new_len;
+
+        new_len = len + 4096;
+        new_data = realloc(str->data, new_len);
         if (!new_data)
             return -ENOMEM;
+        // If we move beyond the on-stack buffer, copy the old data out
+        if (!str->data && str->used_len > 0)
+            memcpy(new_data, str->static_data, str->used_len + 1);
         str->data = new_data;
         str->alloc_len = new_len;
     }
@@ -943,7 +969,7 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
         va_end(aq);
         return -ENOMEM;
     }
-    vsprintf(&str->data[str->used_len], fmt, aq);
+    vsprintf(dstr_data(str) + str->used_len, fmt, aq);
     str->used_len += len;
     va_end(ap);
     va_end(aq);
@@ -956,14 +982,16 @@ static int dstr_append(struct dstr *str, const char *extend)
     int len = strlen(extend);
     if (dstr_ensure(str, str->used_len + len + 1) < 0)
         return -ENOMEM;
-    strcpy(&str->data[str->used_len], extend);
+    memcpy(dstr_data(str) + str->used_len, extend, len + 1);
     str->used_len += len;
     return len;
 }
 
 static void dstr_free(struct dstr *str)
 {
-    free(str->data);
+    if (str->data)
+        free(str->data);
+    *str = INIT_DSTR;
 }
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
@@ -1007,7 +1035,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 {
     int i, ret;
     int len = text ? strlen(text) : 0;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     /* Don't bother adding empty/null strings */
     if (!len)
@@ -1079,7 +1107,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append(&str, ") Tj ");
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
     return ret;
 }
@@ -1521,7 +1549,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
                  int x2, int y2, int width, uint32_t colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT\r\n");
     dstr_printf(&str, "%d w\r\n", width);
@@ -1532,7 +1560,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     dstr_printf(&str, "%d %d l S\r\n", x2, y2);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1543,7 +1571,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
                     uint32_t colour, uint32_t fill_colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     float rx = xradius * 1.0f;
     float ry = yradius * 1.0f;
@@ -1592,7 +1620,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
 
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1611,7 +1639,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       uint32_t colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
@@ -1620,7 +1648,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1631,7 +1659,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              int border_width, uint32_t colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
@@ -1640,7 +1668,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -2018,14 +2046,14 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
                          int height)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "q ");
     dstr_printf(&str, "%d 0 0 %d %d %d cm ", width, height, x, y);
     dstr_printf(&str, "/Image%d Do ", image->index);
     dstr_append(&str, "Q");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
     return ret;
 }

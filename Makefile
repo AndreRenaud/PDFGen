@@ -32,7 +32,7 @@ example-check: FORCE
 check-fuzz-%: tests/fuzz-% FORCE
 	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
 
-fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text
+fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text check-fuzz-dstr
 
 format: FORCE
 	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-ppm.c tests/fuzz-jpg.c tests/fuzz-header.c tests/fuzz-text.c
