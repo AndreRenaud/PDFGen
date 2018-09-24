@@ -921,38 +921,36 @@ struct dstr {
 };
 
 #define INIT_DSTR                                                            \
+    (struct dstr)                                                            \
     {                                                                        \
         .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
     }
 
 static char *dstr_data(struct dstr *str)
 {
-    if (str->alloc_len <= sizeof(str->static_data))
-        return str->static_data;
-    return str->data;
+    return str->data ? str->data : str->static_data;
 }
 
 static int dstr_ensure(struct dstr *str, int len)
 {
-    int new_len = str->alloc_len;
-    if (len <= sizeof(str->static_data))
-        new_len = len;
+    if (len <= str->alloc_len)
+        return 0;
+    if (!str->data && len <= sizeof(str->static_data))
+        str->alloc_len = len;
     else if (str->alloc_len < len) {
         char *new_data;
+        int new_len;
 
         new_len = len + 4096;
         new_data = realloc(str->data, new_len);
         if (!new_data)
             return -ENOMEM;
+        // If we move beyond the on-stack buffer, copy the old data out
+        if (!str->data && str->used_len > 0)
+            memcpy(new_data, str->static_data, str->used_len + 1);
         str->data = new_data;
-        if (str->used_len > 0 && str->alloc_len <= sizeof(str->static_data)) {
-            // We've grown beyond the stack buffer. Migrate the existing data
-            // across
-            memcpy(str->data, str->static_data, str->used_len + 1);
-            str->static_data[0] = '\0';
-        }
+        str->alloc_len = new_len;
     }
-    str->alloc_len = new_len;
     return 0;
 }
 
@@ -984,9 +982,8 @@ static int dstr_append(struct dstr *str, const char *extend)
     int len = strlen(extend);
     if (dstr_ensure(str, str->used_len + len + 1) < 0)
         return -ENOMEM;
-    memcpy(dstr_data(str) + str->used_len, extend, len);
+    memcpy(dstr_data(str) + str->used_len, extend, len + 1);
     str->used_len += len;
-    dstr_data(str)[str->used_len] = '\0';
     return len;
 }
 
@@ -994,8 +991,7 @@ static void dstr_free(struct dstr *str)
 {
     if (str->data)
         free(str->data);
-    str->alloc_len = 0;
-    str->used_len = 0;
+    *str = INIT_DSTR;
 }
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
