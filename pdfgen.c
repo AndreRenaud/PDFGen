@@ -324,12 +324,6 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
  * Simple dynamic string object. Tries to store a reasonable amount on the
  * stack before falling back to malloc once things get large
  */
-struct dstr {
-    char static_data[128];
-    char *data;
-    int alloc_len;
-    int used_len;
-};
 
 #define INIT_DSTR                                                            \
     (struct dstr)                                                            \
@@ -391,6 +385,15 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     va_end(ap);
     va_end(aq);
 
+    return len;
+}
+
+static int dstr_append_data(struct dstr *str, const void *extend, int len)
+{
+    if (dstr_ensure(str, str->used_len + len) < 0)
+        return -ENOMEM;
+    memcpy(dstr_data(str) + str->used_len, extend, len);
+    str->used_len += len;
     return len;
 }
 
