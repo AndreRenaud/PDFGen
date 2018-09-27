@@ -8,7 +8,9 @@ fail() {
 run() {
 	name=$1
 	shift
+	printf "Running test $name ..."
 	"$@" || fail "Failed to run '$name'"
+	printf "\n"
 }
 
 run_fail() {

@@ -99,6 +99,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -127,6 +128,8 @@
 
 #ifndef M_SQRT2
 #define M_SQRT2 1.41421356237309504880f
+
+#define strncasecmp _strnicmp
 #endif
 
 typedef struct pdf_object pdf_object;
@@ -152,6 +155,17 @@ struct flexarray {
     int bin_count;
 };
 
+/**
+ * Simple dynamic string object. Tries to store a reasonable amount on the
+ * stack before falling back to malloc once things get large
+ */
+struct dstr {
+    char static_data[128];
+    char *data;
+    int alloc_len;
+    int used_len;
+};
+
 struct pdf_object {
     int type;                /* See OBJ_xxxx */
     int index;               /* PDF output index */
@@ -165,10 +179,7 @@ struct pdf_object {
             struct pdf_object *parent;
             struct flexarray children;
         } bookmark;
-        struct {
-            char *text;
-            int len;
-        } stream;
+        struct dstr stream;
         struct {
             int width;
             int height;
@@ -307,6 +318,100 @@ static inline void *flexarray_get(struct flexarray *flex, int index)
     if (bin < 0 || bin >= flex->bin_count)
         return NULL;
     return flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)];
+}
+
+/**
+ * Simple dynamic string object. Tries to store a reasonable amount on the
+ * stack before falling back to malloc once things get large
+ */
+
+#define INIT_DSTR                                                            \
+    (struct dstr)                                                            \
+    {                                                                        \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
+    }
+
+static char *dstr_data(struct dstr *str)
+{
+    return str->data ? str->data : str->static_data;
+}
+
+static int dstr_ensure(struct dstr *str, int len)
+{
+    if (len <= str->alloc_len)
+        return 0;
+    if (!str->data && len <= sizeof(str->static_data))
+        str->alloc_len = len;
+    else if (str->alloc_len < len) {
+        char *new_data;
+        int new_len;
+
+        new_len = len + 4096;
+        new_data = realloc(str->data, new_len);
+        if (!new_data)
+            return -ENOMEM;
+        // If we move beyond the on-stack buffer, copy the old data out
+        if (!str->data && str->used_len > 0)
+            memcpy(new_data, str->static_data, str->used_len + 1);
+        str->data = new_data;
+        if (str->used_len > 0 && str->alloc_len <= sizeof(str->static_data)) {
+            // We've grown beyond the stack buffer. Migrate the existing data
+            // across
+            memcpy(str->data, str->static_data, str->used_len + 1);
+            str->static_data[0] = '\0';
+        }
+        str->alloc_len = new_len;
+    }
+    return 0;
+}
+
+static int dstr_printf(struct dstr *str, const char *fmt, ...)
+    __attribute__((format(gnu_printf, 2, 3)));
+static int dstr_printf(struct dstr *str, const char *fmt, ...)
+{
+    va_list ap, aq;
+    int len;
+
+    va_start(ap, fmt);
+    va_copy(aq, ap);
+    len = vsnprintf(NULL, 0, fmt, ap);
+    if (dstr_ensure(str, str->used_len + len + 1) < 0) {
+        va_end(ap);
+        va_end(aq);
+        return -ENOMEM;
+    }
+    vsprintf(dstr_data(str) + str->used_len, fmt, aq);
+    str->used_len += len;
+    va_end(ap);
+    va_end(aq);
+
+    return len;
+}
+
+static int dstr_append_data(struct dstr *str, const void *extend, int len)
+{
+    if (dstr_ensure(str, str->used_len + len) < 0)
+        return -ENOMEM;
+    memcpy(dstr_data(str) + str->used_len, extend, len);
+    str->used_len += len;
+    return len;
+}
+
+static int dstr_append(struct dstr *str, const char *extend)
+{
+    int len = strlen(extend);
+    if (dstr_ensure(str, str->used_len + len + 1) < 0)
+        return -ENOMEM;
+    memcpy(dstr_data(str) + str->used_len, extend, len + 1);
+    str->used_len += len;
+    return len;
+}
+
+static void dstr_free(struct dstr *str)
+{
+    if (str->data)
+        free(str->data);
+    *str = INIT_DSTR;
 }
 
 /**
@@ -470,7 +575,7 @@ static void pdf_object_destroy(struct pdf_object *object)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
-        free(object->stream.text);
+        dstr_free(&object->stream);
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
@@ -572,9 +677,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image: {
-        int len = object->stream.len ? object->stream.len
-                                     : strlen(object->stream.text);
-        fwrite(object->stream.text, len, 1, fp);
+        fwrite(dstr_data(&object->stream), object->stream.used_len, 1, fp);
         break;
     }
     case OBJ_info: {
@@ -851,22 +954,19 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 
     sprintf(prefix, "<< /Length %d >>stream\r\n", len);
     sprintf(suffix, "\r\nendstream\r\n");
-    len += strlen(prefix) + strlen(suffix);
+    len += strlen(prefix) + strlen(suffix) + 1;
 
     obj = pdf_add_object(pdf, OBJ_stream);
     if (!obj)
         return pdf->errval;
-    obj->stream.text = malloc(len + 1);
-    if (!obj->stream.text) {
+    if (dstr_ensure(&obj->stream, len) < 0) {
         obj->type = OBJ_none;
         return pdf_set_err(
             pdf, -ENOMEM, "Insufficient memory for text (%d bytes)", len + 1);
     }
-    obj->stream.text[0] = '\0';
-    strcat(obj->stream.text, prefix);
-    strcat(obj->stream.text, buffer);
-    strcat(obj->stream.text, suffix);
-    obj->stream.len = 0;
+    dstr_append(&obj->stream, prefix);
+    dstr_append(&obj->stream, buffer);
+    dstr_append(&obj->stream, suffix);
 
     return flexarray_append(&page->page.children, obj);
 }
@@ -904,63 +1004,6 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
     }
 
     return obj->index;
-}
-
-struct dstr {
-    char *data;
-    int alloc_len;
-    int used_len;
-};
-
-static int dstr_ensure(struct dstr *str, int len)
-{
-    if (str->alloc_len < len) {
-        int new_len = len + 4096;
-        char *new_data = realloc(str->data, new_len);
-        if (!new_data)
-            return -ENOMEM;
-        str->data = new_data;
-        str->alloc_len = new_len;
-    }
-    return 0;
-}
-
-static int dstr_printf(struct dstr *str, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3)));
-static int dstr_printf(struct dstr *str, const char *fmt, ...)
-{
-    va_list ap, aq;
-    int len;
-
-    va_start(ap, fmt);
-    va_copy(aq, ap);
-    len = vsnprintf(NULL, 0, fmt, ap);
-    if (dstr_ensure(str, str->used_len + len + 1) < 0) {
-        va_end(ap);
-        va_end(aq);
-        return -ENOMEM;
-    }
-    vsprintf(&str->data[str->used_len], fmt, aq);
-    str->used_len += len;
-    va_end(ap);
-    va_end(aq);
-
-    return len;
-}
-
-static int dstr_append(struct dstr *str, const char *extend)
-{
-    int len = strlen(extend);
-    if (dstr_ensure(str, str->used_len + len + 1) < 0)
-        return -ENOMEM;
-    strcpy(&str->data[str->used_len], extend);
-    str->used_len += len;
-    return len;
-}
-
-static void dstr_free(struct dstr *str)
-{
-    free(str->data);
 }
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
@@ -1004,7 +1047,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 {
     int i, ret;
     int len = text ? strlen(text) : 0;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     /* Don't bother adding empty/null strings */
     if (!len)
@@ -1076,7 +1119,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append(&str, ") Tj ");
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
     return ret;
 }
@@ -1336,13 +1379,22 @@ static const uint16_t courier_widths[256] = {
 static int pdf_text_pixel_width(const char *text, int text_len, int size,
                                 const uint16_t *widths)
 {
-    int i;
     int len = 0;
     if (text_len < 0)
         text_len = strlen(text);
 
-    for (i = 0; i < text_len; i++)
-        len += widths[(uint8_t)text[i]];
+    for (int i = 0; i < text_len;) {
+        uint32_t code;
+        int code_len;
+        code_len = utf8_to_utf32(&text[i], text_len - i, &code);
+        if (code_len < 0)
+            return code_len;
+        if (code >= 255)
+            return -EINVAL;
+        i += code_len;
+
+        len += widths[(uint8_t)code];
+    }
 
     /* Our widths arrays are for 14pt fonts */
     return len * size / (14 * 72);
@@ -1350,30 +1402,30 @@ static int pdf_text_pixel_width(const char *text, int text_len, int size,
 
 static const uint16_t *find_font_widths(const char *font_name)
 {
-    if (strcmp(font_name, "Helvetica") == 0)
+    if (strcasecmp(font_name, "Helvetica") == 0)
         return helvetica_widths;
-    if (strcmp(font_name, "Helvetica-Bold") == 0)
+    if (strcasecmp(font_name, "Helvetica-Bold") == 0)
         return helvetica_bold_widths;
-    if (strcmp(font_name, "Helvetica-BoldOblique") == 0)
+    if (strcasecmp(font_name, "Helvetica-BoldOblique") == 0)
         return helvetica_bold_oblique_widths;
-    if (strcmp(font_name, "Helvetica-Oblique") == 0)
+    if (strcasecmp(font_name, "Helvetica-Oblique") == 0)
         return helvetica_oblique_widths;
-    if (strcmp(font_name, "Courier") == 0 ||
-        strcmp(font_name, "Courier-Bold") == 0 ||
-        strcmp(font_name, "Courier-BoldOblique") == 0 ||
-        strcmp(font_name, "Courier-Oblique") == 0)
+    if (strcasecmp(font_name, "Courier") == 0 ||
+        strcasecmp(font_name, "Courier-Bold") == 0 ||
+        strcasecmp(font_name, "Courier-BoldOblique") == 0 ||
+        strcasecmp(font_name, "Courier-Oblique") == 0)
         return courier_widths;
-    if (strcmp(font_name, "Times-Roman") == 0)
+    if (strcasecmp(font_name, "Times-Roman") == 0)
         return times_widths;
-    if (strcmp(font_name, "Times-Bold") == 0)
+    if (strcasecmp(font_name, "Times-Bold") == 0)
         return times_bold_widths;
-    if (strcmp(font_name, "Times-Italic") == 0)
+    if (strcasecmp(font_name, "Times-Italic") == 0)
         return times_italic_widths;
-    if (strcmp(font_name, "Times-BoldItalic") == 0)
+    if (strcasecmp(font_name, "Times-BoldItalic") == 0)
         return times_bold_italic_widths;
-    if (strcmp(font_name, "Symbol") == 0)
+    if (strcasecmp(font_name, "Symbol") == 0)
         return symbol_widths;
-    if (strcmp(font_name, "ZapfDingbats") == 0)
+    if (strcasecmp(font_name, "ZapfDingbats") == 0)
         return zapfdingbats_widths;
 
     return NULL;
@@ -1383,12 +1435,16 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
                             const char *text, int size)
 {
     const uint16_t *widths = find_font_widths(font_name);
+    int err;
 
     if (!widths)
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to determine width for font '%s'",
                            pdf->current_font->font.name);
-    return pdf_text_pixel_width(text, -1, size, widths);
+    err = pdf_text_pixel_width(text, -1, size, widths);
+    if (err < 0)
+        return pdf_set_err(pdf, err, "Unable to determine text width");
+    return err;
 }
 
 static const char *find_word_break(const char *string)
@@ -1429,16 +1485,23 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         end = new_end;
 
         line_width = pdf_text_pixel_width(start, end - start, size, widths);
+        if (line_width < 0)
+            return pdf_set_err(pdf, line_width,
+                               "Unable to determine text width");
 
         if (line_width >= wrap_width) {
             if (last_best == start) {
                 /* There is a single word that is too long for the line */
                 int i;
                 /* Find the best character to chop it at */
-                for (i = end - start - 1; i > 0; i--)
-                    if (pdf_text_pixel_width(start, i, size, widths) <
-                        wrap_width)
+                for (i = end - start - 1; i > 0; i--) {
+                    int e = pdf_text_pixel_width(start, i, size, widths);
+                    if (e < 0)
+                        return pdf_set_err(pdf, e,
+                                           "Unable to determine text width");
+                    if (e < wrap_width)
                         break;
+                }
 
                 end = start + i;
             } else
@@ -1460,6 +1523,9 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             line[len] = '\0';
 
             line_width = pdf_text_pixel_width(start, len, size, widths);
+            if (line_width < 0)
+                return pdf_set_err(pdf, line_width,
+                                   "Unable to determine text width");
 
             switch (align) {
             case PDF_ALIGN_RIGHT:
@@ -1495,7 +1561,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
                  int x2, int y2, int width, uint32_t colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT\r\n");
     dstr_printf(&str, "%d w\r\n", width);
@@ -1506,7 +1572,7 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     dstr_printf(&str, "%d %d l S\r\n", x2, y2);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1517,7 +1583,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
                     uint32_t colour, uint32_t fill_colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     float rx = xradius * 1.0f;
     float ry = yradius * 1.0f;
@@ -1566,7 +1632,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
 
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1585,7 +1651,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       uint32_t colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
@@ -1594,7 +1660,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1605,7 +1671,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              int border_width, uint32_t colour)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
@@ -1614,7 +1680,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
@@ -1887,9 +1953,12 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
     struct pdf_object *obj;
     char line[1024];
     int len;
-    uint8_t *final_data;
     const char *endstream = ">\r\nendstream\r\n";
     int i;
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
+        return NULL;
 
     sprintf(line,
             "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
@@ -1900,28 +1969,18 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
             width * height * 3 * 2 + 1);
 
     len = strlen(line) + width * height * 3 * 2 + strlen(endstream) + 1;
-    final_data = malloc(len);
-    if (!final_data) {
+    if (dstr_ensure(&obj->stream, len) < 0) {
         pdf_set_err(pdf, -ENOMEM,
                     "Unable to allocate %d bytes memory for image", len);
         return NULL;
     }
-    strcpy((char *)final_data, line);
-    uint8_t *pos = &final_data[strlen(line)];
+    dstr_append(&obj->stream, line);
     for (i = 0; i < width * height * 3; i++) {
-        *pos++ = "0123456789ABCDEF"[(data[i] >> 4) & 0xf];
-        *pos++ = "0123456789ABCDEF"[data[i] & 0xf];
+        char buf[2] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
+                       "0123456789ABCDEF"[data[i] & 0xf]};
+        dstr_append_data(&obj->stream, buf, 2);
     }
-    strcpy((char *)pos, endstream);
-    pos += strlen(endstream);
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        free(final_data);
-        return NULL;
-    }
-    obj->stream.text = (char *)final_data;
-    obj->stream.len = pos - final_data;
+    dstr_append(&obj->stream, endstream);
 
     return obj;
 }
@@ -1962,9 +2021,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 {
     struct stat buf;
     size_t len;
-    char *final_data;
     uint8_t *jpeg_data;
-    int written = 0;
     FILE *fp;
     struct pdf_object *obj;
     int width, height;
@@ -2006,34 +2063,21 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
         return NULL;
     }
 
-    final_data = malloc(len + 1024);
-    if (!final_data) {
-        pdf_set_err(pdf, -errno, "Unable to allocate jpeg data %zd",
-                    len + 1024);
-        free(jpeg_data);
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
         return NULL;
-    }
+    dstr_printf(&obj->stream,
+                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                "/Width %d\r\n/Height %d\r\n"
+                "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
+                "/Length %d\r\n>>stream\r\n",
+                flexarray_size(&pdf->objects), width, height, (int)len);
+    dstr_append_data(&obj->stream, jpeg_data, len);
 
-    written = sprintf(final_data,
-                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                      "/Width %d\r\n/Height %d\r\n"
-                      "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
-                      "/Length %d\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects), width, height, (int)len);
-    memcpy(&final_data[written], jpeg_data, len);
-    written += len;
-    written += sprintf(&final_data[written], "\r\nendstream\r\n");
+    dstr_printf(&obj->stream, "\r\nendstream\r\n");
 
     free(jpeg_data);
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        free(final_data);
-        return NULL;
-    }
-    obj->stream.text = final_data;
-    obj->stream.len = written;
 
     return obj;
 }
@@ -2043,14 +2087,14 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
                          int height)
 {
     int ret;
-    struct dstr str = {0, 0, 0};
+    struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "q ");
     dstr_printf(&str, "%d 0 0 %d %d %d cm ", width, height, x, y);
     dstr_printf(&str, "/Image%d Do ", image->index);
     dstr_append(&str, "Q");
 
-    ret = pdf_add_stream(pdf, page, str.data);
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
     return ret;
 }
