@@ -487,7 +487,7 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 {
     struct pdf_object *obj;
 
-    obj = calloc(1, sizeof(struct pdf_object));
+    obj = calloc(1, sizeof(*obj));
     if (!obj) {
         pdf_set_err(pdf, -errno, "Unable to allocate object %d: %s",
                     flexarray_size(&pdf->objects) + 1, strerror(errno));
@@ -509,7 +509,7 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
     struct pdf_doc *pdf;
     struct pdf_object *obj;
 
-    pdf = calloc(1, sizeof(struct pdf_doc));
+    pdf = calloc(1, sizeof(*pdf));
     pdf->width = width;
     pdf->height = height;
 
@@ -1678,6 +1678,55 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
+    dstr_append(&str, "ET");
+
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    dstr_free(&str);
+
+    return ret;
+}
+
+int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
+                    int y[], int count, int border_width, uint32_t colour)
+{
+    int ret;
+    struct dstr str = INIT_DSTR;
+
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%d w ", border_width);
+    dstr_printf(&str, "%d %d m ", x[0], y[0]);
+    for (int i = 1; i < count; i++) {
+        dstr_printf(&str, "%d %d l ", x[i], y[i]);
+    }
+    dstr_printf(&str, "h S ");
+    dstr_append(&str, "ET");
+
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    dstr_free(&str);
+
+    return ret;
+}
+
+int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
+                           int x[], int y[], int count, int border_width,
+                           uint32_t colour)
+{
+    int ret;
+    struct dstr str = INIT_DSTR;
+
+    dstr_append(&str, "BT ");
+    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%d w ", border_width);
+    dstr_printf(&str, "%d %d m ", x[0], y[0]);
+    for (int i = 1; i < count; i++) {
+        dstr_printf(&str, "%d %d l ", x[i], y[i]);
+    }
+    dstr_printf(&str, "h f ");
     dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));

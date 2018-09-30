@@ -358,6 +358,35 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              int border_width, uint32_t colour);
 
 /**
+ * Add an outline polygon to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x array of X offsets for points comprising the polygon
+ * @param y array of Y offsets for points comprising the polygon
+ * @param count Number of points comprising the polygon
+ * @param border_width Width of polygon border
+ * @param colour Colour to draw the polygon
+ * @return 0 on succss, < 0 on failure
+ */
+int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
+                    int y[], int count, int border_width, uint32_t colour);
+
+/**
+ * Add a filled polygon to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x array of X offsets of points comprising the polygon
+ * @param y array of Y offsets of points comprising the polygon
+ * @param count Number of points comprising the polygon
+ * @param border_width Width of polygon border
+ * @param colour Colour to draw the polygon
+ * @return 0 on succss, < 0 on failure
+ */
+int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
+                           int x[], int y[], int count, int border_width,
+                           uint32_t colour);
+
+/**
  * Add a bookmark to the document
  *
  * @param pdf PDF document to add bookmark to
