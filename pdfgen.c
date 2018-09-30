@@ -932,12 +932,12 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
 }
 
 static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
-                          char *buffer)
+                          const char *buffer)
 {
     struct pdf_object *obj;
-    int len;
+    int len, buf_len;
     char prefix[128];
-    char suffix[128];
+    const char *suffix = "\r\nendstream\r\n";
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -945,16 +945,15 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!page)
         return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
 
-    len = strlen(buffer);
+    buf_len = strlen(buffer);
     /* We don't want any trailing whitespace in the stream */
-    while (len >= 1 && (buffer[len - 1] == '\r' || buffer[len - 1] == '\n')) {
-        buffer[len - 1] = '\0';
-        len--;
+    while (buf_len >= 1 &&
+           (buffer[buf_len - 1] == '\r' || buffer[buf_len - 1] == '\n')) {
+        buf_len--;
     }
 
-    sprintf(prefix, "<< /Length %d >>stream\r\n", len);
-    sprintf(suffix, "\r\nendstream\r\n");
-    len += strlen(prefix) + strlen(suffix) + 1;
+    sprintf(prefix, "<< /Length %d >>stream\r\n", buf_len);
+    len = buf_len + strlen(prefix) + strlen(suffix) + 1;
 
     obj = pdf_add_object(pdf, OBJ_stream);
     if (!obj)
@@ -965,7 +964,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
             pdf, -ENOMEM, "Insufficient memory for text (%d bytes)", len + 1);
     }
     dstr_append(&obj->stream, prefix);
-    dstr_append(&obj->stream, buffer);
+    dstr_append_data(&obj->stream, buffer, buf_len);
     dstr_append(&obj->stream, suffix);
 
     return flexarray_append(&page->page.children, obj);
