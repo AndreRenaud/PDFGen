@@ -239,9 +239,8 @@ static int bin_offset[] = {
 
 static inline int flexarray_get_bin(struct flexarray *flex, int index)
 {
-    int i;
     (void)flex;
-    for (i = 0; i < ARRAY_SIZE(bin_offset); i++)
+    for (int i = 0; i < ARRAY_SIZE(bin_offset); i++)
         if (index < bin_offset[i])
             return i - 1;
     return -1;
@@ -265,8 +264,7 @@ static inline int flexarray_get_bin_offset(struct flexarray *flex, int bin,
 
 static void flexarray_clear(struct flexarray *flex)
 {
-    int i;
-    for (i = 0; i < flex->bin_count; i++)
+    for (int i = 0; i < flex->bin_count; i++)
         free(flex->bins[i]);
     free(flex->bins);
     flex->bin_count = 0;
@@ -584,8 +582,7 @@ static void pdf_object_destroy(struct pdf_object *object)
 void pdf_destroy(struct pdf_doc *pdf)
 {
     if (pdf) {
-        int i;
-        for (i = 0; i < flexarray_size(&pdf->objects); i++)
+        for (int i = 0; i < flexarray_size(&pdf->objects); i++)
             pdf_object_destroy(pdf_get_object(pdf, i));
         flexarray_clear(&pdf->objects);
         free(pdf);
@@ -692,8 +689,6 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_page: {
-        int i;
-        struct pdf_object *font;
         struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
         struct pdf_object *image = pdf_find_first_object(pdf, OBJ_image);
 
@@ -706,8 +701,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 object->page.height);
         fprintf(fp, "/Resources <<\r\n");
         fprintf(fp, "  /Font <<\r\n");
-        for (font = pdf_find_first_object(pdf, OBJ_font); font;
-             font = font->next)
+        for (struct pdf_object *font = pdf_find_first_object(pdf, OBJ_font);
+             font; font = font->next)
             fprintf(fp, "    /F%d %d 0 R\r\n", font->font.index, font->index);
         fprintf(fp, "  >>\r\n");
 
@@ -720,7 +715,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
         fprintf(fp, ">>\r\n");
         fprintf(fp, "/Contents [\r\n");
-        for (i = 0; i < flexarray_size(&object->page.children); i++) {
+        for (int i = 0; i < flexarray_size(&object->page.children); i++) {
             struct pdf_object *child =
                 flexarray_get(&object->page.children, i);
             fprintf(fp, "%d 0 R\r\n", child->index);
@@ -813,14 +808,13 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         break;
 
     case OBJ_pages: {
-        struct pdf_object *page;
         int npages = 0;
 
         fprintf(fp, "<<\r\n"
                     "/Type /Pages\r\n"
                     "/Kids [ ");
-        for (page = pdf_find_first_object(pdf, OBJ_page); page;
-             page = page->next) {
+        for (struct pdf_object *page = pdf_find_first_object(pdf, OBJ_page);
+             page; page = page->next) {
             npages++;
             fprintf(fp, "%d 0 R ", page->index);
         }
@@ -860,7 +854,6 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 {
-    int i;
     struct pdf_object *obj;
     int xref_offset;
     int xref_count = 0;
@@ -870,7 +863,7 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     fprintf(fp, "%c%c%c%c%c\r\n", 0x25, 0xc7, 0xec, 0x8f, 0xa2);
 
     /* Dump all the objects & get their file offsets */
-    for (i = 0; i < flexarray_size(&pdf->objects); i++)
+    for (int i = 0; i < flexarray_size(&pdf->objects); i++)
         if (pdf_save_object(pdf, fp, i) >= 0)
             xref_count++;
 
@@ -879,7 +872,7 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     fprintf(fp, "xref\r\n");
     fprintf(fp, "0 %d\r\n", xref_count + 1);
     fprintf(fp, "0000000000 65535 f\r\n");
-    for (i = 0; i < flexarray_size(&pdf->objects); i++) {
+    for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
         obj = pdf_get_object(pdf, i);
         if (obj->type != OBJ_none)
             fprintf(fp, "%10.10d 00000 n\r\n", obj->offset);
@@ -991,7 +984,6 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
     uint32_t ch = *utf8;
-    int i;
     uint8_t mask;
 
     if ((ch & 0x80) == 0) {
@@ -1010,7 +1002,7 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
         return -EINVAL;
 
     ch = 0;
-    for (i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++) {
         int shift = (len - i - 1) * 6;
         if (i == 0)
             ch |= ((uint32_t)(*utf8++) & mask) << shift;
@@ -1027,7 +1019,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
                                 const char *text, int size, int xoff,
                                 int yoff, uint32_t colour, double spacing)
 {
-    int i, ret;
+    int ret;
     int len = text ? strlen(text) : 0;
     struct dstr str = INIT_DSTR;
 
@@ -1044,7 +1036,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
-    for (i = 0; i < len;) {
+    for (int i = 0; i < len;) {
         uint32_t code;
         int code_len;
         code_len = utf8_to_utf32(&text[i], len - i, &code);
@@ -1752,8 +1744,7 @@ static const struct {
 
 static int find_128_encoding(char ch)
 {
-    int i;
-    for (i = 0; i < ARRAY_SIZE(code_128a_encoding); i++) {
+    for (int i = 0; i < ARRAY_SIZE(code_128a_encoding); i++) {
         if (code_128a_encoding[i].ch == ch)
             return i;
     }
@@ -1765,10 +1756,9 @@ static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
                                uint32_t colour, int index, int code_len)
 {
     uint32_t code = code_128a_encoding[index].code;
-    int i;
     int line_width = width / 11;
 
-    for (i = 0; i < code_len; i++) {
+    for (int i = 0; i < code_len; i++) {
         uint8_t shift = (code_len - 1 - i) * 4;
         uint8_t mask = (code >> shift) & 0xf;
 
@@ -1934,7 +1924,6 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
     char line[1024];
     int len;
     const char *endstream = ">\r\nendstream\r\n";
-    int i;
 
     obj = pdf_add_object(pdf, OBJ_image);
     if (!obj)
@@ -1955,7 +1944,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
         return NULL;
     }
     dstr_append(&obj->stream, line);
-    for (i = 0; i < width * height * 3; i++) {
+    for (int i = 0; i < width * height * 3; i++) {
         char buf[2] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
                        "0123456789ABCDEF"[data[i] & 0xf]};
         dstr_append_data(&obj->stream, buf, 2);
