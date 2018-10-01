@@ -354,12 +354,6 @@ static int dstr_ensure(struct dstr *str, int len)
         if (!str->data && str->used_len > 0)
             memcpy(new_data, str->static_data, str->used_len + 1);
         str->data = new_data;
-        if (str->used_len > 0 && str->alloc_len <= sizeof(str->static_data)) {
-            // We've grown beyond the stack buffer. Migrate the existing data
-            // across
-            memcpy(str->data, str->static_data, str->used_len + 1);
-            str->static_data[0] = '\0';
-        }
         str->alloc_len = new_len;
     }
     return 0;
