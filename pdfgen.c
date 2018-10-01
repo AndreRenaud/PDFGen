@@ -124,12 +124,12 @@
 #if _MSC_VER < 1900
 #define inline __inline
 #endif
+
+#define strncasecmp _strnicmp
 #endif // _MSC_VER
 
 #ifndef M_SQRT2
 #define M_SQRT2 1.41421356237309504880f
-
-#define strncasecmp _strnicmp
 #endif
 
 typedef struct pdf_object pdf_object;
