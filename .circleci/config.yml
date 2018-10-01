@@ -26,12 +26,17 @@ jobs:
           name: Fuzz Test
           command: docker exec $(cat container_id) make fuzz-check CLANG=clang-8 CLANG_FORMAT=clang-format-8 -j4
       - run:
+          name: Code Coverage
+          command: docker exec $(cat container_id) make coverage
+      - run:
           name: Docs
           command: docker exec $(cat container_id) make docs
       - run:
           name: Stop Build Environment
           command: docker stop $(cat container_id)
           when: always
+      - store_test_results:
+          path: coverage
       - store_artifacts:
           path: output.pdf
       - store_artifacts:

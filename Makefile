@@ -3,7 +3,6 @@ LFLAGS=-fprofile-arcs -ftest-coverage
 CLANG=clang
 CLANG_FORMAT=clang-format
 
-
 default: testprog
 
 testprog: pdfgen.o tests/main.o
@@ -34,6 +33,13 @@ check-fuzz-%: tests/fuzz-% FORCE
 
 fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text check-fuzz-dstr
 
+coverage: testprog
+	./testprog
+	gcov -r pdfgen.c
+	mkdir -p coverage
+	gcovr -r . --html --html-details -o coverage/coverage.html
+	gcovr -r . --xml -o coverage/coverage.xml
+
 format: FORCE
 	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-ppm.c tests/fuzz-jpg.c tests/fuzz-header.c tests/fuzz-text.c
 
@@ -46,4 +52,4 @@ FORCE:
 
 clean:
 	rm -f *.o tests/*.o testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log
-	rm -rf docs
+	rm -rf docs coverage

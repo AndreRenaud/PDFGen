@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
 	cppcheck \
 	doxygen \
 	gcc \
+	gcovr \
 	graphviz \
 	make \
 	mxe-i686-w64-mingw32.static-gcc \
