@@ -1,6 +1,3 @@
-//#include <stdio.h>
-//#include <string.h>
-
 #include "pdfgen.c"
 
 int LLVMFuzzerTestOneInput(const char *data, int size)
