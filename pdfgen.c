@@ -542,15 +542,15 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
                  &tm);
     }
     if (!obj->info.creator[0])
-        strcpy(obj->info.creator, "pdfgen");
+        snprintf(obj->info.creator, sizeof(obj->info.creator), "pdfgen");
     if (!obj->info.producer[0])
-        strcpy(obj->info.producer, "pdfgen");
+        snprintf(obj->info.producer, sizeof(obj->info.creator), "pdfgen");
     if (!obj->info.title[0])
-        strcpy(obj->info.title, "pdfgen");
+        snprintf(obj->info.title, sizeof(obj->info.creator), "pdfgen");
     if (!obj->info.author[0])
-        strcpy(obj->info.author, "pdfgen");
+        snprintf(obj->info.author, sizeof(obj->info.creator), "pdfgen");
     if (!obj->info.subject[0])
-        strcpy(obj->info.subject, "pdfgen");
+        snprintf(obj->info.subject, sizeof(obj->info.creator), "pdfgen");
 
     pdf_add_object(pdf, OBJ_pages);
     pdf_add_object(pdf, OBJ_catalog);
