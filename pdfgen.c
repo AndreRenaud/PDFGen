@@ -185,7 +185,7 @@ struct pdf_object {
             int height;
             struct flexarray children;
         } page;
-        struct pdf_info info;
+        struct pdf_info *info;
         struct {
             char name[64];
             int index;
@@ -516,16 +516,20 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
     /* Create the 'info' object */
     obj = pdf_add_object(pdf, OBJ_info);
     if (info) {
-        obj->info = *info;
-        obj->info.creator[sizeof(obj->info.creator) - 1] = '\0';
-        obj->info.producer[sizeof(obj->info.producer) - 1] = '\0';
-        obj->info.title[sizeof(obj->info.title) - 1] = '\0';
-        obj->info.author[sizeof(obj->info.author) - 1] = '\0';
-        obj->info.subject[sizeof(obj->info.subject) - 1] = '\0';
-        obj->info.date[sizeof(obj->info.date) - 1] = '\0';
+        obj->info = calloc(sizeof(*obj->info), 1);
+        if (!obj->info) {
+            pdf_destroy(pdf);
+            return NULL;
+        }
+        obj->info->creator[sizeof(obj->info->creator) - 1] = '\0';
+        obj->info->producer[sizeof(obj->info->producer) - 1] = '\0';
+        obj->info->title[sizeof(obj->info->title) - 1] = '\0';
+        obj->info->author[sizeof(obj->info->author) - 1] = '\0';
+        obj->info->subject[sizeof(obj->info->subject) - 1] = '\0';
+        obj->info->date[sizeof(obj->info->date) - 1] = '\0';
     }
     /* FIXME: Should be quoting PDF strings? */
-    if (!obj->info.date[0]) {
+    if (!obj->info->date[0]) {
         time_t now = time(NULL);
         struct tm tm;
 #ifdef _WIN32
@@ -535,19 +539,19 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
 #else
         localtime_r(&now, &tm);
 #endif
-        strftime(obj->info.date, sizeof(obj->info.date), "%Y%m%d%H%M%SZ",
+        strftime(obj->info->date, sizeof(obj->info->date), "%Y%m%d%H%M%SZ",
                  &tm);
     }
-    if (!obj->info.creator[0])
-        snprintf(obj->info.creator, sizeof(obj->info.creator), "pdfgen");
-    if (!obj->info.producer[0])
-        snprintf(obj->info.producer, sizeof(obj->info.creator), "pdfgen");
-    if (!obj->info.title[0])
-        snprintf(obj->info.title, sizeof(obj->info.creator), "pdfgen");
-    if (!obj->info.author[0])
-        snprintf(obj->info.author, sizeof(obj->info.creator), "pdfgen");
-    if (!obj->info.subject[0])
-        snprintf(obj->info.subject, sizeof(obj->info.creator), "pdfgen");
+    if (!obj->info->creator[0])
+        snprintf(obj->info->creator, sizeof(obj->info->creator), "pdfgen");
+    if (!obj->info->producer[0])
+        snprintf(obj->info->producer, sizeof(obj->info->producer), "pdfgen");
+    if (!obj->info->title[0])
+        snprintf(obj->info->title, sizeof(obj->info->title), "pdfgen");
+    if (!obj->info->author[0])
+        snprintf(obj->info->author, sizeof(obj->info->author), "pdfgen");
+    if (!obj->info->subject[0])
+        snprintf(obj->info->subject, sizeof(obj->info->subject), "pdfgen");
 
     pdf_add_object(pdf, OBJ_pages);
     pdf_add_object(pdf, OBJ_catalog);
@@ -576,6 +580,9 @@ static void pdf_object_destroy(struct pdf_object *object)
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
+        break;
+    case OBJ_info:
+        free(object->info);
         break;
     case OBJ_bookmark:
         flexarray_clear(&object->bookmark.children);
@@ -677,7 +684,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         break;
     }
     case OBJ_info: {
-        struct pdf_info *info = &object->info;
+        struct pdf_info *info = object->info;
 
         fprintf(fp,
                 "<<\r\n"
