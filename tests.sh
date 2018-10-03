@@ -35,5 +35,6 @@ run_fail "check for line wrapping" grep -q "This is a great big long string that
 # Check for pdftk meta data
 run "check page count" grep -q "NumberOfPages: 4$" output.pdftk
 run "check bookmarks" grep -q "BookmarkTitle: First page$" output.pdftk
+run "check for subject" grep -q "InfoValue: My subject$" output.pdftk
 
 echo "Tests completed successfully"
