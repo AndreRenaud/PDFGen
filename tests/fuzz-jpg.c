@@ -10,13 +10,7 @@ int LLVMFuzzerTestOneInput(char *data, int size)
     fwrite(data, 1, size, temfile);
     fclose(temfile);
 
-    struct pdf_info info = {.creator = "hello",
-                            .producer = "world",
-                            .title = "My document",
-                            .author = "My name",
-                            .subject = "My subject",
-                            .date = "Today"};
-    struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
+    struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, NULL);
     pdf_set_font(pdf, "Times-Roman");
     pdf_append_page(pdf);
     pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, filename);
