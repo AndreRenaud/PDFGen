@@ -9,8 +9,7 @@ int main(int argc, char *argv[])
                             .producer = "My software",
                             .title = "My document",
                             .author = "My name",
-                            .subject = "My subject",
-                            .date = "Today"};
+                            .subject = "My subject"};
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
     int i;
     int height;

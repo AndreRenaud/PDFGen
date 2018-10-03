@@ -515,12 +515,17 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
 
     /* Create the 'info' object */
     obj = pdf_add_object(pdf, OBJ_info);
+    if (!obj) {
+        pdf_destroy(pdf);
+        return NULL;
+    }
+    obj->info = calloc(sizeof(*obj->info), 1);
+    if (!obj->info) {
+        pdf_destroy(pdf);
+        return NULL;
+    }
     if (info) {
-        obj->info = calloc(sizeof(*obj->info), 1);
-        if (!obj->info) {
-            pdf_destroy(pdf);
-            return NULL;
-        }
+        *obj->info = *info;
         obj->info->creator[sizeof(obj->info->creator) - 1] = '\0';
         obj->info->producer[sizeof(obj->info->producer) - 1] = '\0';
         obj->info->title[sizeof(obj->info->title) - 1] = '\0';
