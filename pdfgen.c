@@ -1384,7 +1384,8 @@ static int pdf_text_pixel_width(const char *text, int text_len, int size,
             return -EINVAL;
         i += code_len;
 
-        len += widths[(uint8_t)code];
+        if (code != '\n' && code != '\r')
+            len += widths[(uint8_t)code];
     }
 
     /* Our widths arrays are for 14pt fonts */
