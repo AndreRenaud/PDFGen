@@ -114,19 +114,19 @@
 #define PDF_RGB_B(c) ((((c) >> 0) & 0xff) / 255.0)
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
 /*
  * As stated here:
  * http://stackoverflow.com/questions/70013/how-to-detect-if-im-compiling-code-with-visual-studio-2008
  * Visual Studio 2015 has better support for C99
  * We need to use __inline for older version.
  */
-#if _MSC_VER < 1900
 #define inline __inline
-#endif
-
+#define snprintf _snprintf
+#define strcasecmp _stricmp
 #define strncasecmp _strnicmp
-#endif // _MSC_VER
+#define SKIP_ATTRIBUTE
+#endif // _MSC_VER && _MSC_VER < 1900
 
 #ifndef M_SQRT2
 #define M_SQRT2 1.41421356237309504880f
@@ -362,8 +362,10 @@ static int dstr_ensure(struct dstr *str, int len)
     return 0;
 }
 
+#ifndef SKIP_ATTRIBUTE
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
     __attribute__((format(gnu_printf, 2, 3)));
+#endif
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
 {
     va_list ap, aq;
@@ -415,8 +417,10 @@ static void dstr_free(struct dstr *str)
  * PDF Implementation
  */
 
+#ifndef SKIP_ATTRIBUTE
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
                        ...) __attribute__((format(gnu_printf, 3, 4)));
+#endif
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
                        ...)
 {
