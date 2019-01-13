@@ -144,6 +144,7 @@ enum {
     PDF_ALIGN_RIGHT,
     PDF_ALIGN_CENTER,
     PDF_ALIGN_JUSTIFY,
+    PDF_ALIGN_JUSTIFY_ALL, // Like PDF_ALIGN_JUSTIFY, except even short lines will be fully justified
 };
 
 /**

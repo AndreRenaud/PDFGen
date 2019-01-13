@@ -1531,6 +1531,11 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                     char_spacing =
                         ((double)(wrap_width - line_width)) / (len - 2);
                 break;
+            case PDF_ALIGN_JUSTIFY_ALL:
+                if ((len - 1) > 0)
+                    char_spacing =
+                        ((double)(wrap_width - line_width)) / (len - 2);
+                break;
             }
 
             pdf_add_text_spacing(pdf, page, line, size, xoff_align, yoff,
