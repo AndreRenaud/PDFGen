@@ -1371,7 +1371,8 @@ static const uint16_t courier_widths[256] = {
     604,
 };
 
-static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text, int text_len, int size,
+static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text,
+                                int text_len, int size,
                                 const uint16_t *widths)
 {
     int len = 0;
@@ -1384,10 +1385,12 @@ static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text, int text_
         code_len = utf8_to_utf32(&text[i], text_len - i, &code);
         if (code_len < 0)
             return pdf_set_err(pdf, code_len,
-                           "Invalid unicode string at position %d in %s", i, text);
+                               "Invalid unicode string at position %d in %s",
+                               i, text);
         if (code >= 255)
-            return pdf_set_err(pdf, code_len,
-                           "Unable to determine width of character code %d", code);
+            return pdf_set_err(
+                pdf, code_len,
+                "Unable to determine width of character code %d", code);
         i += code_len;
 
         if (code != '\n' && code != '\r')
@@ -1478,7 +1481,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         end = new_end;
 
-        line_width = pdf_text_pixel_width(pdf, start, end - start, size, widths);
+        line_width =
+            pdf_text_pixel_width(pdf, start, end - start, size, widths);
         if (line_width < 0)
             return line_width;
 
