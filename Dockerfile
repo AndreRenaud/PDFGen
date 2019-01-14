@@ -3,7 +3,7 @@ FROM ubuntu:16.04
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update && apt-get install -y dirmngr
-RUN echo "deb http://pkg.mxe.cc/repos/apt/debian wheezy main" > /etc/apt/sources.list.d/mxeapt.list && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D43A795B73B16ABE9643FE1AFD8FFF16DB45C6AB
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9 && echo "deb http://mirror.mxe.cc/repos/apt xenial main" > /etc/apt/sources.list.d/mxeapt.list
 
 RUN apt-get update && apt-get install -y \
 	astyle \
