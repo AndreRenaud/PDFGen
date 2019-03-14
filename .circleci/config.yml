@@ -1,37 +1,28 @@
 version: 2
 jobs:
   build:
-    machine: true
+    docker:
+        image: andredesigna/pdfgen:latest
     steps:
       - checkout
       - run:
-          name: Construct Build Environment
-          command: docker build -t build_image .
-      - run:
-          name: Start Build Environment
-          command: docker run --volume "$(pwd):$(pwd)" --workdir "$(pwd)" --tty --detach build_image bash > container_id
-      - run:
           name: Build Win32
           command: |
-                  docker exec $(cat container_id) make CC=/usr/lib/mxe/usr/bin/i686-w64-mingw32.static-gcc
-                  docker exec $(cat container_id) cp testprog testprog.exe
-                  docker exec $(cat container_id) make clean
+                  make CC=/usr/lib/mxe/usr/bin/i686-w64-mingw32.static-gcc
+                  cp testprog testprog.exe
+                  make clean
       - run:
           name: Build
-          command: docker exec $(cat container_id) make
+          command: make
       - run:
           name: Test
-          command: docker exec $(cat container_id) scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
+          command: scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
       - run:
           name: Fuzz Test
-          command: docker exec $(cat container_id) make fuzz-check CLANG=clang-8 CLANG_FORMAT=clang-format-8 -j4
+          command: make fuzz-check CLANG=clang-8 CLANG_FORMAT=clang-format-8 -j4
       - run:
           name: Docs
-          command: docker exec $(cat container_id) make docs
-      - run:
-          name: Stop Build Environment
-          command: docker stop $(cat container_id)
-          when: always
+          command: make docs
       - store_artifacts:
           path: output.pdf
       - store_artifacts:
