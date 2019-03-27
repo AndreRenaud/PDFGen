@@ -15,7 +15,7 @@ tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 
 tests/penguin.c: data/penguin.jpg
 	# Convert data/penguin.jpg to a C source file with binary data in a variable
-	$(XXD) -i $< > $@
+	$(XXD) -i $< > $@ || ( rm -f $@ ; false )
 
 %.o: %.c Makefile
 	$(CC) -I. -c -o $@ $< $(CFLAGS)
