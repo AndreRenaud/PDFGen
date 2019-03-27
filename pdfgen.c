@@ -1984,8 +1984,8 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
 }
 
 /* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(unsigned char *data, unsigned int data_size, int *width,
-                     int *height)
+static int jpeg_size(const unsigned char *data, unsigned int data_size,
+                     int *width, int *height)
 {
     int i = 0;
     if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
@@ -2014,6 +2014,35 @@ static int jpeg_size(unsigned char *data, unsigned int data_size, int *width,
     return -1;
 }
 
+static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
+                                         const unsigned char *jpeg_data,
+                                         size_t len)
+{
+    struct pdf_object *obj;
+    int width, height;
+
+    if (jpeg_size(jpeg_data, len, &width, &height) < 0) {
+        pdf_set_err(pdf, -EINVAL, "Unable to determine jpeg width/height");
+        return NULL;
+    }
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
+        return NULL;
+    dstr_printf(&obj->stream,
+                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                "/Width %d\r\n/Height %d\r\n"
+                "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
+                "/Length %d\r\n>>stream\r\n",
+                flexarray_size(&pdf->objects), width, height, (int)len);
+    dstr_append_data(&obj->stream, jpeg_data, len);
+
+    dstr_printf(&obj->stream, "\r\nendstream\r\n");
+
+    return obj;
+}
+
 static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
                                     const char *jpeg_file)
 {
@@ -2022,7 +2051,6 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
     uint8_t *jpeg_data;
     FILE *fp;
     struct pdf_object *obj;
-    int width, height;
 
     if (stat(jpeg_file, &buf) < 0) {
         pdf_set_err(pdf, -errno, "Unable to access %s: %s", jpeg_file,
@@ -2053,27 +2081,13 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
     }
     fclose(fp);
 
-    if (jpeg_size(jpeg_data, len, &width, &height) < 0) {
+    obj = pdf_add_raw_jpeg_data(pdf, jpeg_data, len);
+    if (obj == NULL) {
         free(jpeg_data);
-        pdf_set_err(pdf, -EINVAL,
-                    "Unable to determine jpeg width/height from %s",
+        pdf_set_err(pdf, -EINVAL, "Unable to add jpeg data from %s",
                     jpeg_file);
         return NULL;
     }
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj)
-        return NULL;
-    dstr_printf(&obj->stream,
-                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                "/Width %d\r\n/Height %d\r\n"
-                "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
-                "/Length %d\r\n>>stream\r\n",
-                flexarray_size(&pdf->objects), width, height, (int)len);
-    dstr_append_data(&obj->stream, jpeg_data, len);
-
-    dstr_printf(&obj->stream, "\r\nendstream\r\n");
 
     free(jpeg_data);
 
@@ -2177,6 +2191,19 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     struct pdf_object *obj;
 
     obj = pdf_add_raw_jpeg(pdf, jpeg_file);
+    if (!obj)
+        return pdf->errval;
+
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
+int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
+                      int y, int display_width, int display_height,
+                      const unsigned char *jpeg_data, size_t len)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_raw_jpeg_data(pdf, jpeg_data, len);
     if (!obj)
         return pdf->errval;
 

@@ -2,15 +2,20 @@ CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsugges
 LFLAGS=-fprofile-arcs -ftest-coverage
 CLANG=clang
 CLANG_FORMAT=clang-format
+XXD=xxd
 
 
 default: testprog
 
-testprog: pdfgen.o tests/main.o
-	$(CC) -o $@ pdfgen.o tests/main.o $(LFLAGS)
+testprog: pdfgen.o tests/main.o tests/penguin.o
+	$(CC) -o $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $^ -fsanitize=fuzzer,address
+
+tests/penguin.c: data/penguin.jpg
+	# Convert data/penguin.jpg to a C source file with binary data in a variable
+	( $(XXD) -i $< | $(CLANG_FORMAT) -assume-filename=$@ > $@ ) || ( rm $@ ; false )
 
 %.o: %.c Makefile
 	$(CC) -I. -c -o $@ $< $(CFLAGS)

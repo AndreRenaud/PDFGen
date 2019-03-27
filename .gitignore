@@ -7,3 +7,4 @@ testprog
 output.pdf
 output.txt
 docs/
+tests/penguin.c
