@@ -15,7 +15,7 @@ tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 
 tests/penguin.c: data/penguin.jpg
 	# Convert data/penguin.jpg to a C source file with binary data in a variable
-	( $(XXD) -i $< | $(CLANG_FORMAT) -assume-filename=$@ > $@ ) || ( rm $@ ; false )
+	$(XXD) -i $< > $@
 
 %.o: %.c Makefile
 	$(CC) -I. -c -o $@ $< $(CFLAGS)
@@ -50,5 +50,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o tests/*.o testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log
+	rm -f *.o tests/*.o testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log tests/penguin.c
 	rm -rf docs
