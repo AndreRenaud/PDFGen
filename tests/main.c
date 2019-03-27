@@ -3,6 +3,9 @@
 
 #include "pdfgen.h"
 
+extern unsigned char data_penguin_jpg[];
+extern unsigned int data_penguin_jpg_len;
+
 int main(int argc, char *argv[])
 {
     struct pdf_info info = {.creator = "My software",
@@ -69,7 +72,8 @@ int main(int argc, char *argv[])
                       PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
 
-    pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg");
+    pdf_add_jpeg_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
+                      data_penguin_jpg_len);
 
     pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 50, "Code128",
                     PDF_RGB(0, 0, 0));

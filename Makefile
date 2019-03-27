@@ -2,15 +2,20 @@ CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsugges
 LFLAGS=-fprofile-arcs -ftest-coverage
 CLANG=clang
 CLANG_FORMAT=clang-format
+XXD=xxd
 
 
 default: testprog
 
-testprog: pdfgen.o tests/main.o
-	$(CC) -o $@ pdfgen.o tests/main.o $(LFLAGS)
+testprog: pdfgen.o tests/main.o tests/penguin.o
+	$(CC) -o $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $^ -fsanitize=fuzzer,address
+
+tests/penguin.c: data/penguin.jpg
+	# Convert data/penguin.jpg to a C source file with binary data in a variable
+	( $(XXD) -i $< | $(CLANG_FORMAT) -assume-filename=$@ > $@ ) || ( rm $@ ; false )
 
 %.o: %.c Makefile
 	$(CC) -I. -c -o $@ $< $(CFLAGS)
@@ -35,7 +40,7 @@ check-fuzz-%: tests/fuzz-% FORCE
 fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text check-fuzz-dstr
 
 format: FORCE
-	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-ppm.c tests/fuzz-jpg.c tests/fuzz-header.c tests/fuzz-text.c
+	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-ppm.c tests/fuzz-jpg.c tests/fuzz-header.c tests/fuzz-text.c tests/penguin.c
 
 docs: FORCE
 	doxygen pdfgen.dox 2>&1 | tee doxygen.log

@@ -453,4 +453,19 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                  int display_width, int display_height,
                  const char *jpeg_file);
 
+/**
+ * Add JPEG data as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add PPM to (NULL => most recently added page)
+ * @param x X offset to put JPEG at
+ * @param y Y offset to put JPEG at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param jpeg_data JPEG data to add
+ * @param len Length of JPEG data
+ */
+int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
+                      int y, int display_width, int display_height,
+                      unsigned char *jpeg_data, size_t len);
+
 #endif // PDFGEN_H
