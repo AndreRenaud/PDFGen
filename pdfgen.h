@@ -466,6 +466,6 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  */
 int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       int y, int display_width, int display_height,
-                      unsigned char *jpeg_data, size_t len);
+                      const unsigned char *jpeg_data, size_t len);
 
 #endif // PDFGEN_H

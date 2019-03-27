@@ -1984,8 +1984,8 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
 }
 
 /* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(unsigned char *data, unsigned int data_size, int *width,
-                     int *height)
+static int jpeg_size(const unsigned char *data, unsigned int data_size,
+                     int *width, int *height)
 {
     int i = 0;
     if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
@@ -2015,7 +2015,8 @@ static int jpeg_size(unsigned char *data, unsigned int data_size, int *width,
 }
 
 static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
-                                         unsigned char *jpeg_data, size_t len)
+                                         const unsigned char *jpeg_data,
+                                         size_t len)
 {
     struct pdf_object *obj;
     int width, height;
@@ -2198,7 +2199,7 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
 
 int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       int y, int display_width, int display_height,
-                      unsigned char *jpeg_data, size_t len)
+                      const unsigned char *jpeg_data, size_t len)
 {
     struct pdf_object *obj;
 
