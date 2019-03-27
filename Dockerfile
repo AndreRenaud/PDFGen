@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
 	poppler-utils \
 	software-properties-common \
 	valgrind \
+	vim \
 	wget
 
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - \
