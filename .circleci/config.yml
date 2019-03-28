@@ -23,6 +23,9 @@ jobs:
       - run:
           name: Docs
           command: make docs
+      - run:
+          name: Update code coverage
+          command: coveralls -i pdfgen.c
       - store_artifacts:
           path: output.pdf
       - store_artifacts:
