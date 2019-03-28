@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
 	mxe-i686-w64-mingw32.static-gcc \
 	pdftk \
 	poppler-utils \
+	python3-pip \
 	software-properties-common \
 	valgrind \
 	vim \
@@ -26,3 +27,5 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - \
  && apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main" \
  && apt-get update \
  && apt-get install -y clang-8 clang-format-8 clang-tools-8
+
+RUN pip3 install cpp-coveralls
