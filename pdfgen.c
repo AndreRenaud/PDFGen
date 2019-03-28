@@ -429,15 +429,20 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
     int len;
 
     va_start(ap, buffer);
-    len = vsnprintf(doc->errstr, sizeof(doc->errstr) - 2, buffer, ap);
+    len = vsnprintf(doc->errstr, sizeof(doc->errstr) - 1, buffer, ap);
     va_end(ap);
 
-    if (len >= sizeof(doc->errstr) - 2)
-        len = sizeof(doc->errstr) - 2;
+    if (len < 0) {
+        doc->errstr[0] = '\0';
+        return errval;
+    }
+
+    if (len >= sizeof(doc->errstr) - 1)
+        len = sizeof(doc->errstr) - 1;
 
     /* Make sure we're properly terminated */
-    if (doc->errstr[len] != '\n')
-        doc->errstr[len] = '\n';
+    if (len > 0 && doc->errstr[len - 1] != '\n')
+        doc->errstr[len - 1] = '\n';
     doc->errstr[len] = '\0';
     doc->errval = errval;
 
@@ -729,6 +734,12 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         for (struct pdf_object *font = pdf_find_first_object(pdf, OBJ_font);
              font; font = font->next)
             fprintf(fp, "    /F%d %d 0 R\r\n", font->font.index, font->index);
+        fprintf(fp, "  >>\r\n");
+        // We trim transparency to just 4-bits
+        fprintf(fp, "  /ExtGState <<\r\n");
+        for (int i = 0; i < 16; i++) {
+            fprintf(fp, "  /GS%d <</ca %f>>\r\n", i, (float)(15 - i) / 15);
+        }
         fprintf(fp, "  >>\r\n");
 
         if (image) {
@@ -1047,12 +1058,14 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     int ret;
     int len = text ? strlen(text) : 0;
     struct dstr str = INIT_DSTR;
+    int alpha = (colour >> 24) >> 4;
 
     /* Don't bother adding empty/null strings */
     if (!len)
         return 0;
 
     dstr_append(&str, "BT ");
+    dstr_printf(&str, "/GS%d gs ", alpha);
     dstr_printf(&str, "%d %d TD ", xoff, yoff);
     dstr_printf(&str, "/F%d %d Tf ", pdf->current_font->font.index, size);
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),

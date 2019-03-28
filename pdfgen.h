@@ -27,6 +27,7 @@
  * @par PDF library example:
  * @code
 #include "pdfgen.h"
+#include <stdio.h>
  ...
 struct pdf_info info = {
          .creator = "My software",
@@ -39,7 +40,7 @@ struct pdf_info info = {
 struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
 pdf_set_font(pdf, "Times-Roman");
 pdf_append_page(pdf);
-pdf_add_text(pdf, NULL, "This is text", 12, 50, 20);
+pdf_add_text(pdf, NULL, "This is text", 12, 50, 20, PDF_BLACK);
 pdf_add_line(pdf, NULL, 50, 24, 150, 24);
 pdf_save(pdf, "output.pdf");
 pdf_destroy(pdf);
@@ -107,6 +108,10 @@ struct pdf_info {
  */
 #define PDF_RGB(r, g, b)                                                     \
     ((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
+
+#define PDF_ARGB(a, r, g, b)                                                 \
+    ((((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) |           \
+     (((b)&0xff)))
 
 /**
  * Utility macro to provide bright red
