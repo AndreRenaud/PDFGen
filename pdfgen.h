@@ -391,7 +391,6 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
 
 /**
  * Add a bookmark to the document
- *
  * @param pdf PDF document to add bookmark to
  * @param page Page to jump to for bookmark
                (or NULL for the most recently added page)
