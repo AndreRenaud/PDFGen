@@ -43,9 +43,12 @@ int main(void) {
 License
 =======
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
+
 The source here is public domain.
 If you find it useful, please drop me a line at andre@ignavus.net.
 
 Builds
 ======
 [CircleCI Build](https://circleci.com/gh/AndreRenaud/PDFGen) status: ![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)
+
+Code Coverage: [![Coverage Status](https://coveralls.io/repos/github/AndreRenaud/PDFGen/badge.svg?branch=master)](https://coveralls.io/github/AndreRenaud/PDFGen?branch=master)
