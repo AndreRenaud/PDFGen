@@ -27,8 +27,8 @@
  * @par PDF library example:
  * @code
 #include <stdio.h>
+
 #include "pdfgen.h"
-#include <stdio.h>
  ...
 struct pdf_info info = {
          .creator = "My software",
