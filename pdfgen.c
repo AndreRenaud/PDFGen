@@ -429,15 +429,20 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
     int len;
 
     va_start(ap, buffer);
-    len = vsnprintf(doc->errstr, sizeof(doc->errstr) - 2, buffer, ap);
+    len = vsnprintf(doc->errstr, sizeof(doc->errstr) - 1, buffer, ap);
     va_end(ap);
 
-    if (len >= sizeof(doc->errstr) - 2)
-        len = sizeof(doc->errstr) - 2;
+    if (len < 0) {
+        doc->errstr[0] = '\0';
+        return errval;
+    }
+
+    if (len >= sizeof(doc->errstr) - 1)
+        len = sizeof(doc->errstr) - 1;
 
     /* Make sure we're properly terminated */
-    if (doc->errstr[len] != '\n')
-        doc->errstr[len] = '\n';
+    if (len > 0 && doc->errstr[len - 1] != '\n')
+        doc->errstr[len - 1] = '\n';
     doc->errstr[len] = '\0';
     doc->errval = errval;
 
