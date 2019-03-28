@@ -237,7 +237,7 @@ static int bin_offset[] = {
     (1 << (MIN_SHIFT + 15)) - 1 - MIN_OFFSET,
 };
 
-static inline int flexarray_get_bin(struct flexarray *flex, int index)
+static inline int flexarray_get_bin(const struct flexarray *flex, int index)
 {
     (void)flex;
     for (int i = 0; i < ARRAY_SIZE(bin_offset); i++)
@@ -246,7 +246,8 @@ static inline int flexarray_get_bin(struct flexarray *flex, int index)
     return -1;
 }
 
-static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
+static inline int flexarray_get_bin_size(const struct flexarray *flex,
+                                         int bin)
 {
     (void)flex;
     if (bin >= ARRAY_SIZE(bin_offset))
@@ -255,8 +256,8 @@ static inline int flexarray_get_bin_size(struct flexarray *flex, int bin)
     return next - bin_offset[bin];
 }
 
-static inline int flexarray_get_bin_offset(struct flexarray *flex, int bin,
-                                           int index)
+static inline int flexarray_get_bin_offset(const struct flexarray *flex,
+                                           int bin, int index)
 {
     (void)flex;
     return index - bin_offset[bin];
@@ -271,7 +272,7 @@ static void flexarray_clear(struct flexarray *flex)
     flex->item_count = 0;
 }
 
-static inline int flexarray_size(struct flexarray *flex)
+static inline int flexarray_size(const struct flexarray *flex)
 {
     return flex->item_count;
 }
@@ -306,7 +307,7 @@ static inline int flexarray_append(struct flexarray *flex, void *data)
     return flexarray_set(flex, flexarray_size(flex), data);
 }
 
-static inline void *flexarray_get(struct flexarray *flex, int index)
+static inline void *flexarray_get(const struct flexarray *flex, int index)
 {
     int bin;
 
@@ -334,7 +335,7 @@ static char *dstr_data(struct dstr *str)
     return str->data ? str->data : str->static_data;
 }
 
-static int dstr_len(struct dstr *str)
+static int dstr_len(const struct dstr *str)
 {
     return str->used_len;
 }
@@ -443,7 +444,7 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
     return errval;
 }
 
-const char *pdf_get_err(struct pdf_doc *pdf, int *errval)
+const char *pdf_get_err(const struct pdf_doc *pdf, int *errval)
 {
     if (!pdf)
         return NULL;
@@ -462,7 +463,7 @@ void pdf_clear_err(struct pdf_doc *pdf)
     pdf->errval = 0;
 }
 
-static struct pdf_object *pdf_get_object(struct pdf_doc *pdf, int index)
+static struct pdf_object *pdf_get_object(const struct pdf_doc *pdf, int index)
 {
     return flexarray_get(&pdf->objects, index);
 }
@@ -508,7 +509,7 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
     return obj;
 }
 
-struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
+struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
 {
     struct pdf_doc *pdf;
     struct pdf_object *obj;
@@ -573,12 +574,12 @@ struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info)
     return pdf;
 }
 
-int pdf_width(struct pdf_doc *pdf)
+int pdf_width(const struct pdf_doc *pdf)
 {
     return pdf->width;
 }
 
-int pdf_height(struct pdf_doc *pdf)
+int pdf_height(const struct pdf_doc *pdf)
 {
     return pdf->height;
 }
@@ -1946,7 +1947,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     }
 }
 
-static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, uint8_t *data,
+static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                                      int width, int height)
 {
     struct pdf_object *obj;

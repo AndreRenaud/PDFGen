@@ -156,7 +156,8 @@ enum {
  * @param info Optional information to be put into the PDF header
  * @return PDF document object, or NULL on failure
  */
-struct pdf_doc *pdf_create(int width, int height, struct pdf_info *info);
+struct pdf_doc *pdf_create(int width, int height,
+                           const struct pdf_info *info);
 
 /**
  * Destroy the pdf object, and all of its associated memory
@@ -169,7 +170,7 @@ void pdf_destroy(struct pdf_doc *pdf);
  * @param errval optional pointer to an integer to be set to the error code
  * @return NULL if no error message, string description of error otherwise
  */
-const char *pdf_get_err(struct pdf_doc *pdf, int *errval);
+const char *pdf_get_err(const struct pdf_doc *pdf, int *errval);
 
 /**
  * Acknowledge an outstanding pdf error
@@ -211,12 +212,12 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
 /**
  * Retrieves a PDF document height
  */
-int pdf_height(struct pdf_doc *pdf);
+int pdf_height(const struct pdf_doc *pdf);
 
 /**
  * Retrieves a PDF document width
  */
-int pdf_width(struct pdf_doc *pdf);
+int pdf_width(const struct pdf_doc *pdf);
 
 /**
  * Add a new page to the given pdf
@@ -390,7 +391,6 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
 
 /**
  * Add a bookmark to the document
- *
  * @param pdf PDF document to add bookmark to
  * @param page Page to jump to for bookmark
                (or NULL for the most recently added page)
