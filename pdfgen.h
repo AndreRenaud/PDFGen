@@ -109,6 +109,9 @@ struct pdf_info {
 #define PDF_RGB(r, g, b)                                                     \
     ((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
 
+#define PDF_ARGB(a, r, g, b)                                                 \
+    ((((a) & 0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
+
 /**
  * Utility macro to provide bright red
  */

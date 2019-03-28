@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
     pdf_add_rectangle(pdf, NULL, 150, 150, 100, 100, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4,
                              PDF_RGB(0, 0xff, 0));
+    pdf_add_text(pdf, NULL, "This should be transparent", 20, 160, 500, PDF_ARGB(0x80, 0, 0, 0));
     int p1X[] = {200, 200, 300, 300};
     int p1Y[] = {200, 300, 200, 300};
     pdf_add_polygon(pdf, NULL, p1X, p1Y, 4, 4, PDF_RGB(0xaa, 0xff, 0xee));
