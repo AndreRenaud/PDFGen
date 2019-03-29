@@ -110,6 +110,12 @@ struct pdf_info {
 #define PDF_RGB(r, g, b)                                                     \
     ((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
 
+/**
+ * Convert four 8-bit ARGB values into a single packed 32-bit
+ * colour. These 32-bit colours are used by various functions
+ * in PDFGen. Alpha values range from 0 (opaque) to 0xff
+ * (transparent)
+ */
 #define PDF_ARGB(a, r, g, b)                                                 \
     ((((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) |           \
      (((b)&0xff)))
