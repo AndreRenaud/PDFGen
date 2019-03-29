@@ -15,6 +15,11 @@ jobs:
           name: Build
           command: make
       - run:
+          name: Update code coverage
+          command: |
+                  testprog
+                  coveralls -i pdfgen.c
+      - run:
           name: Test
           command: scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
       - run:
@@ -23,9 +28,6 @@ jobs:
       - run:
           name: Docs
           command: make docs
-      - run:
-          name: Update code coverage
-          command: coveralls -i pdfgen.c
       - store_artifacts:
           path: output.pdf
       - store_artifacts:
