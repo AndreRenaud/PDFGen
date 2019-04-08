@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /**
  * @defgroup subsystem Simple PDF Generation
@@ -26,8 +27,6 @@
  *
  * @par PDF library example:
  * @code
-#include <stdio.h>
-
 #include "pdfgen.h"
  ...
 struct pdf_info info = {

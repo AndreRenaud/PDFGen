@@ -17,7 +17,6 @@ Supports the following PDF features
 Example usage
 =============
 ```c
-#include <stdio.h>
 #include "pdfgen.h"
 
 int main(void) {
