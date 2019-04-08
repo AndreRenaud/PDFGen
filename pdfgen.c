@@ -93,7 +93,6 @@
 #define _POSIX_SOURCE /* For localtime_r */
 #include <ctype.h>
 #include <errno.h>
-#include <limits.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
