@@ -90,7 +90,9 @@
  * y    curveto.
  */
 
-#define _POSIX_SOURCE /* For localtime_r */
+#define _POSIX_SOURCE     /* For localtime_r */
+#define _XOPEN_SOURCE 500 /* for M_SQRT2 */
+
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
@@ -100,9 +102,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "pdfgen.h"
 
@@ -126,10 +126,6 @@
 #define strncasecmp _strnicmp
 #define SKIP_ATTRIBUTE
 #endif // _MSC_VER && _MSC_VER < 1900
-
-#ifndef M_SQRT2
-#define M_SQRT2 1.41421356237309504880f
-#endif
 
 typedef struct pdf_object pdf_object;
 

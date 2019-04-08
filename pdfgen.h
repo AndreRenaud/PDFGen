@@ -8,7 +8,6 @@
 #ifndef PDFGEN_H
 #define PDFGEN_H
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
