@@ -1933,7 +1933,7 @@ static int pdf_add_barcode_39(struct pdf_doc *pdf, struct pdf_object *page,
         if (x < 0)
             return x;
         string++;
-    };
+    }
 
     x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
     if (x < 0)
