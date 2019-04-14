@@ -1387,7 +1387,7 @@ static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text,
                                 int text_len, int size,
                                 const uint16_t *widths)
 {
-    int len = 0;
+    unsigned int len = 0;
     if (text_len < 0)
         text_len = strlen(text);
 
@@ -1996,7 +1996,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
 static int jpeg_size(const unsigned char *data, unsigned int data_size,
                      int *width, int *height)
 {
-    int i = 0;
+    unsigned int i = 0;
     if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
         data[i + 2] == 0xFF && data[i + 3] == 0xE0) {
         i += 4;
