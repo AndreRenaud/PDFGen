@@ -566,10 +566,19 @@ struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
     if (!obj->info->subject[0])
         snprintf(obj->info->subject, sizeof(obj->info->subject), "pdfgen");
 
-    pdf_add_object(pdf, OBJ_pages);
-    pdf_add_object(pdf, OBJ_catalog);
+    if (!pdf_add_object(pdf, OBJ_pages)) {
+        pdf_destroy(pdf);
+        return NULL;
+    }
+    if (!pdf_add_object(pdf, OBJ_catalog)) {
+        pdf_destroy(pdf);
+        return NULL;
+    }
 
-    pdf_set_font(pdf, "Times-Roman");
+    if (pdf_set_font(pdf, "Times-Roman") < 0) {
+        pdf_destroy(pdf);
+        return NULL;
+    }
 
     return pdf;
 }
