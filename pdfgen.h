@@ -190,9 +190,9 @@ void pdf_clear_err(struct pdf_doc *pdf);
 
 /**
  * Sets the font to use for text objects. Default value is Times-Roman if
- * this function is not called
+ * this function is not called.
  * Note: The font selection should be done before text is output,
- * and will remain until pdf_set_font is called again
+ * and will remain until pdf_set_font is called again.
  * @param pdf PDF document to update font on
  * @param font New font to use. This must be one of the standard PDF fonts:
  *  Courier, Courier-Bold, Courier-BoldOblique, Courier-Oblique,
@@ -247,7 +247,7 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
                       int height);
 
 /**
- * Save the given pdf document to the supplied filename
+ * Save the given pdf document to the supplied filename.
  * If the filename is NULL, defaults to stdout
  */
 int pdf_save(struct pdf_doc *pdf, const char *filename);
@@ -348,7 +348,7 @@ int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param height Height of rectangle
  * @param border_width Width of rectangle border
  * @param colour Colour to draw the rectangle
- * @return 0 on succss, < 0 on failure
+ * @return 0 on success, < 0 on failure
  */
 int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       int y, int width, int height, int border_width,
@@ -364,7 +364,7 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
  * @param height Height of rectangle
  * @param border_width Width of rectangle border
  * @param colour Colour to draw the rectangle
- * @return 0 on succss, < 0 on failure
+ * @return 0 on success, < 0 on failure
  */
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              int x, int y, int width, int height,
@@ -379,7 +379,7 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * @param count Number of points comprising the polygon
  * @param border_width Width of polygon border
  * @param colour Colour to draw the polygon
- * @return 0 on succss, < 0 on failure
+ * @return 0 on success, < 0 on failure
  */
 int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
                     int y[], int count, int border_width, uint32_t colour);
@@ -393,7 +393,7 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
  * @param count Number of points comprising the polygon
  * @param border_width Width of polygon border
  * @param colour Colour to draw the polygon
- * @return 0 on succss, < 0 on failure
+ * @return 0 on success, < 0 on failure
  */
 int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
                            int x[], int y[], int count, int border_width,
@@ -404,7 +404,7 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
  * @param pdf PDF document to add bookmark to
  * @param page Page to jump to for bookmark
                (or NULL for the most recently added page)
- * @param parent ID of a previosly created bookmark that is the parent
+ * @param parent ID of a previously created bookmark that is the parent
                of this one. -1 if this should be a top-level bookmark.
  * @param name String to associate with the bookmark
  * @return < 0 on failure, new bookmark id on success
@@ -422,7 +422,7 @@ enum {
 
 /**
  * Add a barcode to the document
- * @param pdf PDF document to add bookmark to
+ * @param pdf PDF document to add barcode to
  * @param page Page to add barcode to (NULL => most recently added page)
  * @param code Type of barcode to add (PDF_BARCODE_xxx)
  * @param x X offset to put barcode at
@@ -438,7 +438,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
 
 /**
  * Add a PPM file as an image to the document
- * @param pdf PDF document to add bookmark to
+ * @param pdf PDF document to add PPM to
  * @param page Page to add PPM to (NULL => most recently added page)
  * @param x X offset to put PPM at
  * @param y Y offset to put PPM at
@@ -451,8 +451,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
 
 /**
  * Add a JPEG file as an image to the document
- * @param pdf PDF document to add bookmark to
- * @param page Page to add PPM to (NULL => most recently added page)
+ * @param pdf PDF document to add JPEG to
+ * @param page Page to add JPEG to (NULL => most recently added page)
  * @param x X offset to put JPEG at
  * @param y Y offset to put JPEG at
  * @param display_width Displayed width of image
@@ -465,8 +465,8 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
 
 /**
  * Add JPEG data as an image to the document
- * @param pdf PDF document to add bookmark to
- * @param page Page to add PPM to (NULL => most recently added page)
+ * @param pdf PDF document to add JPEG to
+ * @param page Page to add JPEG to (NULL => most recently added page)
  * @param x X offset to put JPEG at
  * @param y Y offset to put JPEG at
  * @param display_width Displayed width of image
