@@ -23,6 +23,11 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    if (!pdf) {
+        fprintf(stderr, "Unable to create PDF\n");
+        return -1;
+    }
+
     if (pdf_width(pdf) != PDF_A4_WIDTH || pdf_height(pdf) != PDF_A4_HEIGHT) {
         fprintf(stderr, "PDF Size mismatch: %dx%d\n", pdf_width(pdf),
                 pdf_height(pdf));
