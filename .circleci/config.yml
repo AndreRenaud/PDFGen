@@ -17,8 +17,10 @@ jobs:
       - run:
           name: Update code coverage
           command: |
-                  ./testprog
-                  coveralls -i pdfgen.c
+                  if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
+                        ./testprog
+                        coveralls -i pdfgen.c
+                  fi
       - run:
           name: Test
           command: scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
