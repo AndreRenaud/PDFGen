@@ -23,7 +23,7 @@ run_fail() {
 }
 
 # Run the test program
-run "valgrind" valgrind --quiet --leak-check=full --error-exitcode=1 ./testprog
+run "valgrind" valgrind --log-file=valgrind.log --leak-check=full --error-exitcode=1 ./testprog
 run "pdftotext" pdftotext -layout output.pdf
 run "pdftk" pdftk output.pdf dump_data output output.pdftk
 
