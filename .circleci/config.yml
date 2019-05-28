@@ -15,7 +15,7 @@ jobs:
           name: Build
           command: make
       - run:
-          name: Update cloud statistics
+          name: Update coverage statistics
           command: |
                   if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
                         ./testprog

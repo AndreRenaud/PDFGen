@@ -2,6 +2,8 @@
 # Grabs information from valgrind logs and PDF output file and uploads
 # them to corlysis for graphing
 
+set -e
+
 if [ ! -e valgrind.log ] ; then
 	echo "valgrind.log not found - please run tests" >&2
 	exit 1
