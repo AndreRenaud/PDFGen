@@ -15,11 +15,12 @@ jobs:
           name: Build
           command: make
       - run:
-          name: Update code coverage
+          name: Update cloud statistics
           command: |
                   if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
                         ./testprog
                         coveralls -i pdfgen.c
+                        ./upload-stats.sh
                   fi
       - run:
           name: Test
