@@ -48,6 +48,9 @@ If you find it useful, please drop me a line at andre@ignavus.net.
 
 Builds
 ======
+
 [CircleCI Build](https://circleci.com/gh/AndreRenaud/PDFGen) status: ![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)
+
+[Fuzzit](https://app.fuzzit.dev/admin/sjk2xLZ7DGKxBaTDwfZW/target)  [![fuzzit](https://app.fuzzit.dev/badge?org_id=sjk2xLZ7DGKxBaTDwfZW&target_id=V3lm359etEu0fwaT3vzC&branch=master)](https://app.fuzzit.dev/admin/sjk2xLZ7DGKxBaTDwfZW/target)
 
 Code Coverage: [![Coverage Status](https://coveralls.io/repos/github/AndreRenaud/PDFGen/badge.svg?branch=master)](https://coveralls.io/github/AndreRenaud/PDFGen?branch=master)
