@@ -63,3 +63,5 @@ jobs:
           path: testprog
       - store_artifacts:
           path: testprog.exe
+      - store_artifacts:
+          path: fuzz-artifacts

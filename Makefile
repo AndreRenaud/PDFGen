@@ -35,7 +35,8 @@ example-check: FORCE
 	rm example-check example-check.c
 
 check-fuzz-%: tests/fuzz-% FORCE
-	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024
+	mkdir -p fuzz-artifacts
+	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
 fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text check-fuzz-dstr
 
@@ -51,4 +52,4 @@ FORCE:
 
 clean:
 	rm -f *.o tests/*.o testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log tests/penguin.c valgrind.log
-	rm -rf docs
+	rm -rf docs fuzz-artifacts
