@@ -7,7 +7,6 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9 \
  && echo "deb http://mirror.mxe.cc/repos/apt xenial main" > /etc/apt/sources.list.d/mxeapt.list
 
 RUN apt-get update && apt-get install -y \
-	astyle \
 	ca-certificates \
 	cloc \
 	colordiff \
