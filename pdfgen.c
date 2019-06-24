@@ -325,9 +325,9 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
         .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
     }
 
-static char *dstr_data(struct dstr *str)
+static char *dstr_data(const struct dstr *str)
 {
-    return str->data ? str->data : str->static_data;
+    return str->data ? str->data : (char *)str->static_data;
 }
 
 static int dstr_len(const struct dstr *str)
@@ -623,12 +623,14 @@ void pdf_destroy(struct pdf_doc *pdf)
     }
 }
 
-static struct pdf_object *pdf_find_first_object(struct pdf_doc *pdf, int type)
+static struct pdf_object *pdf_find_first_object(const struct pdf_doc *pdf,
+                                                int type)
 {
     return pdf->first_objects[type];
 }
 
-static struct pdf_object *pdf_find_last_object(struct pdf_doc *pdf, int type)
+static struct pdf_object *pdf_find_last_object(const struct pdf_doc *pdf,
+                                               int type)
 {
     return pdf->last_objects[type];
 }
