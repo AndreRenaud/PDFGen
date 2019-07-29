@@ -2025,8 +2025,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     }
     for (int i = 0; i < width * height * 3; i++) {
         char buf[3] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
-                       "0123456789ABCDEF"[data[i] & 0xf],
-                       0};
+                       "0123456789ABCDEF"[data[i] & 0xf], 0};
         dstr_append(&str, buf);
     }
     dstr_append(&str, endstream);

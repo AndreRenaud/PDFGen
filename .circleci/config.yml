@@ -15,7 +15,7 @@ jobs:
           name: Infer
           command: |
                   make clean
-                  infer run -- make CFLAGS="-g -Wall -pipe" LFLAGS=""
+                  infer run --no-progress-bar -- make CFLAGS="-g -Wall -pipe" LFLAGS=""
       - run:
           name: Build
           command: make clean && make
