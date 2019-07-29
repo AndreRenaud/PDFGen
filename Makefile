@@ -52,4 +52,4 @@ FORCE:
 
 clean:
 	rm -f *.o tests/*.o testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log tests/penguin.c valgrind.log
-	rm -rf docs fuzz-artifacts
+	rm -rf docs fuzz-artifacts infer-out
