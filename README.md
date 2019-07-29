@@ -54,3 +54,7 @@ Builds
 [Fuzzit](https://app.fuzzit.dev/admin/sjk2xLZ7DGKxBaTDwfZW/target)  [![fuzzit](https://app.fuzzit.dev/badge?org_id=sjk2xLZ7DGKxBaTDwfZW&target_id=V3lm359etEu0fwaT3vzC&branch=master)](https://app.fuzzit.dev/admin/sjk2xLZ7DGKxBaTDwfZW/target)
 
 Code Coverage: [![Coverage Status](https://coveralls.io/repos/github/AndreRenaud/PDFGen/badge.svg?branch=master)](https://coveralls.io/github/AndreRenaud/PDFGen?branch=master)
+
+Static Analysis
+===============
+This is a code base that I use to test static analysis tools. As such the build system is quite a bit more complex than should be necessary for a project of this size.
