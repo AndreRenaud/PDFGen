@@ -15,12 +15,14 @@ RUN apt-get update && apt-get install -y \
 	doxygen \
 	gcc \
 	graphviz \
+	libtinfo5 \
 	make \
 	mxe-i686-w64-mingw32.static-gcc \
 	pdftk-java \
 	poppler-utils \
 	python3-pip \
 	software-properties-common \
+	tzdata \
 	valgrind \
 	vim
 
@@ -30,3 +32,6 @@ RUN curl -L https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - \
  && apt-get install -y clang-8 clang-format-8 clang-tools-8
 
 RUN pip3 install cpp-coveralls
+
+RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.16.0/infer-linux64-v0.16.0.tar.xz | tar -C /opt -x -J
+ENV PATH $PATH:/opt/infer-linux64-v0.16.0/bin/
