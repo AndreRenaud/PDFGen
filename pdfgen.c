@@ -385,21 +385,17 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
 
 static int dstr_append_data(struct dstr *str, const void *extend, int len)
 {
-    if (dstr_ensure(str, str->used_len + len) < 0)
+    if (dstr_ensure(str, str->used_len + len + 1) < 0)
         return -ENOMEM;
     memcpy(dstr_data(str) + str->used_len, extend, len);
     str->used_len += len;
+    dstr_data(str)[str->used_len] = '\0';
     return len;
 }
 
 static int dstr_append(struct dstr *str, const char *extend)
 {
-    int len = strlen(extend);
-    if (dstr_ensure(str, str->used_len + len + 1) < 0)
-        return -ENOMEM;
-    memcpy(dstr_data(str) + str->used_len, extend, len + 1);
-    str->used_len += len;
-    return len;
+    return dstr_append_data(str, extend, strlen(extend));
 }
 
 static void dstr_free(struct dstr *str)
@@ -488,14 +484,35 @@ static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
     return 0;
 }
 
+static void pdf_object_destroy(struct pdf_object *object)
+{
+    switch (object->type) {
+    case OBJ_stream:
+    case OBJ_image:
+        dstr_free(&object->stream);
+        break;
+    case OBJ_page:
+        flexarray_clear(&object->page.children);
+        break;
+    case OBJ_info:
+        free(object->info);
+        break;
+    case OBJ_bookmark:
+        flexarray_clear(&object->bookmark.children);
+        break;
+    }
+    free(object);
+}
+
 static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 {
     struct pdf_object *obj;
 
     obj = calloc(1, sizeof(*obj));
     if (!obj) {
-        pdf_set_err(pdf, -errno, "Unable to allocate object %d: %s",
-                    flexarray_size(&pdf->objects) + 1, strerror(errno));
+        pdf_set_err(pdf, -errno,
+                    "Unable to allocate object %d of type %d: %s",
+                    flexarray_size(&pdf->objects) + 1, type, strerror(errno));
         return NULL;
     }
 
@@ -509,12 +526,41 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
     return obj;
 }
 
+static void pdf_del_object(struct pdf_doc *pdf, struct pdf_object *obj)
+{
+    int type = obj->type;
+    flexarray_set(&pdf->objects, obj->index, NULL);
+    if (pdf->last_objects[type] == obj) {
+        pdf->last_objects[type] = NULL;
+        for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
+            struct pdf_object *o = pdf_get_object(pdf, i);
+            if (o && o->type == type)
+                pdf->last_objects[type] = o;
+        }
+    }
+
+    if (pdf->first_objects[type] == obj) {
+        pdf->first_objects[type] = NULL;
+        for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
+            struct pdf_object *o = pdf_get_object(pdf, i);
+            if (o && o->type == type) {
+                pdf->first_objects[type] = o;
+                break;
+            }
+        }
+    }
+
+    pdf_object_destroy(obj);
+}
+
 struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
 {
     struct pdf_doc *pdf;
     struct pdf_object *obj;
 
     pdf = calloc(1, sizeof(*pdf));
+    if (!pdf)
+        return NULL;
     pdf->width = width;
     pdf->height = height;
 
@@ -591,26 +637,6 @@ int pdf_width(const struct pdf_doc *pdf)
 int pdf_height(const struct pdf_doc *pdf)
 {
     return pdf->height;
-}
-
-static void pdf_object_destroy(struct pdf_object *object)
-{
-    switch (object->type) {
-    case OBJ_stream:
-    case OBJ_image:
-        dstr_free(&object->stream);
-        break;
-    case OBJ_page:
-        flexarray_clear(&object->page.children);
-        break;
-    case OBJ_info:
-        free(object->info);
-        break;
-    case OBJ_bookmark:
-        flexarray_clear(&object->bookmark.children);
-        break;
-    }
-    free(object);
 }
 
 void pdf_destroy(struct pdf_doc *pdf)
@@ -693,6 +719,8 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
 static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 {
     struct pdf_object *object = pdf_get_object(pdf, index);
+    if (!object)
+        return -ENOENT;
 
     if (object->type == OBJ_none)
         return -ENOENT;
@@ -991,7 +1019,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
                      const char *name)
 {
-    struct pdf_object *obj;
+    struct pdf_object *obj, *outline = NULL;
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -1000,13 +1028,18 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to add bookmark, no pages available");
 
-    if (!pdf_find_first_object(pdf, OBJ_outline))
-        if (!pdf_add_object(pdf, OBJ_outline))
+    if (!pdf_find_first_object(pdf, OBJ_outline)) {
+        outline = pdf_add_object(pdf, OBJ_outline);
+        if (!outline)
             return pdf->errval;
+    }
 
     obj = pdf_add_object(pdf, OBJ_bookmark);
-    if (!obj)
+    if (!obj) {
+        if (outline)
+            pdf_del_object(pdf, outline);
         return pdf->errval;
+    }
 
     strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name));
     obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
@@ -1972,13 +2005,10 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     struct pdf_object *obj;
     int len;
     const char *endstream = ">\r\nendstream\r\n";
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj)
-        return NULL;
+    struct dstr str = INIT_DSTR;
 
     dstr_printf(
-        &obj->stream,
+        &str,
         "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
         "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
         "/BitsPerComponent 8\r\n/Filter /ASCIIHexDecode\r\n"
@@ -1986,19 +2016,27 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
         flexarray_size(&pdf->objects), height, width,
         width * height * 3 * 2 + 1);
 
-    len = dstr_len(&obj->stream) + width * height * 3 * 2 +
-          strlen(endstream) + 1;
-    if (dstr_ensure(&obj->stream, len) < 0) {
+    len = dstr_len(&str) + width * height * 3 * 2 + strlen(endstream) + 1;
+    if (dstr_ensure(&str, len) < 0) {
+        dstr_free(&str);
         pdf_set_err(pdf, -ENOMEM,
                     "Unable to allocate %d bytes memory for image", len);
         return NULL;
     }
     for (int i = 0; i < width * height * 3; i++) {
-        char buf[2] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
-                       "0123456789ABCDEF"[data[i] & 0xf]};
-        dstr_append_data(&obj->stream, buf, 2);
+        char buf[3] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
+                       "0123456789ABCDEF"[data[i] & 0xf],
+                       0};
+        dstr_append(&str, buf);
     }
-    dstr_append(&obj->stream, endstream);
+    dstr_append(&str, endstream);
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj) {
+        dstr_free(&str);
+        return NULL;
+    }
+    obj->stream = str;
 
     return obj;
 }
