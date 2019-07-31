@@ -28,7 +28,7 @@ jobs:
                   fi
       - run:
           name: Test
-          command: scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
+          command: make clean && scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
       - run:
           name: Fuzz Test
           command: make fuzz-check CLANG=clang-8 CLANG_FORMAT=clang-format-8 -j4
