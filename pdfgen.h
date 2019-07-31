@@ -4,6 +4,7 @@
  * Capable of handling millions of objects without too much performance
  * penalty.
  * Public domain license - no warrenty implied; use at your own risk.
+ * @file pdfgen.h
  */
 #ifndef PDFGEN_H
 #define PDFGEN_H
@@ -49,55 +50,50 @@ pdf_destroy(pdf);
 struct pdf_doc;
 struct pdf_object;
 
+/**
+ * pdf_info describes the metadata to be inserted into the
+ * header of the output PDF
+ */
 struct pdf_info {
-    char creator[64];
-    char producer[64];
-    char title[64];
-    char author[64];
-    char subject[64];
-    char date[64];
+    char creator[64];  //!< Software used to create the PDF
+    char producer[64]; //!< Software used to create the PDF
+    char title[64];    //!< The title of the PDF (typically displayed in the
+                       //!< window bar when viewing)
+    char author[64];   //!< Who created the PDF
+    char subject[64];  //!< What is the PDF about
+    char date[64];     //!< The date the PDF was created
 };
 
 /**
  * Convert a value in inches into a number of points.
  * Always returns an integer value
+ * @param inch inches value to convert to points
  */
 #define PDF_INCH_TO_POINT(inch) ((int)((inch)*72 + 0.5))
 
 /**
  * Convert a value in milli-meters into a number of points.
  * Always returns an integer value
+ * @param mm millimeter value to convert to points
  */
 #define PDF_MM_TO_POINT(mm) ((int)((mm)*72 / 25.4 + 0.5))
 
-/**
- * Point width of a standard US-Letter page
- */
+/*! Point width of a standard US-Letter page */
 #define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5)
 
-/**
- * Point height of a standard US-Letter page
- */
+/*! Point height of a standard US-Letter page */
 #define PDF_LETTER_HEIGHT PDF_INCH_TO_POINT(11)
 
-/**
- * Point width of a standard A4 page
- */
+/*! Point width of a standard A4 page */
 #define PDF_A4_WIDTH PDF_MM_TO_POINT(210)
 
-/**
- * Point height of a standard A4 page
- */
+/*! Point height of a standard A4 page */
 #define PDF_A4_HEIGHT PDF_MM_TO_POINT(297)
 
-/**
- * Point width of a standard A3 page
- */
+/*! Point width of a standard A3 page */
 #define PDF_A3_WIDTH PDF_MM_TO_POINT(297)
 
-/**
- * Point height of a standard A3 page
- */
+/*! Point height of a standard A3 page */
 #define PDF_A3_HEIGHT PDF_MM_TO_POINT(420)
 
 /**
@@ -118,44 +114,38 @@ struct pdf_info {
     ((((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) |           \
      (((b)&0xff)))
 
-/**
- * Utility macro to provide bright red
- */
+/*! Utility macro to provide bright red */
 #define PDF_RED PDF_RGB(0xff, 0, 0)
 
-/**
- * Utility macro to provide bright green
- */
+/*! Utility macro to provide bright green */
 #define PDF_GREEN PDF_RGB(0, 0xff, 0)
 
-/**
- * Utility macro to provide bright blue
- */
+/*! Utility macro to provide bright blue */
 #define PDF_BLUE PDF_RGB(0, 0, 0xff)
 
-/**
- * Utility macro to provide black
- */
+/*! Utility macro to provide black */
 #define PDF_BLACK PDF_RGB(0, 0, 0)
 
-/**
- * Utility macro to provide white
- */
+/*! Utility macro to provide white */
 #define PDF_WHITE PDF_RGB(0xff, 0xff, 0xff)
 
-/**
+/*!
  * Utility macro to provide a transparent colour
  * This is used in some places for 'fill' colours, where no fill is required
  */
 #define PDF_TRANSPARENT (0xff << 24)
 
+/**
+ * Different alignment options for rendering text
+ */
 enum {
-    PDF_ALIGN_LEFT,
-    PDF_ALIGN_RIGHT,
-    PDF_ALIGN_CENTER,
-    PDF_ALIGN_JUSTIFY,
-    PDF_ALIGN_JUSTIFY_ALL, // Like PDF_ALIGN_JUSTIFY, except even short lines
-                           // will be fully justified
+    PDF_ALIGN_LEFT,    //!< Align text to the left
+    PDF_ALIGN_RIGHT,   //!< Align text to the right
+    PDF_ALIGN_CENTER,  //!< Align text in the center
+    PDF_ALIGN_JUSTIFY, //!< Align text in the center, with padding to fill the
+                       //!< available space
+    PDF_ALIGN_JUSTIFY_ALL, //!< Like PDF_ALIGN_JUSTIFY, except even short
+                           //!< lines will be fully justified
 };
 
 /**
@@ -171,6 +161,7 @@ struct pdf_doc *pdf_create(int width, int height,
 
 /**
  * Destroy the pdf object, and all of its associated memory
+ * @param pdf PDF document to clean up
  */
 void pdf_destroy(struct pdf_doc *pdf);
 
@@ -221,16 +212,21 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
 
 /**
  * Retrieves a PDF document height
+ * @param pdf PDF document to get height of
+ * @return height of PDF document (in points)
  */
 int pdf_height(const struct pdf_doc *pdf);
 
 /**
  * Retrieves a PDF document width
+ * @param pdf PDF document to get width of
+ * @return width of PDF document (in points)
  */
 int pdf_width(const struct pdf_doc *pdf);
 
 /**
  * Add a new page to the given pdf
+ * @param pdf PDF document to append page to
  * @return new page object
  */
 struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
@@ -248,12 +244,17 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
 
 /**
  * Save the given pdf document to the supplied filename.
- * If the filename is NULL, defaults to stdout
+ * @param pdf PDF document to save
+ * @param filename Name of the file to store the PDF into (NULL for stdout)
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_save(struct pdf_doc *pdf, const char *filename);
 
 /**
  * Save the given pdf document to the given FILE output
+ * @param pdf PDF document to save
+ * @param fp FILE pointer to store the data into (must be writable)
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp);
 
@@ -416,8 +417,8 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
  * List of different barcode encodings that are supported
  */
 enum {
-    PDF_BARCODE_128A,
-    PDF_BARCODE_39,
+    PDF_BARCODE_128A, //!< Produce code-128A style barcodes
+    PDF_BARCODE_39,   //!< Produce code-39 style barcodes
 };
 
 /**
@@ -431,6 +432,7 @@ enum {
  * @param height Height of barcode
  * @param string Barcode contents
  * @param colour Colour to draw barcode
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
                     int x, int y, int width, int height, const char *string,
@@ -445,6 +447,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
  * @param ppm_file Filename of P6 (binary) ppm file to display
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                 int display_width, int display_height, const char *ppm_file);
@@ -458,6 +461,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
  * @param jpeg_file Filename of JPEG file to display
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                  int display_width, int display_height,
@@ -473,6 +477,7 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param display_height Displayed height of image
  * @param jpeg_data JPEG data to add
  * @param len Length of JPEG data
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       int y, int display_width, int display_height,
