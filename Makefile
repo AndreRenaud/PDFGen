@@ -46,7 +46,6 @@ format: FORCE
 docs: FORCE
 	doxygen pdfgen.dox 2>&1 | tee doxygen.log
 	cat doxygen.log | test `wc -c` -le 0
-	rm doxygen.log
 
 FORCE:
 
