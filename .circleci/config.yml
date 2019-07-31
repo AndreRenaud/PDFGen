@@ -47,7 +47,7 @@ jobs:
           command: |
                   make tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text tests/fuzz-dstr CLANG=clang-8 CLANG_FORMAT=clang-format-8
                   export FUZZIT_KEY=1e1d3ac21dd4b8ccea5ccf5aace0dbe84422fe66ea9afb45746a6a537c8cfd0fbf6fa2c2e31564439fb95f96a85c5586
-                  wget -O fuzzit https://bin.fuzzit.dev/fuzzit-1.1
+                  curl -L -o fuzzit https://bin.fuzzit.dev/fuzzit-1.1
                   chmod a+x fuzzit
                   ./fuzzit auth $FUZZIT_KEY
                   export FUZZIT_ARGS="--type sanity --revision ${CIRCLE_SHA1} --host stretch-llvm8 --branch ${CIRCLE_BRANCH}"
