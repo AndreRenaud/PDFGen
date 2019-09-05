@@ -161,12 +161,20 @@ struct dstr {
     int used_len;
 };
 
+struct text_properties {
+    uint32_t colour;
+    int font_index;
+    int font_size;
+};
+
 struct pdf_object {
     int type;                /* See OBJ_xxxx */
     int index;               /* PDF output index */
     int offset;              /* Byte position within the output file */
     struct pdf_object *prev; /* Previous of this type */
     struct pdf_object *next; /* Next of this type */
+    int text_present;        /* Properties for text objects */
+    struct text_properties text;
     union {
         struct {
             struct pdf_object *page;
@@ -195,6 +203,8 @@ struct pdf_doc {
 
     int width;
     int height;
+
+    struct text_properties last_text;
 
     struct pdf_object *current_font;
 
@@ -730,9 +740,44 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     fprintf(fp, "%d 0 obj\r\n", index);
 
     switch (object->type) {
-    case OBJ_stream:
-    case OBJ_image: {
+    case OBJ_image:
+        fprintf(fp, "<< /Length %d >>stream\r\n", dstr_len(&object->stream));
         fwrite(dstr_data(&object->stream), dstr_len(&object->stream), 1, fp);
+        fprintf(fp, "\r\nendstream\r\n");
+        break;
+    case OBJ_stream: {
+        char buffer[64];
+        int len = dstr_len(&object->stream);
+        if (object->text_present) {
+            uint32_t c = object->text.colour;
+            int alpha = (c >> 24) >> 4;
+
+            /* If this text object is the same as the previous one, don't
+             * repeat the details
+             */
+            if (pdf->last_text.colour != object->text.colour ||
+                pdf->last_text.font_index != object->text.font_index ||
+                pdf->last_text.font_size != object->text.font_size) {
+                len += snprintf(buffer, sizeof(buffer), "BT /GS%d gs %.3f %.3f %.3f rg /F%d %d Tf ",
+                    alpha, PDF_RGB_R(c), PDF_RGB_G(c), PDF_RGB_B(c), 
+                    object->text.font_index, object->text.font_size);
+            } else {
+                len += snprintf(buffer, sizeof(buffer), "BT ");
+            }
+            len += 3; // For the " ET"
+
+            pdf->last_text = object->text;
+        } else {
+            // If we're outputing a non-text element, clear the cache of text settings
+            memset(&pdf->last_text, 0, sizeof(pdf->last_text));
+        }
+        fprintf(fp, "<< /Length %d >>stream\r\n", len);
+        if (object->text_present)
+            fputs(buffer, fp);
+        fwrite(dstr_data(&object->stream), dstr_len(&object->stream), 1, fp);
+        if (object->text_present)
+            fwrite(" ET", 3, 1, fp);
+        fprintf(fp, "\r\nendstream\r\n");
         break;
     }
     case OBJ_info: {
@@ -772,7 +817,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         // We trim transparency to just 4-bits
         fprintf(fp, "  /ExtGState <<\r\n");
         for (int i = 0; i < 16; i++) {
-            fprintf(fp, "  /GS%d <</ca %f>>\r\n", i, (float)(15 - i) / 15);
+            fprintf(fp, "  /GS%d <</ca %.3f>>\r\n", i, (float)(15 - i) / 15);
         }
         fprintf(fp, "  >>\r\n");
 
@@ -989,10 +1034,10 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
 }
 
 static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
-                          const char *buffer)
+                          const char *buffer, struct pdf_object **ret)
 {
     struct pdf_object *obj;
-    int len;
+    int len, e;
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -1009,11 +1054,16 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %d >>stream\r\n", len);
     dstr_append_data(&obj->stream, buffer, len);
-    dstr_append(&obj->stream, "\r\nendstream\r\n");
 
-    return flexarray_append(&page->page.children, obj);
+    e = flexarray_append(&page->page.children, obj);
+    if (e < 0)
+        return e;
+
+    if (ret)
+        *ret = obj;
+
+    return 0;
 }
 
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
@@ -1097,19 +1147,14 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     int ret;
     int len = text ? strlen(text) : 0;
     struct dstr str = INIT_DSTR;
-    int alpha = (colour >> 24) >> 4;
+    struct pdf_object *obj;
 
     /* Don't bother adding empty/null strings */
     if (!len)
         return 0;
 
-    dstr_append(&str, "BT ");
-    dstr_printf(&str, "/GS%d gs ", alpha);
     dstr_printf(&str, "%d %d TD ", xoff, yoff);
-    dstr_printf(&str, "/F%d %d Tf ", pdf->current_font->font.index, size);
-    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
-    dstr_printf(&str, "%f Tc ", spacing);
+    dstr_printf(&str, "%.3f Tc ", spacing);
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
@@ -1167,12 +1212,18 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 
         i += code_len;
     }
-    dstr_append(&str, ") Tj ");
-    dstr_append(&str, "ET");
+    dstr_append(&str, ") Tj");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), &obj);
     dstr_free(&str);
-    return ret;
+    if (ret < 0)
+        return ret;
+
+    obj->text_present = 1;
+    obj->text.colour = colour;
+    obj->text.font_index = pdf->current_font->font.index;
+    obj->text.font_size = size;
+    return 0;
 }
 
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
@@ -1623,12 +1674,12 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     dstr_printf(&str, "%d w\r\n", width);
     dstr_printf(&str, "%d %d m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
-    dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d %d l S\r\n", x2, y2);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
 
     return ret;
@@ -1653,7 +1704,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
     if (!PDF_IS_TRANSPARENT(fill_colour)) {
         dstr_append(&str, "BT ");
         dstr_printf(&str, "/DeviceRGB CS\r\n");
-        dstr_printf(&str, "%f %f %f rg\r\n", PDF_RGB_R(fill_colour),
+        dstr_printf(&str, "%.3f %.3f %.3f rg\r\n", PDF_RGB_R(fill_colour),
                     PDF_RGB_G(fill_colour), PDF_RGB_B(fill_colour));
         dstr_append(&str, "ET\r\n");
     }
@@ -1662,7 +1713,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
 
     /* stroke color */
     dstr_printf(&str, "/DeviceRGB CS\r\n");
-    dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
 
     dstr_printf(&str, "%d w ", width);
@@ -1688,7 +1739,7 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
 
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
 
     return ret;
@@ -1710,13 +1761,13 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
 
     return ret;
@@ -1730,13 +1781,13 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
 
     return ret;
@@ -1749,7 +1800,7 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d m ", x[0], y[0]);
@@ -1759,7 +1810,7 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
     dstr_printf(&str, "h S ");
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
 
     return ret;
@@ -1773,9 +1824,9 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
-    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
+    dstr_printf(&str, "%.3f %.3f %.3f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d m ", x[0], y[0]);
@@ -1785,7 +1836,7 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "h f ");
     dstr_append(&str, "ET");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
 
     return ret;
@@ -2163,7 +2214,7 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "/Image%d Do ", image->index);
     dstr_append(&str, "Q");
 
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    ret = pdf_add_stream(pdf, page, dstr_data(&str), NULL);
     dstr_free(&str);
     return ret;
 }
