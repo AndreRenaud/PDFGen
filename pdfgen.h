@@ -146,6 +146,8 @@ enum {
                        //!< available space
     PDF_ALIGN_JUSTIFY_ALL, //!< Like PDF_ALIGN_JUSTIFY, except even short
                            //!< lines will be fully justified
+    PDF_ALIGN_NO_WRITE, //!< Fake alignment for only checking wrap height with
+                        //!< no writes
 };
 
 /**
