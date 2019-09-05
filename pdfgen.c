@@ -758,9 +758,11 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             if (pdf->last_text.colour != object->text.colour ||
                 pdf->last_text.font_index != object->text.font_index ||
                 pdf->last_text.font_size != object->text.font_size) {
-                len += snprintf(buffer, sizeof(buffer), "BT /GS%d gs %.3f %.3f %.3f rg /F%d %d Tf ",
-                    alpha, PDF_RGB_R(c), PDF_RGB_G(c), PDF_RGB_B(c), 
-                    object->text.font_index, object->text.font_size);
+                len +=
+                    snprintf(buffer, sizeof(buffer),
+                             "BT /GS%d gs %.3f %.3f %.3f rg /F%d %d Tf ",
+                             alpha, PDF_RGB_R(c), PDF_RGB_G(c), PDF_RGB_B(c),
+                             object->text.font_index, object->text.font_size);
             } else {
                 len += snprintf(buffer, sizeof(buffer), "BT ");
             }
@@ -768,7 +770,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
             pdf->last_text = object->text;
         } else {
-            // If we're outputing a non-text element, clear the cache of text settings
+            // If we're outputing a non-text element, clear the cache of text
+            // settings
             memset(&pdf->last_text, 0, sizeof(pdf->last_text));
         }
         fprintf(fp, "<< /Length %d >>stream\r\n", len);
@@ -1674,8 +1677,8 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     dstr_printf(&str, "%d w\r\n", width);
     dstr_printf(&str, "%d %d m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
-    dstr_printf(&str, "%.3f %.3f %.3f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f RG\r\n", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d %d l S\r\n", x2, y2);
     dstr_append(&str, "ET");
 
@@ -1713,8 +1716,8 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
 
     /* stroke color */
     dstr_printf(&str, "/DeviceRGB CS\r\n");
-    dstr_printf(&str, "%.3f %.3f %.3f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f RG\r\n", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
 
     dstr_printf(&str, "%d w ", width);
 
@@ -1761,8 +1764,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
     dstr_append(&str, "ET");
@@ -1781,8 +1784,8 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%.3f %.3f %.3f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f rg ", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
     dstr_append(&str, "ET");
@@ -1800,8 +1803,8 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d m ", x[0], y[0]);
     for (int i = 1; i < count; i++) {
@@ -1824,10 +1827,10 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "BT ");
-    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
-    dstr_printf(&str, "%.3f %.3f %.3f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f RG ", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
+    dstr_printf(&str, "%.3f %.3f %.3f rg ", PDF_RGB_R(colour),
+                PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d m ", x[0], y[0]);
     for (int i = 1; i < count; i++) {
