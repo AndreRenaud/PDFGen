@@ -1598,8 +1598,10 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                 break;
             }
 
-            pdf_add_text_spacing(pdf, page, line, size, xoff_align, yoff,
-                                 colour, char_spacing);
+            if (align != PDF_ALIGN_NO_WRITE) {
+                pdf_add_text_spacing(pdf, page, line, size, xoff_align, yoff,
+                                     colour, char_spacing);
+            }
 
             if (*end == ' ')
                 end++;
