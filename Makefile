@@ -11,7 +11,7 @@ testprog: pdfgen.o tests/main.o tests/penguin.o
 	$(CC) -o $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
-	$(CLANG) -I. -g -o $@ $^ -fsanitize=fuzzer,address
+	$(CLANG) -I. -g -o $@ $< pdfgen.c -fsanitize=fuzzer,address
 
 tests/penguin.c: data/penguin.jpg
 	# Convert data/penguin.jpg to a C source file with binary data in a variable
