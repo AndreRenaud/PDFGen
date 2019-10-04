@@ -4,7 +4,7 @@
 version: '{branch}-{build}'
 
 build_script:
-  make testprog CC=cl
+  nmake testprog CC=cl
   mv testprog testprog.exe
   ./testprog
 
