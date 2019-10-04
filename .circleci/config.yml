@@ -42,20 +42,6 @@ jobs:
                           make check CLANG_FORMAT=clang-format-8
                           ./upload-stats.sh
                   fi
-      - run:
-          name: Build fuzz targets and deploy to Fuzzit
-          command: |
-                  make tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text tests/fuzz-dstr CLANG=clang-8 CLANG_FORMAT=clang-format-8
-                  export FUZZIT_KEY=1e1d3ac21dd4b8ccea5ccf5aace0dbe84422fe66ea9afb45746a6a537c8cfd0fbf6fa2c2e31564439fb95f96a85c5586
-                  curl -L -o fuzzit https://bin.fuzzit.dev/fuzzit-1.1
-                  chmod a+x fuzzit
-                  ./fuzzit auth $FUZZIT_KEY
-                  export FUZZIT_ARGS="--type sanity --revision ${CIRCLE_SHA1} --host stretch-llvm8 --branch ${CIRCLE_BRANCH}"
-                  ./fuzzit create job $FUZZIT_ARGS SVuYwmU8bU4wxDxaPTq1 tests/fuzz-ppm
-                  ./fuzzit create job $FUZZIT_ARGS 00SiKqNbkEybqbVUfkEa tests/fuzz-dstr
-                  ./fuzzit create job $FUZZIT_ARGS V3lm359etEu0fwaT3vzC tests/fuzz-jpg
-                  ./fuzzit create job $FUZZIT_ARGS ZOS6zGkysfBxQ01scUBb tests/fuzz-text
-                  ./fuzzit create job $FUZZIT_ARGS u8Nywu1xZhsYAu86gUJQ tests/fuzz-header
       - store_artifacts:
           path: output.pdf
       - store_artifacts:
