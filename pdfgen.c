@@ -112,7 +112,7 @@
 #define PDF_RGB_B(c) ((((c) >> 0) & 0xff) / 255.0)
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
-#if defined(_MSC_VER) && !defined(_WIN32) && !defined(_WIN64)
+#if defined(_MSC_VER)
 #define inline __inline
 #define snprintf _snprintf
 #define strcasecmp _stricmp
