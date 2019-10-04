@@ -5,6 +5,9 @@ version: '{branch}-{build}'
 
 image: Visual Studio 2017
 
+environment:
+    MSYS_PACKAGES: mingw-w64-x86_64-cmocka mingw-w64-i686-cmocka mingw-w64-x86_64-pkg-config mingw-w64-i686-pkg-config
+
 configuration:
   - Debug
   - Release
@@ -22,7 +25,7 @@ init:
 
 
 build_script:
-  nmake testprog CC=cl
-  mv testprog testprog.exe
+  C:\msys64\mingw64\bin\mingw32-make.exe testprog CC=cl
+  ren testprog testprog.exe
   ./testprog
 
