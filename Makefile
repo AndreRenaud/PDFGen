@@ -17,7 +17,7 @@ tests/penguin.c: data/penguin.jpg
 	# Convert data/penguin.jpg to a C source file with binary data in a variable
 	$(XXD) -i $< > $@ || ( rm -f $@ ; false )
 
-.c.o: Makefile
+.c.o:
 	$(CC) -I. -c -o $@ $< $(CFLAGS)
 
 check: testprog pdfgen.c pdfgen.h example-check
