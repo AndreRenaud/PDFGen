@@ -3,9 +3,10 @@
 
 version: '{branch}-{build}'
 
-build:
-  project: PDFGen.sln
-  verbosity: minimal
+build_script:
+  make testprog CC=cl
+  mv testprog testprog.exe
+  ./testprog
 
 skip_tags: true
 
