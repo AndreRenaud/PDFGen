@@ -25,6 +25,8 @@ init:
 
 
 build_script:
-  - C:\msys64\mingw64\bin\mingw32-make.exe testprog CC=cl
+  - mingw32-make testprog CC=cl
   - testprog
 
+artifacts:
+  - path: '*.pdf'
