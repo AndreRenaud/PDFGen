@@ -105,6 +105,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -1432,14 +1433,14 @@ static const uint16_t courier_widths[256] = {
 };
 
 static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text,
-                                int text_len, int size,
+                                ptrdiff_t text_len, int size,
                                 const uint16_t *widths)
 {
     unsigned int len = 0;
     if (text_len < 0)
         text_len = strlen(text);
 
-    for (int i = 0; i < text_len;) {
+    for (int i = 0; i < (int)text_len;) {
         uint32_t code;
         int code_len;
         code_len = utf8_to_utf32(&text[i], text_len - i, &code);
@@ -1549,7 +1550,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         if (line_width >= wrap_width) {
             if (last_best == start) {
                 /* There is a single word that is too long for the line */
-                int i;
+                ptrdiff_t i;
                 /* Find the best character to chop it at */
                 for (i = end - start - 1; i > 0; i--) {
                     int e = pdf_text_pixel_width(pdf, start, i, size, widths);
@@ -2047,10 +2048,10 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
 }
 
 /* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(const unsigned char *data, unsigned int data_size,
+static int jpeg_size(const unsigned char *data, size_t data_size,
                      int *width, int *height)
 {
-    unsigned int i = 0;
+    size_t i = 0;
     if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
         data[i + 2] == 0xFF && data[i + 3] == 0xE0) {
         i += 4;
