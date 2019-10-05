@@ -5,8 +5,8 @@ XXD=xxd
 
 ifeq ($(OS),Windows_NT)
 CFLAGS=-Wall
-CFLAGS_OBJECT=/Fo
-CFLAGS_EXE=/Fe
+CFLAGS_OBJECT=/Fo:
+CFLAGS_EXE=/Fe:
 O_SUFFIX=.obj
 else
 CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
