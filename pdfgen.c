@@ -122,6 +122,10 @@
 #define snprintf _snprintf
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#ifdef stat
+#undef stat
+#endif
+#define stat _stat
 #define SKIP_ATTRIBUTE
 #else
 #include <strings.h> // strcasecmp
