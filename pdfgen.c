@@ -93,15 +93,19 @@
 #if defined(_MSC_VER)
 #define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
 #define _USE_MATH_DEFINES
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #else
 #define _POSIX_SOURCE     /* For localtime_r */
 #define _XOPEN_SOURCE 500 /* for M_SQRT2 */
+#include <sys/types.h>    /* for ssize_t */
 #endif
 
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -112,9 +116,9 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-#define PDF_RGB_R(c) ((((c) >> 16) & 0xff) / 255.0)
-#define PDF_RGB_G(c) ((((c) >> 8) & 0xff) / 255.0)
-#define PDF_RGB_B(c) ((((c) >> 0) & 0xff) / 255.0)
+#define PDF_RGB_R(c) (float)((((c) >> 16) & 0xff) / 255.0)
+#define PDF_RGB_G(c) (float)((((c) >> 8) & 0xff) / 255.0)
+#define PDF_RGB_B(c) (float)((((c) >> 0) & 0xff) / 255.0)
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
 #if defined(_MSC_VER)
@@ -161,8 +165,8 @@ struct flexarray {
 struct dstr {
     char static_data[128];
     char *data;
-    int alloc_len;
-    int used_len;
+    size_t alloc_len;
+    size_t used_len;
 };
 
 struct pdf_object {
@@ -334,12 +338,12 @@ static char *dstr_data(const struct dstr *str)
     return str->data ? str->data : (char *)str->static_data;
 }
 
-static int dstr_len(const struct dstr *str)
+static size_t dstr_len(const struct dstr *str)
 {
     return str->used_len;
 }
 
-static int dstr_ensure(struct dstr *str, int len)
+static ssize_t dstr_ensure(struct dstr *str, size_t len)
 {
     if (len <= str->alloc_len)
         return 0;
@@ -347,7 +351,7 @@ static int dstr_ensure(struct dstr *str, int len)
         str->alloc_len = len;
     else if (str->alloc_len < len) {
         char *new_data;
-        int new_len;
+        size_t new_len;
 
         new_len = len + 4096;
         new_data = realloc(str->data, new_len);
@@ -387,7 +391,7 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     return len;
 }
 
-static int dstr_append_data(struct dstr *str, const void *extend, int len)
+static int dstr_append_data(struct dstr *str, const void *extend, size_t len)
 {
     if (dstr_ensure(str, str->used_len + len + 1) < 0)
         return -ENOMEM;
@@ -996,7 +1000,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
                           const char *buffer)
 {
     struct pdf_object *obj;
-    int len;
+    size_t len;
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -1013,7 +1017,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %d >>stream\r\n", len);
+    dstr_printf(&obj->stream, "<< /Length %zd >>stream\r\n", len);
     dstr_append_data(&obj->stream, buffer, len);
     dstr_append(&obj->stream, "\r\nendstream\r\n");
 
@@ -1099,7 +1103,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
                                 int yoff, uint32_t colour, double spacing)
 {
     int ret;
-    int len = text ? strlen(text) : 0;
+    size_t len = text ? strlen(text) : 0;
     struct dstr str = INIT_DSTR;
     int alpha = (colour >> 24) >> 4;
 
@@ -1117,7 +1121,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
-    for (int i = 0; i < len;) {
+    for (size_t i = 0; i < len;) {
         uint32_t code;
         int code_len;
         code_len = utf8_to_utf32(&text[i], len - i, &code);
@@ -1432,14 +1436,14 @@ static const uint16_t courier_widths[256] = {
 };
 
 static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text,
-                                int text_len, int size,
+                                ptrdiff_t text_len, int size,
                                 const uint16_t *widths)
 {
     unsigned int len = 0;
     if (text_len < 0)
         text_len = strlen(text);
 
-    for (int i = 0; i < text_len;) {
+    for (int i = 0; i < (int)text_len;) {
         uint32_t code;
         int code_len;
         code_len = utf8_to_utf32(&text[i], text_len - i, &code);
@@ -1549,7 +1553,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         if (line_width >= wrap_width) {
             if (last_best == start) {
                 /* There is a single word that is too long for the line */
-                int i;
+                ptrdiff_t i;
                 /* Find the best character to chop it at */
                 for (i = end - start - 1; i > 0; i--) {
                     int e = pdf_text_pixel_width(pdf, start, i, size, widths);
@@ -1863,7 +1867,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
                                 const char *string, uint32_t colour)
 {
     const char *s;
-    int len = strlen(string) + 3;
+    size_t len = strlen(string) + 3;
     int char_width = width / len;
     int checksum, i;
 
@@ -1965,7 +1969,7 @@ static int pdf_add_barcode_39(struct pdf_doc *pdf, struct pdf_object *page,
                               int x, int y, int width, int height,
                               const char *string, uint32_t colour)
 {
-    int len = strlen(string);
+    size_t len = strlen(string);
     int char_width = width / (len + 2);
 
     x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
@@ -2009,7 +2013,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                                      int width, int height)
 {
     struct pdf_object *obj;
-    int len;
+    size_t len;
     const char *endstream = ">\r\nendstream\r\n";
     struct dstr str = INIT_DSTR;
 
@@ -2026,7 +2030,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     if (dstr_ensure(&str, len) < 0) {
         dstr_free(&str);
         pdf_set_err(pdf, -ENOMEM,
-                    "Unable to allocate %d bytes memory for image", len);
+                    "Unable to allocate %zd bytes memory for image", len);
         return NULL;
     }
     for (int i = 0; i < width * height * 3; i++) {
@@ -2047,10 +2051,10 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
 }
 
 /* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(const unsigned char *data, unsigned int data_size,
-                     int *width, int *height)
+static int jpeg_size(const unsigned char *data, size_t data_size, int *width,
+                     int *height)
 {
-    unsigned int i = 0;
+    size_t i = 0;
     if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
         data[i + 2] == 0xFF && data[i + 3] == 0xE0) {
         i += 4;
@@ -2220,7 +2224,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     }
 
     /* Try and limit the memory usage to sane images */
-    if (width > 2 << 14 || height > 2 << 14) {
+    if (width > 4096 || height > 4096) {
         fclose(fp);
         return pdf_set_err(pdf, -EINVAL,
                            "Invalid width/height in PPM file: %ux%u", width,
