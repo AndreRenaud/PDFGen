@@ -108,9 +108,9 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-#define PDF_RGB_R(c) ((((c) >> 16) & 0xff) / 255.0)
-#define PDF_RGB_G(c) ((((c) >> 8) & 0xff) / 255.0)
-#define PDF_RGB_B(c) ((((c) >> 0) & 0xff) / 255.0)
+#define PDF_RGB_R(c) (float)((((c) >> 16) & 0xff) / 255.0)
+#define PDF_RGB_G(c) (float)((((c) >> 8) & 0xff) / 255.0)
+#define PDF_RGB_B(c) (float)((((c) >> 0) & 0xff) / 255.0)
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
 #if defined(_MSC_VER) && (_MSC_VER < 1900)
@@ -157,8 +157,8 @@ struct flexarray {
 struct dstr {
     char static_data[128];
     char *data;
-    int alloc_len;
-    int used_len;
+    size_t alloc_len;
+    size_t used_len;
 };
 
 struct pdf_object {
@@ -335,7 +335,7 @@ static int dstr_len(const struct dstr *str)
     return str->used_len;
 }
 
-static int dstr_ensure(struct dstr *str, int len)
+static int dstr_ensure(struct dstr *str, size_t len)
 {
     if (len <= str->alloc_len)
         return 0;
@@ -383,7 +383,7 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     return len;
 }
 
-static int dstr_append_data(struct dstr *str, const void *extend, int len)
+static int dstr_append_data(struct dstr *str, const void *extend, size_t len)
 {
     if (dstr_ensure(str, str->used_len + len + 1) < 0)
         return -ENOMEM;
