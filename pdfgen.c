@@ -102,10 +102,10 @@
 #include <errno.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -2048,8 +2048,8 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
 }
 
 /* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(const unsigned char *data, size_t data_size,
-                     int *width, int *height)
+static int jpeg_size(const unsigned char *data, size_t data_size, int *width,
+                     int *height)
 {
     size_t i = 0;
     if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
