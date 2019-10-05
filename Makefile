@@ -1,24 +1,35 @@
-CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
 LFLAGS=-fprofile-arcs -ftest-coverage
 CLANG=clang
 CLANG_FORMAT=clang-format
 XXD=xxd
 
+ifeq ($(OS),Windows_NT)
+CFLAGS=-Wall
+CFLAGS_OBJECT=/Fo:
+CFLAGS_EXE=/Fe:
+O_SUFFIX=.obj
+else
+CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
+CFLAGS_OBJECT=-o
+CFLAGS_EXE=-o
+O_SUFFIX=.o
+endif
+
 
 default: testprog
 
-testprog: pdfgen.o tests/main.o tests/penguin.o
-	$(CC) -o $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
+testprog: pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX)
+	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
-	$(CLANG) -I. -g -o $@ $^ -fsanitize=fuzzer,address
+	$(CLANG) -I. -g -o $@ $< pdfgen.c -fsanitize=fuzzer,address
 
 tests/penguin.c: data/penguin.jpg
 	# Convert data/penguin.jpg to a C source file with binary data in a variable
 	$(XXD) -i $< > $@ || ( rm -f $@ ; false )
 
-%.o: %.c Makefile
-	$(CC) -I. -c -o $@ $< $(CFLAGS)
+%$(O_SUFFIX): %.c
+	$(CC) -I. -c $< $(CFLAGS_OBJECT) $@ $(CFLAGS)
 
 check: testprog pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h tests/main.c
@@ -50,5 +61,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *.o tests/*.o testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log tests/penguin.c valgrind.log
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log tests/penguin.c valgrind.log
 	rm -rf docs fuzz-artifacts infer-out

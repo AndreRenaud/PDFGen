@@ -90,8 +90,13 @@
  * y    curveto.
  */
 
+#if defined(_MSC_VER)
+#define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
+#define _USE_MATH_DEFINES
+#else
 #define _POSIX_SOURCE     /* For localtime_r */
 #define _XOPEN_SOURCE 500 /* for M_SQRT2 */
+#endif
 
 #include <ctype.h>
 #include <errno.h>
@@ -100,7 +105,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -113,19 +117,19 @@
 #define PDF_RGB_B(c) (float)((((c) >> 0) & 0xff) / 255.0)
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
-#if defined(_MSC_VER) && (_MSC_VER < 1900)
-/*
- * As stated here:
- * http://stackoverflow.com/questions/70013/how-to-detect-if-im-compiling-code-with-visual-studio-2008
- * Visual Studio 2015 has better support for C99
- * We need to use __inline for older version.
- */
+#if defined(_MSC_VER)
 #define inline __inline
 #define snprintf _snprintf
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#ifdef stat
+#undef stat
+#endif
+#define stat _stat
 #define SKIP_ATTRIBUTE
-#endif // _MSC_VER && _MSC_VER < 1900
+#else
+#include <strings.h> // strcasecmp
+#endif
 
 typedef struct pdf_object pdf_object;
 
@@ -1598,8 +1602,10 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                 break;
             }
 
-            pdf_add_text_spacing(pdf, page, line, size, xoff_align, yoff,
-                                 colour, char_spacing);
+            if (align != PDF_ALIGN_NO_WRITE) {
+                pdf_add_text_spacing(pdf, page, line, size, xoff_align, yoff,
+                                     colour, char_spacing);
+            }
 
             if (*end == ' ')
                 end++;
