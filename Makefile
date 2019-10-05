@@ -5,17 +5,19 @@ XXD=xxd
 
 ifeq ($(OS),Windows_NT)
 CFLAGS=-Wall
-CFLAGS_OUTPUT=/Fo
+CFLAGS_OBJECT=/Fo
+CFLAGS_EXE=/Fe
 else
 CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
-CFLAGS_OUTPUT=-o
+CFLAGS_OBJECT=-o
+CFLAGS_EXE=-o
 endif
 
 
 default: testprog
 
 testprog: pdfgen.o tests/main.o tests/penguin.o
-	$(CC) $(CFLAGS_OUTPUT) $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
+	$(CC) $(CFLAGS_EXE) $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $< pdfgen.c -fsanitize=fuzzer,address
