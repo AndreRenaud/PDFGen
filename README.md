@@ -49,7 +49,7 @@ If you find it useful, please drop me a line at andre@ignavus.net.
 Builds
 ======
 
-[CircleCI Build](https://circleci.com/gh/AndreRenaud/PDFGen) status: ![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)
+CircleCI Build status: [![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)](https://circleci.com/gh/AndreRenaud/PDFGen)
 
 Appveyor status: [![Build status](https://ci.appveyor.com/api/projects/status/3qpsmr06xg5gx74j/branch/master?svg=true)](https://ci.appveyor.com/project/AndreRenaud/pdfgen/branch/master)
 
