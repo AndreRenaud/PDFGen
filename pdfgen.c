@@ -347,7 +347,7 @@ static int dstr_ensure(struct dstr *str, size_t len)
         str->alloc_len = len;
     else if (str->alloc_len < len) {
         char *new_data;
-        int new_len;
+        size_t new_len;
 
         new_len = len + 4096;
         new_data = realloc(str->data, new_len);
