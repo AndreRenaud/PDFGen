@@ -93,9 +93,12 @@
 #if defined(_MSC_VER)
 #define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
 #define _USE_MATH_DEFINES
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #else
 #define _POSIX_SOURCE     /* For localtime_r */
 #define _XOPEN_SOURCE 500 /* for M_SQRT2 */
+#include <sys/types.h>    /* for ssize_t */
 #endif
 
 #include <ctype.h>
@@ -107,7 +110,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <time.h>
 
 #include "pdfgen.h"
