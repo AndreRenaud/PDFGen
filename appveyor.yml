@@ -9,7 +9,6 @@ environment:
     MSYS_PACKAGES: mingw-w64-x86_64-cmocka mingw-w64-i686-cmocka mingw-w64-x86_64-pkg-config mingw-w64-i686-pkg-config
 
 configuration:
-  - Debug
   - Release
 
 platform:
@@ -25,7 +24,7 @@ init:
 
 before_build:
   - if "%PLATFORM%"=="x64" SET PATH=c:\msys64\mingw64\bin;%PATH%
-  - if "%PLATFORM%"=="x86" SET PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;C:\MinGW\bin;%PATH%
+  - if "%PLATFORM%"=="win32" SET PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;C:\MinGW\bin;%PATH%
 
 build_script:
   - mingw32-make testprog CC=cl
