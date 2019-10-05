@@ -25,7 +25,6 @@ init:
 
 
 build_script:
-  C:\msys64\mingw64\bin\mingw32-make.exe testprog CC=cl
-  ren testprog testprog.exe
-  ./testprog
+  - C:\msys64\mingw64\bin\mingw32-make.exe testprog CC=cl
+  - testprog
 
