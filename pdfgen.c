@@ -107,6 +107,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 
 #include "pdfgen.h"
@@ -340,7 +341,7 @@ static size_t dstr_len(const struct dstr *str)
     return str->used_len;
 }
 
-static int dstr_ensure(struct dstr *str, size_t len)
+static ssize_t dstr_ensure(struct dstr *str, size_t len)
 {
     if (len <= str->alloc_len)
         return 0;
