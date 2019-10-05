@@ -391,7 +391,8 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     return len;
 }
 
-static int dstr_append_data(struct dstr *str, const void *extend, size_t len)
+static ssize_t dstr_append_data(struct dstr *str, const void *extend,
+                                size_t len)
 {
     if (dstr_ensure(str, str->used_len + len + 1) < 0)
         return -ENOMEM;
@@ -401,7 +402,7 @@ static int dstr_append_data(struct dstr *str, const void *extend, size_t len)
     return len;
 }
 
-static int dstr_append(struct dstr *str, const char *extend)
+static ssize_t dstr_append(struct dstr *str, const char *extend)
 {
     return dstr_append_data(str, extend, strlen(extend));
 }
@@ -1135,16 +1136,16 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
             char buf[5] = {0};
             switch (code) {
             case 0x160:
-                buf[0] = (char)0x8a;
+                buf[0] = '\x8a';
                 break;
             case 0x161:
-                buf[0] = (char)0x9a;
+                buf[0] = '\x9a';
                 break;
             case 0x17d:
-                buf[0] = (char)0x8e;
+                buf[0] = '\x8e';
                 break;
             case 0x17e:
-                buf[0] = (char)0x9e;
+                buf[0] = '\x9e';
                 break;
             case 0x20ac:
                 strcpy(buf, "\\200");
