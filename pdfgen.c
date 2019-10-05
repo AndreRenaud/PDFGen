@@ -997,7 +997,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
                           const char *buffer)
 {
     struct pdf_object *obj;
-    int len;
+    size_t len;
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -1014,7 +1014,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %d >>stream\r\n", len);
+    dstr_printf(&obj->stream, "<< /Length %zd >>stream\r\n", len);
     dstr_append_data(&obj->stream, buffer, len);
     dstr_append(&obj->stream, "\r\nendstream\r\n");
 
@@ -1100,7 +1100,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
                                 int yoff, uint32_t colour, double spacing)
 {
     int ret;
-    int len = text ? strlen(text) : 0;
+    size_t len = text ? strlen(text) : 0;
     struct dstr str = INIT_DSTR;
     int alpha = (colour >> 24) >> 4;
 
@@ -1118,7 +1118,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append(&str, "(");
 
     /* Escape magic characters properly */
-    for (int i = 0; i < len;) {
+    for (size_t i = 0; i < len;) {
         uint32_t code;
         int code_len;
         code_len = utf8_to_utf32(&text[i], len - i, &code);
@@ -1864,7 +1864,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
                                 const char *string, uint32_t colour)
 {
     const char *s;
-    int len = strlen(string) + 3;
+    size_t len = strlen(string) + 3;
     int char_width = width / len;
     int checksum, i;
 
