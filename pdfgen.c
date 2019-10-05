@@ -91,6 +91,7 @@
  */
 
 #if defined(_MSC_VER)
+#define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
 #define _USE_MATH_DEFINES
 #else
 #define _POSIX_SOURCE     /* For localtime_r */
@@ -117,7 +118,6 @@
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
 #if defined(_MSC_VER)
-#define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
 #define inline __inline
 #define snprintf _snprintf
 #define strcasecmp _stricmp
