@@ -102,7 +102,7 @@ struct pdf_info {
  * in PDFGen
  */
 #define PDF_RGB(r, g, b)                                                     \
-    ((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
+    (uint32_t)((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
 
 /**
  * Convert four 8-bit ARGB values into a single packed 32-bit
@@ -111,8 +111,8 @@ struct pdf_info {
  * (transparent)
  */
 #define PDF_ARGB(a, r, g, b)                                                 \
-    ((((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) |           \
-     (((b)&0xff)))
+    (uint32_t)((((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) | \
+               (((b)&0xff)))
 
 /*! Utility macro to provide bright red */
 #define PDF_RED PDF_RGB(0xff, 0, 0)
@@ -133,7 +133,7 @@ struct pdf_info {
  * Utility macro to provide a transparent colour
  * This is used in some places for 'fill' colours, where no fill is required
  */
-#define PDF_TRANSPARENT (0xff << 24)
+#define PDF_TRANSPARENT (uint32_t)(0xff << 24)
 
 /**
  * Different alignment options for rendering text
