@@ -91,7 +91,7 @@
  */
 
 #if defined(_MSC_VER)
-#define _USE_MATH_DEFINE
+#define _USE_MATH_DEFINES
 #else
 #define _POSIX_SOURCE     /* For localtime_r */
 #define _XOPEN_SOURCE 500 /* for M_SQRT2 */
