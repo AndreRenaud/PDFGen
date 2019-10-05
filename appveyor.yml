@@ -17,7 +17,8 @@ platform:
   - win32  # 32-bit build
 
 init:
-  - set "Path=%MINGW_SDK%\bin;%Path%"
+  - if "%PLATFORM%=="x64" SET PATH="c:\MinGW\bin;c:\MinGW\usr\bin;%PATH%"
+  - if "%PLATFORM%=="x86" SET"PATH="c:\msys64\mingw64\bin;%PATH%"
   - if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" if "%PLATFORM%"=="x86" call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars32.bat"
   - if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" if "%PLATFORM%"=="x64" call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
   - if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" if "%PLATFORM%"=="x86" call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
