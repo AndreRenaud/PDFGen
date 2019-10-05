@@ -5,15 +5,17 @@ XXD=xxd
 
 ifeq ($(OS),Windows_NT)
 CFLAGS=-Wall
+CFLAGS_OUTPUT=/Fo
 else
 CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
+CFLAGS_OUTPUT=-o
 endif
 
 
 default: testprog
 
 testprog: pdfgen.o tests/main.o tests/penguin.o
-	$(CC) -o $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
+	$(CC) $(CFLAGS_OUTPUT) $@ pdfgen.o tests/main.o tests/penguin.o $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $< pdfgen.c -fsanitize=fuzzer,address
@@ -23,7 +25,7 @@ tests/penguin.c: data/penguin.jpg
 	$(XXD) -i $< > $@ || ( rm -f $@ ; false )
 
 .c.o:
-	$(CC) -I. -c -o $@ $< $(CFLAGS)
+	$(CC) -I. -c $(CFLAGS_OUTPUT) $@ $< $(CFLAGS)
 
 check: testprog pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h tests/main.c
