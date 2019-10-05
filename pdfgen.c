@@ -2221,7 +2221,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     }
 
     /* Try and limit the memory usage to sane images */
-    if (width > 2 << 14 || height > 2 << 14) {
+    if (width > 4096 || height > 4096) {
         fclose(fp);
         return pdf_set_err(pdf, -EINVAL,
                            "Invalid width/height in PPM file: %ux%u", width,
