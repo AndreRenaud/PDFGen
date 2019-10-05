@@ -25,7 +25,7 @@ init:
 
 before_build:
   - if "%PLATFORM%"=="x64" SET PATH=c:\msys64\mingw64\bin;%PATH%
-  - if "%PLATFORM%"=="x86" SET PATH=C:\msys64\mingw32\bin;%PATH%
+  - if "%PLATFORM%"=="x86" SET PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;%PATH%
 
 build_script:
   - mingw32-make testprog CC=cl
