@@ -93,6 +93,18 @@
 #define _POSIX_SOURCE     /* For localtime_r */
 #define _XOPEN_SOURCE 500 /* for M_SQRT2 */
 
+#if defined(_MSC_VER)
+#define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
+#define _USE_MATH_DEFINES
+#define inline __inline
+#define snprintf _snprintf
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define SKIP_ATTRIBUTE
+#else
+#include <strings.h> // strcasecmp
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
@@ -112,16 +124,6 @@
 #define PDF_RGB_B(c) ((((c) >> 0) & 0xff) / 255.0)
 #define PDF_IS_TRANSPARENT(c) (((c) >> 24) == 0xff)
 
-#if defined(_MSC_VER)
-#define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
-#define inline __inline
-#define snprintf _snprintf
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
-#define SKIP_ATTRIBUTE
-#else
-#include <strings.h> // strcasecmp
-#endif
 
 typedef struct pdf_object pdf_object;
 
