@@ -334,7 +334,7 @@ static char *dstr_data(const struct dstr *str)
     return str->data ? str->data : (char *)str->static_data;
 }
 
-static int dstr_len(const struct dstr *str)
+static size_t dstr_len(const struct dstr *str)
 {
     return str->used_len;
 }
@@ -2009,7 +2009,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                                      int width, int height)
 {
     struct pdf_object *obj;
-    int len;
+    size_t len;
     const char *endstream = ">\r\nendstream\r\n";
     struct dstr str = INIT_DSTR;
 
@@ -2026,7 +2026,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     if (dstr_ensure(&str, len) < 0) {
         dstr_free(&str);
         pdf_set_err(pdf, -ENOMEM,
-                    "Unable to allocate %d bytes memory for image", len);
+                    "Unable to allocate %zd bytes memory for image", len);
         return NULL;
     }
     for (int i = 0; i < width * height * 3; i++) {
