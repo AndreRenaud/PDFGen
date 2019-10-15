@@ -2011,7 +2011,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
 }
 
 static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
-                                     int width, int height)
+                                     unsigned width, unsigned height)
 {
     struct pdf_object *obj;
     size_t len;
