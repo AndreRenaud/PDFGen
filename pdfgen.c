@@ -103,6 +103,7 @@ typedef SSIZE_T ssize_t;
 
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -931,11 +932,22 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     return 0;
 }
 
+// Slightly modified djb2 hash algorithm to get pseudo-random ID
+static uint64_t hash(uint64_t hash, const void *data, size_t len)
+{
+    const uint8_t *d8 = (const uint8_t *)data;
+    while (len--)
+        hash = ((hash << 5) + hash) + *d8++;
+    return hash;
+}
+
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 {
     struct pdf_object *obj;
     int xref_offset;
     int xref_count = 0;
+    uint64_t id1, id2;
+    time_t now = time(NULL);
 
     fprintf(fp, "%%PDF-1.2\r\n");
     /* Hibit bytes */
@@ -966,8 +978,11 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     fprintf(fp, "/Root %d 0 R\r\n", obj->index);
     obj = pdf_find_first_object(pdf, OBJ_info);
     fprintf(fp, "/Info %d 0 R\r\n", obj->index);
-    /* FIXME: Not actually generating a unique ID */
-    fprintf(fp, "/ID [<%16.16x> <%16.16x>]\r\n", 0x123, 0x123);
+    /* Generate document unique IDs */
+    id1 = hash(5381, obj->info, sizeof(struct pdf_info));
+    id1 = hash(id1, &xref_count, sizeof(xref_count));
+    id2 = hash(5381, &now, sizeof(now));
+    fprintf(fp, "/ID [<%16.16" PRIx64 "> <%16.16" PRIx64 ">]\r\n", id1, id2);
     fprintf(fp, ">>\r\n"
                 "startxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
