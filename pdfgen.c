@@ -2027,7 +2027,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
         flexarray_size(&pdf->objects), height, width,
         width * height * 3 * 2 + 1);
 
-    len = dstr_len(&str) + width * height * 3 * 2 + strlen(endstream) + 1;
+    len = dstr_len(&str) + (size_t)width * (size_t)height * 3 * 2 + strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
         dstr_free(&str);
         pdf_set_err(pdf, -ENOMEM,
