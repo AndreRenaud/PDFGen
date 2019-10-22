@@ -97,7 +97,7 @@
 typedef SSIZE_T ssize_t;
 #else
 #define _POSIX_SOURCE     /* For localtime_r */
-#define _XOPEN_SOURCE 500 /* for M_SQRT2 */
+#define _XOPEN_SOURCE 600 /* for M_SQRT2 */
 #include <sys/types.h>    /* for ssize_t */
 #endif
 
