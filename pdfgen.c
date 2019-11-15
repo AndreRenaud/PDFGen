@@ -97,7 +97,7 @@
 typedef SSIZE_T ssize_t;
 #else
 #define _POSIX_SOURCE     /* For localtime_r */
-#define _XOPEN_SOURCE 500 /* for M_SQRT2 */
+#define _XOPEN_SOURCE 600 /* for M_SQRT2 */
 #include <sys/types.h>    /* for ssize_t */
 #endif
 
@@ -1645,14 +1645,12 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_append(&str, "BT\r\n");
     dstr_printf(&str, "%d w\r\n", width);
     dstr_printf(&str, "%d %d m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
     dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d %d l S\r\n", x2, y2);
-    dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1677,14 +1675,10 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
     ly = (4.0f / 3.0f) * (M_SQRT2 - 1) * ry;
 
     if (!PDF_IS_TRANSPARENT(fill_colour)) {
-        dstr_append(&str, "BT ");
         dstr_printf(&str, "/DeviceRGB CS\r\n");
         dstr_printf(&str, "%f %f %f rg\r\n", PDF_RGB_R(fill_colour),
                     PDF_RGB_G(fill_colour), PDF_RGB_B(fill_colour));
-        dstr_append(&str, "ET\r\n");
     }
-
-    dstr_append(&str, "BT ");
 
     /* stroke color */
     dstr_printf(&str, "/DeviceRGB CS\r\n");
@@ -1712,8 +1706,6 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
     else
         dstr_printf(&str, "%s", "B ");
 
-    dstr_append(&str, "ET");
-
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
@@ -1735,12 +1727,10 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
-    dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1755,12 +1745,10 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
     dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
-    dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1774,7 +1762,6 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%d w ", border_width);
@@ -1783,7 +1770,6 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
         dstr_printf(&str, "%d %d l ", x[i], y[i]);
     }
     dstr_printf(&str, "h S ");
-    dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1798,7 +1784,6 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_append(&str, "BT ");
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
@@ -1809,7 +1794,6 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
         dstr_printf(&str, "%d %d l ", x[i], y[i]);
     }
     dstr_printf(&str, "h f ");
-    dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
