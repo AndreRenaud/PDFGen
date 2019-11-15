@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y dirmngr
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9 \
  && echo "deb http://mirror.mxe.cc/repos/apt xenial main" > /etc/apt/sources.list.d/mxeapt.list
 
+RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install --no-install-recommends -y \
 	ca-certificates \
 	cloc \
@@ -14,9 +15,12 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	curl \
 	doxygen \
 	gcc \
+	ghostscript \
 	git \
 	graphviz \
+	libgtk2.0-0:i386 \
 	libtinfo5 \
+	libxml2:i386 \
 	make \
 	mxe-i686-w64-mingw32.static-gcc \
 	pdftk-java \
@@ -40,11 +44,7 @@ RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download
 ENV PATH $PATH:/opt/infer-linux64-v0.16.0/bin/
 
 # Install acroread
- RUN curl -L ftp://ftp.adobe.com/pub/adobe/reader/unix/9.x/9.5.5/enu/AdbeRdr9.5.5-1_i386linux_enu.deb -o AdbeRdr9.5.5-1_i386linux_enu.deb \
-  && dpkg --add-architecture i386 \
-  && apt-get update && apt-get install --no-install-recommends -y \
-    libgtk2.0-0:i386 \
-    libxml2:i386 \
-  && dpkg -i AdbeRdr9.5.5-1_i386linux_enu.deb
+RUN curl -L ftp://ftp.adobe.com/pub/adobe/reader/unix/9.x/9.5.5/enu/AdbeRdr9.5.5-1_i386linux_enu.deb -o AdbeRdr9.5.5-1_i386linux_enu.deb \
+ && dpkg -i AdbeRdr9.5.5-1_i386linux_enu.deb
 
 RUN apt-get clean
