@@ -39,4 +39,12 @@ RUN pip3 install cpp-coveralls
 RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.16.0/infer-linux64-v0.16.0.tar.xz | tar -C /opt -x -J
 ENV PATH $PATH:/opt/infer-linux64-v0.16.0/bin/
 
+# Install acroread
+RUN curl -L ftp://ftp.adobe.com/pub/adobe/reader/unix/9.x/9.5.5/enu/AdbeRdr9.5.5-1_i386linux_enu.deb -o AdbeRdr9.5.5-1_i386linux_enu.deb \
+ && dpkg --add-architecture i386 \
+ && apt-get update && apt-get install --no-install-recommends -y \
+   libgtk2.0-0:i386 \
+   libxml2:i386
+ && dpkg -i AdbeRdr9.5.5-1_i386linux_enu.deb
+
 RUN apt-get clean
