@@ -44,7 +44,7 @@ ENV PATH $PATH:/opt/infer-linux64-v0.16.0/bin/
   && dpkg --add-architecture i386 \
   && apt-get update && apt-get install --no-install-recommends -y \
     libgtk2.0-0:i386 \
-    libxml2:i386
+    libxml2:i386 \
   && dpkg -i AdbeRdr9.5.5-1_i386linux_enu.deb
 
 RUN apt-get clean
