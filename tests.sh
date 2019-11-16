@@ -22,11 +22,11 @@ run_fail() {
 	fi
 }
 
-
 # Run the test program
 run "valgrind" valgrind --log-file=valgrind.log --leak-check=full --error-exitcode=1 ./testprog
 
-# We can either 
+# We can either use pdftotext or acroread to process it. The results should
+# be the same
 if [ "$1" = "acroread" ] ; then
 	run "acroread" acroread -toPostScript output.pdf
 	run "ps2ascii" ps2ascii output.ps output.txt
