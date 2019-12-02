@@ -9,6 +9,10 @@
 #ifndef PDFGEN_H
 #define PDFGEN_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 
@@ -484,5 +488,9 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
 int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
                       int y, int display_width, int display_height,
                       const unsigned char *jpeg_data, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PDFGEN_H
