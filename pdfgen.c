@@ -8,6 +8,8 @@
 
 /**
  * PDF HINTS & TIPS
+ * The specification can be found at
+ * https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
  * The following sites have various bits & pieces about PDF document
  * generation
  * http://www.mactech.com/articles/mactech/Vol.15/15.09/PDFIntro/index.html
@@ -2051,34 +2053,23 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     return obj;
 }
 
-/* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(const unsigned char *data, size_t data_size, int *width,
-                     int *height)
+/* See http://www.videotechnology.com/jpeg/j1.html for details */
+static int jpeg_details(const unsigned char *data, size_t data_size,
+                        int *width, int *height, int *ncolours)
 {
-    size_t i = 0;
-    if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
-        data[i + 2] == 0xFF && data[i + 3] == 0xE0) {
-        i += 4;
-        if (i + 6 < data_size && data[i + 2] == 'J' && data[i + 3] == 'F' &&
-            data[i + 4] == 'I' && data[i + 5] == 'F' && data[i + 6] == 0x00) {
-            unsigned short block_length = data[i] * 256 + data[i + 1];
-            while (i < data_size) {
-                i += block_length;
-                if ((i + 8) >= data_size)
-                    return -1;
-                if (data[i] != 0xFF)
-                    return -1;
-                if (data[i + 1] == 0xC0) {
-                    *height = data[i + 5] * 256 + data[i + 6];
-                    *width = data[i + 7] * 256 + data[i + 8];
-                    return 0;
-                }
-                i += 2;
-                block_length = data[i] * 256 + data[i + 1];
+    if (data_size < 4 || data[0] != 0xFF || data[1] != 0xD8)
+        return -1;
+    for (size_t i = 0; i < data_size - 2; i++) {
+        if (data[i] == 0xff && data[i + 1] == 0xc0) { // SOF marker
+            int len = ((data[i + 2]) << 8) + (data[i + 3]);
+            if (len >= 9 && i + len < data_size) {
+                *height = data[i + 5] * 256 + data[i + 6];
+                *width = data[i + 7] * 256 + data[i + 8];
+                *ncolours = data[i + 9];
+                return 0;
             }
         }
     }
-
     return -1;
 }
 
@@ -2087,9 +2078,9 @@ static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
                                          size_t len)
 {
     struct pdf_object *obj;
-    int width, height;
+    int width, height, ncolours;
 
-    if (jpeg_size(jpeg_data, len, &width, &height) < 0) {
+    if (jpeg_details(jpeg_data, len, &width, &height, &ncolours) < 0) {
         pdf_set_err(pdf, -EINVAL, "Unable to determine jpeg width/height");
         return NULL;
     }
@@ -2099,11 +2090,13 @@ static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
         return NULL;
     dstr_printf(&obj->stream,
                 "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                "/Subtype /Image\r\n/ColorSpace %s\r\n"
                 "/Width %d\r\n/Height %d\r\n"
                 "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
                 "/Length %d\r\n>>stream\r\n",
-                flexarray_size(&pdf->objects), width, height, (int)len);
+                flexarray_size(&pdf->objects),
+                ncolours == 1 ? "/DeviceGray" : "/DeviceRGB", width, height,
+                (int)len);
     dstr_append_data(&obj->stream, jpeg_data, len);
 
     dstr_printf(&obj->stream, "\r\nendstream\r\n");
