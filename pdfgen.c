@@ -2059,7 +2059,7 @@ static int jpeg_details(const unsigned char *data, size_t data_size,
 {
     if (data_size < 4 || data[0] != 0xFF || data[1] != 0xD8)
         return -1;
-    for (size_t i = 0; i < data_size - 2; i++) {
+    for (size_t i = 0; i < data_size - 3; i++) {
         if (data[i] == 0xff && data[i + 1] == 0xc0) { // SOF marker
             int len = ((data[i + 2]) << 8) + (data[i + 3]);
             if (len >= 9 && i + len < data_size) {
