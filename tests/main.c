@@ -77,6 +77,8 @@ int main(int argc, char *argv[])
                       PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
 
+    pdf_add_jpeg(pdf, NULL, 150, 10, 50, 150, "data/grey.jpg");
+
     pdf_add_jpeg_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
                       data_penguin_jpg_len);
 
