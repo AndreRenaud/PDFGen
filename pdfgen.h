@@ -69,6 +69,17 @@ struct pdf_info {
 };
 
 /**
+ * pdf_path_operation holds information about a path
+ * drawing operation.
+ * Possible operators are: m, l, c, v, y, h
+ * See PDF reference for usage
+ */
+struct pdf_path_operation {
+    char op;
+    float x1, y1, x2, y2, x3, y3;
+};
+
+/**
  * Convert a value in inches into a number of points.
  * Always returns an integer value
  * @param inch inches value to convert to points
@@ -348,6 +359,21 @@ int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, i
  */
 int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
                          int x2, int y2, int xq1, int yq1, int width, uint32_t colour);
+
+/**
+ * Add a custom path to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param operations Array of drawing operations
+ * @param operation_count The number of operations
+ * @param stroke_width Width of the stroke
+ * @param stroke_colour Colour to stroke the curve
+ * @param fill_colour Colour to fill the path
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page, 
+                        struct pdf_path_operation *operations, int operation_count,
+                        int stroke_width, uint32_t stroke_colour, uint32_t fill_colour);
 
 /**
  * Add an ellipse to the document

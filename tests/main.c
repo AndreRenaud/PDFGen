@@ -92,6 +92,16 @@ int main(int argc, char *argv[])
     pdf_add_line(pdf, NULL, 10, 24, 100, 24, 4, PDF_RGB(0xff, 0, 0));
     pdf_add_cubic_bezier(pdf, NULL, 10, 100, 150, 100, 20, 30, 60, 30, 4, PDF_RGB(0, 0xff, 0));
     pdf_add_quadratic_bezier(pdf, NULL, 10, 140, 150, 140, 50, 160, 4, PDF_RGB(0, 0, 0xff));
+    struct pdf_path_operation operations[] = {
+        { .op = 'm', .x1 = 100.5, .y1 = 100.3 },
+        { .op = 'l', .x1 = 130, .y1 = 100 },
+        { .op = 'c', .x1 = 150, .y1 = 150, .x2 = 100, .y2 = 100, .x3 = 130, .y3 = 130 },
+        { .op = 'l', .x1 = 150, .y1 = 120 },
+        { .op = 'h' },
+    };
+    int operation_count = (sizeof(operations) / sizeof((operations)[0]));
+    pdf_add_custom_path(pdf, NULL, operations, operation_count, 1, 
+                        PDF_RGB(0xff, 0, 0), PDF_ARGB(0x80, 0xff, 0, 0));
     pdf_add_circle(pdf, NULL, 100, 240, 50, 5, PDF_RGB(0xff, 0, 0),
                    PDF_TRANSPARENT);
     pdf_add_ellipse(pdf, NULL, 100, 240, 40, 30, 2, PDF_RGB(0xff, 0xff, 0),
