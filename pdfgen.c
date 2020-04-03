@@ -1660,6 +1660,37 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     return ret;
 }
 
+int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
+                         int x2, int y2, int xq1, int yq1, int xq2, int yq2, 
+                         int width, uint32_t colour)
+{
+    int ret;
+    struct dstr str = INIT_DSTR;
+
+    //x1 y1 x2 y2 x3 y3 -> end is x3 y3, control points are x1 y1 x2 y2
+    dstr_printf(&str, "%d w\r\n", width);
+    dstr_printf(&str, "%d %d m\r\n", x1, y1);
+    dstr_printf(&str, "/DeviceRGB CS\r\n");
+    dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%d %d %d %d %d %d c S\r\n", xq1, yq1, xq2, yq2, x2, y2);
+
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    dstr_free(&str);
+
+    return ret;
+}
+
+int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
+                         int x2, int y2, int xq1, int yq1, int width, uint32_t colour)
+{
+    int xc1 = x1 + (xq1 - x1) * (2.0 / 3.0);
+    int yc1 = y1 + (yq1 - y1) * (2.0 / 3.0);
+    int xc2 = x2 + (xq1 - x2) * (2.0 / 3.0);
+    int yc2 = y2 + (yq1 - y2) * (2.0 / 3.0);
+    return pdf_add_cubic_bezier(pdf, page, x1, y1, x2, y2, xc1, yc1, xc2, yc2, width, colour);
+}
+
 int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
                     int yr, int xradius, int yradius, int width,
                     uint32_t colour, uint32_t fill_colour)

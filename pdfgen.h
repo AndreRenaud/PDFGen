@@ -313,6 +313,43 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
                  int x2, int y2, int width, uint32_t colour);
 
 /**
+ * Add a cubic bezier curve to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x1 X offset of the initial point of the curve
+ * @param y1 Y offset of the initial point of the curve
+ * @param x2 X offset of the final point of the curve
+ * @param y2 Y offset of the final point of the curve
+ * @param xq1 X offset of the first control point of the curve
+ * @param yq1 Y offset of the first control point of the curve
+ * @param xq2 X offset of the second control of the curve
+ * @param yq2 Y offset of the second control of the curve
+ * @param width Width of the curve
+ * @param colour Colour to draw the curve
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
+                         int x2, int y2, int xq1, int yq1, int xq2, int yq2, 
+                         int width, uint32_t colour);
+
+/**
+ * Add a quadratic bezier curve to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x2 X offset of the initial point of the curve
+ * @param y2 Y offset of the initial point of the curve
+ * @param x3 X offset of the final point of the curve
+ * @param y3 Y offset of the final point of the curve
+ * @param xq1 X offset of the control point of the curve
+ * @param yq1 Y offset of the control point of the curve
+ * @param width Width of the curve
+ * @param colour Colour to draw the curve
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
+                         int x2, int y2, int xq1, int yq1, int width, uint32_t colour);
+
+/**
  * Add an ellipse to the document
  * @param pdf PDF document to add to
  * @param page Page to add object to (NULL => most recently added page)

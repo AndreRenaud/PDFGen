@@ -90,6 +90,8 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0));
     pdf_add_text(pdf, NULL, "PjGQji", 18, 20, 130, PDF_RGB(0, 0xff, 0xff));
     pdf_add_line(pdf, NULL, 10, 24, 100, 24, 4, PDF_RGB(0xff, 0, 0));
+    pdf_add_cubic_bezier(pdf, NULL, 10, 100, 150, 100, 20, 30, 60, 30, 4, PDF_RGB(0, 0xff, 0));
+    pdf_add_quadratic_bezier(pdf, NULL, 10, 140, 150, 140, 50, 160, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_circle(pdf, NULL, 100, 240, 50, 5, PDF_RGB(0xff, 0, 0),
                    PDF_TRANSPARENT);
     pdf_add_ellipse(pdf, NULL, 100, 240, 40, 30, 2, PDF_RGB(0xff, 0xff, 0),
