@@ -1461,6 +1461,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
     unsigned int len = 0;
     if (text_len < 0)
         text_len = strlen(text);
+    *point_width = 0.0f;
 
     for (int i = 0; i < (int)text_len;) {
         uint32_t code;
