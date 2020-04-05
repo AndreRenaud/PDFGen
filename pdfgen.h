@@ -73,14 +73,14 @@ struct pdf_info {
  * Always returns an integer value
  * @param inch inches value to convert to points
  */
-#define PDF_INCH_TO_POINT(inch) ((int)((inch)*72 + 0.5))
+#define PDF_INCH_TO_POINT(inch) ((float)((inch)*72 + 0.5))
 
 /**
  * Convert a value in milli-meters into a number of points.
  * Always returns an integer value
  * @param mm millimeter value to convert to points
  */
-#define PDF_MM_TO_POINT(mm) ((int)((mm)*72 / 25.4 + 0.5))
+#define PDF_MM_TO_POINT(mm) ((float)((mm)*72 / 25.4 + 0.5))
 
 /*! Point width of a standard US-Letter page */
 #define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5)
@@ -162,7 +162,7 @@ enum {
  * @param info Optional information to be put into the PDF header
  * @return PDF document object, or NULL on failure
  */
-struct pdf_doc *pdf_create(int width, int height,
+struct pdf_doc *pdf_create(float width, float height,
                            const struct pdf_info *info);
 
 /**
@@ -201,7 +201,7 @@ void pdf_clear_err(struct pdf_doc *pdf);
 int pdf_set_font(struct pdf_doc *pdf, const char *font);
 
 /**
- * Returns the width of a given string in the current font
+ * Calculate the width of a given string in the current font
  * @param pdf PDF document
  * @param font_name Name of the font to get the width of.
  *  This must be one of the standard PDF fonts:
@@ -211,24 +211,25 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font);
  *  Symbol or ZapfDingbats
  * @param text Text to determine width of
  * @param size Size of the text, in points
+ * @param text_width area to store calculated width in
  * @return < 0 on failure, 0 on success
  */
 int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
-                            const char *text, int size);
+                            const char *text, float size, float *text_width);
 
 /**
  * Retrieves a PDF document height
  * @param pdf PDF document to get height of
  * @return height of PDF document (in points)
  */
-int pdf_height(const struct pdf_doc *pdf);
+float pdf_height(const struct pdf_doc *pdf);
 
 /**
  * Retrieves a PDF document width
  * @param pdf PDF document to get width of
  * @return width of PDF document (in points)
  */
-int pdf_width(const struct pdf_doc *pdf);
+float pdf_width(const struct pdf_doc *pdf);
 
 /**
  * Add a new page to the given pdf
@@ -245,8 +246,8 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
  * @param height Height of the page in points
  * @return < 0 on failure, 0 on success
  */
-int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
-                      int height);
+int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page,
+                      float width, float height);
 
 /**
  * Save the given pdf document to the supplied filename.
@@ -276,7 +277,7 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp);
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff,
+                 const char *text, float size, float xoff, float yoff,
                  uint32_t colour);
 
 /**
@@ -294,8 +295,8 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
  * @return height of drawn text on success, < 0 on failure
  */
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
-                      const char *text, int size, int xoff, int yoff,
-                      uint32_t colour, int wrap_width, int align);
+                      const char *text, float size, float xoff, float yoff,
+                      uint32_t colour, float wrap_width, int align);
 
 /**
  * Add a line to the document
@@ -309,8 +310,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
  * @param colour Colour to draw the line
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
-                 int x2, int y2, int width, uint32_t colour);
+int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
+                 float y1, float x2, float y2, float width, uint32_t colour);
 
 /**
  * Add an ellipse to the document
@@ -325,8 +326,8 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
  * @param fill_colour Colour to fill the ellipse
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int x,
-                    int y, int xradius, int yradius, int width,
+int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                    float y, float xradius, float yradius, float width,
                     uint32_t colour, uint32_t fill_colour);
 
 /**
@@ -341,8 +342,8 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int x,
  * @param fill_colour Colour to fill the circle
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                   int radius, int width, uint32_t colour,
+int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                   float y, float radius, float width, uint32_t colour,
                    uint32_t fill_colour);
 
 /**
@@ -357,8 +358,8 @@ int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param colour Colour to draw the rectangle
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
-                      int y, int width, int height, int border_width,
+int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                      float y, float width, float height, float border_width,
                       uint32_t colour);
 
 /**
@@ -374,8 +375,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-                             int x, int y, int width, int height,
-                             int border_width, uint32_t colour);
+                             float x, float y, float width, float height,
+                             float border_width, uint32_t colour);
 
 /**
  * Add an outline polygon to the document
@@ -388,8 +389,9 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
  * @param colour Colour to draw the polygon
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
-                    int y[], int count, int border_width, uint32_t colour);
+int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
+                    float y[], int count, float border_width,
+                    uint32_t colour);
 
 /**
  * Add a filled polygon to the document
@@ -403,8 +405,8 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
-                           int x[], int y[], int count, int border_width,
-                           uint32_t colour);
+                           float x[], float y[], int count,
+                           float border_width, uint32_t colour);
 
 /**
  * Add a bookmark to the document
@@ -441,8 +443,8 @@ enum {
  * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
-                    int x, int y, int width, int height, const char *string,
-                    uint32_t colour);
+                    float x, float y, float width, float height,
+                    const char *string, uint32_t colour);
 
 /**
  * Add a PPM file as an image to the document
@@ -455,8 +457,9 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
  * @param ppm_file Filename of P6 (binary) ppm file to display
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                int display_width, int display_height, const char *ppm_file);
+int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                float y, float display_width, float display_height,
+                const char *ppm_file);
 
 /**
  * Add a JPEG file as an image to the document
@@ -469,8 +472,8 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param jpeg_file Filename of JPEG file to display
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                 int display_width, int display_height,
+int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                 float y, float display_width, float display_height,
                  const char *jpeg_file);
 
 /**
@@ -485,8 +488,8 @@ int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param len Length of JPEG data
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
-                      int y, int display_width, int display_height,
+int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                      float y, float display_width, float display_height,
                       const unsigned char *jpeg_data, size_t len);
 
 #ifdef __cplusplus
