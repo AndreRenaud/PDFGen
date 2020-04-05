@@ -73,32 +73,32 @@ struct pdf_info {
  * Always returns an integer value
  * @param inch inches value to convert to points
  */
-#define PDF_INCH_TO_POINT(inch) ((float)((inch)*72 + 0.5))
+#define PDF_INCH_TO_POINT(inch) ((float)((inch)*72.0f))
 
 /**
  * Convert a value in milli-meters into a number of points.
  * Always returns an integer value
  * @param mm millimeter value to convert to points
  */
-#define PDF_MM_TO_POINT(mm) ((float)((mm)*72 / 25.4 + 0.5))
+#define PDF_MM_TO_POINT(mm) ((float)((mm)*72.0f / 25.4f))
 
 /*! Point width of a standard US-Letter page */
-#define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5)
+#define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5f)
 
 /*! Point height of a standard US-Letter page */
-#define PDF_LETTER_HEIGHT PDF_INCH_TO_POINT(11)
+#define PDF_LETTER_HEIGHT PDF_INCH_TO_POINT(11.0f)
 
 /*! Point width of a standard A4 page */
-#define PDF_A4_WIDTH PDF_MM_TO_POINT(210)
+#define PDF_A4_WIDTH PDF_MM_TO_POINT(210.0f)
 
 /*! Point height of a standard A4 page */
-#define PDF_A4_HEIGHT PDF_MM_TO_POINT(297)
+#define PDF_A4_HEIGHT PDF_MM_TO_POINT(297.0f)
 
 /*! Point width of a standard A3 page */
-#define PDF_A3_WIDTH PDF_MM_TO_POINT(297)
+#define PDF_A3_WIDTH PDF_MM_TO_POINT(297.0f)
 
 /*! Point height of a standard A3 page */
-#define PDF_A3_HEIGHT PDF_MM_TO_POINT(420)
+#define PDF_A3_HEIGHT PDF_MM_TO_POINT(420.0f)
 
 /**
  * Convert three 8-bit RGB values into a single packed 32-bit
