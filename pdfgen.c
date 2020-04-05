@@ -1541,7 +1541,8 @@ static const char *find_word_break(const char *string)
 
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                       const char *text, float size, float xoff, float yoff,
-                      uint32_t colour, float wrap_width, int align)
+                      uint32_t colour, float wrap_width, int align,
+                      float *height)
 {
     /* Move through the text string, stopping at word boundaries,
      * trying to find the longest text string we can fit in the given width
@@ -1646,7 +1647,9 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             last_best = end;
     }
 
-    return orig_yoff - yoff;
+    if (height)
+        *height = orig_yoff - yoff;
+    return 0;
 }
 
 int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,

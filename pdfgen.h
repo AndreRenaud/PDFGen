@@ -292,11 +292,13 @@ int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
  * @param colour Colour to draw the text
  * @param wrap_width Width at which to wrap the text
  * @param align Text alignment (see PDF_ALIGN_xxx)
- * @return height of drawn text on success, < 0 on failure
+ * @param height Store the final height of the wrapped text here (optional)
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                       const char *text, float size, float xoff, float yoff,
-                      uint32_t colour, float wrap_width, int align);
+                      uint32_t colour, float wrap_width, int align,
+                      float *height);
 
 /**
  * Add a line to the document
