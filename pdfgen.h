@@ -71,12 +71,20 @@ struct pdf_info {
 /**
  * pdf_path_operation holds information about a path
  * drawing operation.
- * Possible operators are: m, l, c, v, y, h
- * See PDF reference for usage
+ * See PDF reference for detailed usage.
  */
 struct pdf_path_operation {
-    char op;
-    int x1, y1, x2, y2, x3, y3;
+    char op; //!< Operation command. Possible operators are: m = move to, l =
+             //!< line to, c = cubic bezier curve with two control points, v =
+             //!< cubic bezier curve with one control point fixed at first
+             //!< point, y = cubic bezier curve with one control point fixed
+             //!< at second point, h = close path
+    int x1;  //!< X offset of the first point. Used with: m, l, c, v, y
+    int y1;  //!< Y offset of the first point. Used with: m, l, c, v, y
+    int x2;  //!< X offset of the second point. Used with: c, v, y
+    int y2;  //!< Y offset of the second point. Used with: c, v, y
+    int x3;  //!< X offset of the third point. Used with: c
+    int y3;  //!< Y offset of the third point. Used with: c
 };
 
 /**
@@ -347,10 +355,10 @@ int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1,
  * Add a quadratic bezier curve to the document
  * @param pdf PDF document to add to
  * @param page Page to add object to (NULL => most recently added page)
- * @param x2 X offset of the initial point of the curve
- * @param y2 Y offset of the initial point of the curve
- * @param x3 X offset of the final point of the curve
- * @param y3 Y offset of the final point of the curve
+ * @param x1 X offset of the initial point of the curve
+ * @param y1 Y offset of the initial point of the curve
+ * @param x2 X offset of the final point of the curve
+ * @param y2 Y offset of the final point of the curve
  * @param xq1 X offset of the control point of the curve
  * @param yq1 Y offset of the control point of the curve
  * @param width Width of the curve
