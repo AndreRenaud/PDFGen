@@ -1,4 +1,4 @@
-FROM ubuntu:18.10
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -9,6 +9,9 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9 \
 RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install --no-install-recommends -y \
 	ca-certificates \
+	clang-10 \
+	clang-format-10 \
+	clang-tools-10
 	cloc \
 	colordiff \
 	cppcheck \
@@ -33,18 +36,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	vim \
 	xz-utils
 
-RUN curl -L https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - \
- && apt-add-repository "deb http://apt.llvm.org/cosmic/ llvm-toolchain-cosmic-8 main" \
- && apt-get update \
- && apt-get install -y clang-8 clang-format-8 clang-tools-8
-
 RUN pip3 install cpp-coveralls
 
-RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.16.0/infer-linux64-v0.16.0.tar.xz | tar -C /opt -x -J
+# Install Infer
+RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.16.0/#infer-linux64-v0.16.0.tar.xz | tar -C /opt -x -J
 ENV PATH $PATH:/opt/infer-linux64-v0.16.0/bin/
 
 # Install acroread
-RUN curl -L ftp://ftp.adobe.com/pub/adobe/reader/unix/9.x/9.5.5/enu/AdbeRdr9.5.5-1_i386linux_enu.deb -o AdbeRdr9.5.5-1_i386linux_enu.deb \
- && dpkg -i AdbeRdr9.5.5-1_i386linux_enu.deb
+RUN curl -L -O http://ardownload.adobe.com/pub/adobe/reader/unix/9.x/9.5.5/enu/AdbeRdr9.5.5-1_i486linux_enu.bin && chmod +x AdbeRdr9.5.5-1_i486linux_enu.bin && ./AdbeRdr9.5.5-1_i486linux_enu.bin --install_path=/opt
 
 RUN apt-get clean

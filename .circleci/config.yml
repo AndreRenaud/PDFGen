@@ -9,7 +9,7 @@ jobs:
           name: Build Win32
           command: |
                   make clean
-                  make CC=/usr/lib/mxe/usr/bin/i686-w64-mingw32.static-gcc CLANG_FORMAT=clang-format-8
+                  make CC=/usr/lib/mxe/usr/bin/i686-w64-mingw32.static-gcc CLANG_FORMAT=clang-format-10
                   cp testprog testprog.exe
       - run:
           name: Infer
@@ -28,10 +28,10 @@ jobs:
                   fi
       - run:
           name: Test
-          command: make clean && scan-build-8 --status-bugs make check CLANG_FORMAT=clang-format-8
+          command: make clean && scan-build-10 --status-bugs make check CLANG_FORMAT=clang-format-10
       - run:
           name: Fuzz Test
-          command: make fuzz-check CLANG=clang-8 CLANG_FORMAT=clang-format-8 -j4
+          command: make fuzz-check CLANG=clang-10 CLANG_FORMAT=clang-format-10 -j4
       - run:
           name: Docs
           command: make docs
@@ -39,7 +39,7 @@ jobs:
           name: Update build statistics
           command: |
                   if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
-                          make check CLANG_FORMAT=clang-format-8
+                          make check CLANG_FORMAT=clang-format-10
                           ./upload-stats.sh
                   fi
       - store_artifacts:
