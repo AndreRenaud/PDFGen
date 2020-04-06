@@ -74,17 +74,17 @@ struct pdf_info {
  * See PDF reference for detailed usage.
  */
 struct pdf_path_operation {
-    char op; //!< Operation command. Possible operators are: m = move to, l =
-             //!< line to, c = cubic bezier curve with two control points, v =
-             //!< cubic bezier curve with one control point fixed at first
-             //!< point, y = cubic bezier curve with one control point fixed
-             //!< at second point, h = close path
-    int x1;  //!< X offset of the first point. Used with: m, l, c, v, y
-    int y1;  //!< Y offset of the first point. Used with: m, l, c, v, y
-    int x2;  //!< X offset of the second point. Used with: c, v, y
-    int y2;  //!< Y offset of the second point. Used with: c, v, y
-    int x3;  //!< X offset of the third point. Used with: c
-    int y3;  //!< Y offset of the third point. Used with: c
+    char op; /*!< Operation command. Possible operators are: m = move to, l =
+                line to, c = cubic bezier curve with two control points, v =
+                cubic bezier curve with one control point fixed at first
+                point, y = cubic bezier curve with one control point fixed
+                at second point, h = close path */
+    int x1;  /*!< X offset of the first point. Used with: m, l, c, v, y */
+    int y1;  /*!< Y offset of the first point. Used with: m, l, c, v, y */
+    int x2;  /*!< X offset of the second point. Used with: c, v, y */
+    int y2;  /*!< Y offset of the second point. Used with: c, v, y */
+    int x3;  /*!< X offset of the third point. Used with: c */
+    int y3;  /*!< Y offset of the third point. Used with: c */
 };
 
 /**
