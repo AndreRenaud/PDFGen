@@ -76,7 +76,7 @@ struct pdf_info {
  */
 struct pdf_path_operation {
     char op;
-    float x1, y1, x2, y2, x3, y3;
+    int x1, y1, x2, y2, x3, y3;
 };
 
 /**
@@ -339,9 +339,9 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
  * @param colour Colour to draw the curve
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
-                         int x2, int y2, int xq1, int yq1, int xq2, int yq2, 
-                         int width, uint32_t colour);
+int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1,
+                         int y1, int x2, int y2, int xq1, int yq1, int xq2,
+                         int yq2, int width, uint32_t colour);
 
 /**
  * Add a quadratic bezier curve to the document
@@ -357,8 +357,9 @@ int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, i
  * @param colour Colour to draw the curve
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
-                         int x2, int y2, int xq1, int yq1, int width, uint32_t colour);
+int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
+                             int x1, int y1, int x2, int y2, int xq1, int yq1,
+                             int width, uint32_t colour);
 
 /**
  * Add a custom path to the document
@@ -371,9 +372,10 @@ int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x
  * @param fill_colour Colour to fill the path
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page, 
-                        struct pdf_path_operation *operations, int operation_count,
-                        int stroke_width, uint32_t stroke_colour, uint32_t fill_colour);
+int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page,
+                        struct pdf_path_operation *operations,
+                        int operation_count, int stroke_width,
+                        uint32_t stroke_colour, uint32_t fill_colour);
 
 /**
  * Add an ellipse to the document
