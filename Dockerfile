@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 RUN pip3 install cpp-coveralls
 
 # Install Infer
-RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.16.0/#infer-linux64-v0.16.0.tar.xz | tar -C /opt -x -J
+RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.16.0/infer-linux64-v0.16.0.tar.xz | tar -C /opt -x -J
 ENV PATH $PATH:/opt/infer-linux64-v0.16.0/bin/
 
 # Install acroread
