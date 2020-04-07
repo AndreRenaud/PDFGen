@@ -74,17 +74,17 @@ struct pdf_info {
  * See PDF reference for detailed usage.
  */
 struct pdf_path_operation {
-    char op; /*!< Operation command. Possible operators are: m = move to, l =
-                line to, c = cubic bezier curve with two control points, v =
-                cubic bezier curve with one control point fixed at first
-                point, y = cubic bezier curve with one control point fixed
-                at second point, h = close path */
-    int x1;  /*!< X offset of the first point. Used with: m, l, c, v, y */
-    int y1;  /*!< Y offset of the first point. Used with: m, l, c, v, y */
-    int x2;  /*!< X offset of the second point. Used with: c, v, y */
-    int y2;  /*!< Y offset of the second point. Used with: c, v, y */
-    int x3;  /*!< X offset of the third point. Used with: c */
-    int y3;  /*!< Y offset of the third point. Used with: c */
+    char op;  /*!< Operation command. Possible operators are: m = move to, l =
+                 line to, c = cubic bezier curve with two control points, v =
+                 cubic bezier curve with one control point fixed at first
+                 point, y = cubic bezier curve with one control point fixed
+                 at second point, h = close path */
+    float x1; /*!< X offset of the first point. Used with: m, l, c, v, y */
+    float y1; /*!< Y offset of the first point. Used with: m, l, c, v, y */
+    float x2; /*!< X offset of the second point. Used with: c, v, y */
+    float y2; /*!< Y offset of the second point. Used with: c, v, y */
+    float x3; /*!< X offset of the third point. Used with: c */
+    float y3; /*!< Y offset of the third point. Used with: c */
 };
 
 /**
@@ -350,9 +350,10 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
  * @param colour Colour to draw the curve
  * @return 0 on success, < 0 on failure
  */
-int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1,
-                         int y1, int x2, int y2, int xq1, int yq1, int xq2,
-                         int yq2, int width, uint32_t colour);
+int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
+                         float x1, float y1, float x2, float y2, float xq1,
+                         float yq1, float xq2, float yq2, float width,
+                         uint32_t colour);
 
 /**
  * Add a quadratic bezier curve to the document
@@ -369,8 +370,9 @@ int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1,
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
-                             int x1, int y1, int x2, int y2, int xq1, int yq1,
-                             int width, uint32_t colour);
+                             float x1, float y1, float x2, float y2,
+                             float xq1, float yq1, float width,
+                             uint32_t colour);
 
 /**
  * Add a custom path to the document
@@ -385,7 +387,7 @@ int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
  */
 int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page,
                         struct pdf_path_operation *operations,
-                        int operation_count, int stroke_width,
+                        int operation_count, float stroke_width,
                         uint32_t stroke_colour, uint32_t fill_colour);
 
 /**
