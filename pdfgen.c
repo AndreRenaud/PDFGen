@@ -2022,7 +2022,7 @@ static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
     int nw = char_width / 12;
     int ww = char_width / 4;
     int i;
-    uint32_t code;
+    uint32_t code = 0;
 
     if (nw <= 1 || ww <= 1)
         return pdf_set_err(pdf, -EINVAL,
