@@ -1680,7 +1680,7 @@ int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
     struct dstr str = INIT_DSTR;
 
     dstr_printf(&str, "%f w\r\n", width);
-    dstr_printf(&str, "%d %d m\r\n", x1, y1);
+    dstr_printf(&str, "%f %f m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
     dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
