@@ -13,9 +13,7 @@ jobs:
                   cp testprog testprog.exe
       - run:
           name: Infer
-          command: |
-                  make clean
-                  infer run --no-progress-bar -- make CFLAGS="-g -Wall -pipe" LFLAGS=""
+          command: make clean && infer run --no-progress-bar -- make CFLAGS="-g -Wall -pipe" LFLAGS=""
       - run:
           name: Build
           command: make clean && make

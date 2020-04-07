@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	mxe-i686-w64-mingw32.static-gcc \
 	pdftk-java \
 	poppler-utils \
+	python2.7 \
 	python3-pip \
 	python3-setuptools \
 	software-properties-common \
@@ -34,7 +35,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	vim \
 	xz-utils
 
-RUN pip3 install cpp-coveralls
+RUN python3 -m pip install cpp-coveralls
 
 # Install Infer
 RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v0.17.0/infer-linux64-v0.17.0.tar.xz | tar -C /opt -x -J
