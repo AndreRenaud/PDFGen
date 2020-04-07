@@ -1763,8 +1763,8 @@ int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
-int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
-                    int yr, int xradius, int yradius, int width,
+int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                    float y, float xradius, float yradius, float width,
                     uint32_t colour, uint32_t fill_colour)
 {
     int ret;
