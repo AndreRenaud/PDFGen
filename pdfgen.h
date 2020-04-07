@@ -69,6 +69,25 @@ struct pdf_info {
 };
 
 /**
+ * pdf_path_operation holds information about a path
+ * drawing operation.
+ * See PDF reference for detailed usage.
+ */
+struct pdf_path_operation {
+    char op; /*!< Operation command. Possible operators are: m = move to, l =
+                line to, c = cubic bezier curve with two control points, v =
+                cubic bezier curve with one control point fixed at first
+                point, y = cubic bezier curve with one control point fixed
+                at second point, h = close path */
+    int x1;  /*!< X offset of the first point. Used with: m, l, c, v, y */
+    int y1;  /*!< Y offset of the first point. Used with: m, l, c, v, y */
+    int x2;  /*!< X offset of the second point. Used with: c, v, y */
+    int y2;  /*!< Y offset of the second point. Used with: c, v, y */
+    int x3;  /*!< X offset of the third point. Used with: c */
+    int y3;  /*!< Y offset of the third point. Used with: c */
+};
+
+/**
  * Convert a value in inches into a number of points.
  * Always returns an integer value
  * @param inch inches value to convert to points
@@ -314,6 +333,60 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
  */
 int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
                  float y1, float x2, float y2, float width, uint32_t colour);
+
+/**
+ * Add a cubic bezier curve to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x1 X offset of the initial point of the curve
+ * @param y1 Y offset of the initial point of the curve
+ * @param x2 X offset of the final point of the curve
+ * @param y2 Y offset of the final point of the curve
+ * @param xq1 X offset of the first control point of the curve
+ * @param yq1 Y offset of the first control point of the curve
+ * @param xq2 X offset of the second control of the curve
+ * @param yq2 Y offset of the second control of the curve
+ * @param width Width of the curve
+ * @param colour Colour to draw the curve
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page, int x1,
+                         int y1, int x2, int y2, int xq1, int yq1, int xq2,
+                         int yq2, int width, uint32_t colour);
+
+/**
+ * Add a quadratic bezier curve to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x1 X offset of the initial point of the curve
+ * @param y1 Y offset of the initial point of the curve
+ * @param x2 X offset of the final point of the curve
+ * @param y2 Y offset of the final point of the curve
+ * @param xq1 X offset of the control point of the curve
+ * @param yq1 Y offset of the control point of the curve
+ * @param width Width of the curve
+ * @param colour Colour to draw the curve
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
+                             int x1, int y1, int x2, int y2, int xq1, int yq1,
+                             int width, uint32_t colour);
+
+/**
+ * Add a custom path to the document
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param operations Array of drawing operations
+ * @param operation_count The number of operations
+ * @param stroke_width Width of the stroke
+ * @param stroke_colour Colour to stroke the curve
+ * @param fill_colour Colour to fill the path
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page,
+                        struct pdf_path_operation *operations,
+                        int operation_count, int stroke_width,
+                        uint32_t stroke_colour, uint32_t fill_colour);
 
 /**
  * Add an ellipse to the document
