@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
                             .subject = "My subject"};
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
     int i;
-    int height;
+    float height, width;
     int bm;
     int err;
 
@@ -29,14 +29,14 @@ int main(int argc, char *argv[])
     }
 
     if (pdf_width(pdf) != PDF_A4_WIDTH || pdf_height(pdf) != PDF_A4_HEIGHT) {
-        fprintf(stderr, "PDF Size mismatch: %dx%d\n", pdf_width(pdf),
+        fprintf(stderr, "PDF Size mismatch: %fx%f\n", pdf_width(pdf),
                 pdf_height(pdf));
         return -1;
     }
 
-    i = pdf_get_font_text_width(pdf, "Times-BoldItalic", "foo", 14);
-    if (i < 18) {
-        fprintf(stderr, "Font width invalid: %d\n", i);
+    err = pdf_get_font_text_width(pdf, "Times-BoldItalic", "foo", 14, &width);
+    if (err < 0 || width < 18) {
+        fprintf(stderr, "Font width invalid: %d/%f\n", err, width);
         return -1;
     }
 
@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
 
-    height = pdf_add_text_wrap(
+    pdf_add_text_wrap(
         pdf, NULL,
         "This is a great big long string that I hope will wrap properly "
         "around several lines.\nThere are some odd length "
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
         "see how it copes with them. Hopefully it all works properly.\n\n\n"
         "We even include multiple breaks\n"
         "thisisanenourmouswordthatwillneverfitandwillhavetobecut",
-        16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY);
+        16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY, &height);
     pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
@@ -119,11 +119,11 @@ int main(int argc, char *argv[])
                              PDF_RGB(0, 0xff, 0));
     pdf_add_text(pdf, NULL, "This should be transparent", 20, 160, 500,
                  PDF_ARGB(0x80, 0, 0, 0));
-    int p1X[] = {200, 200, 300, 300};
-    int p1Y[] = {200, 300, 200, 300};
+    float p1X[] = {200, 200, 300, 300};
+    float p1Y[] = {200, 300, 200, 300};
     pdf_add_polygon(pdf, NULL, p1X, p1Y, 4, 4, PDF_RGB(0xaa, 0xff, 0xee));
-    int p2X[] = {400, 400, 500, 500};
-    int p2Y[] = {400, 500, 400, 500};
+    float p2X[] = {400, 400, 500, 500};
+    float p2Y[] = {400, 500, 400, 500};
     pdf_add_filled_polygon(pdf, NULL, p2X, p2Y, 4, 4,
                            PDF_RGB(0xff, 0x77, 0x77));
     pdf_add_text(pdf, NULL, "", 20, 20, 30, PDF_RGB(0, 0, 0));
