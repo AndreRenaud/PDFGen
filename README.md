@@ -9,7 +9,13 @@ Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
 * Text of various fonts/sizes/colours
-* Lines/Rectangles/Filled Rectangles/Polygons/Filled Polygons
+* Primitive drawing elements
+    * Lines
+    * Rectangles
+    * Filled Rectangles
+    * Polygons
+    * Filled Polygons
+    * Bezier curves
 * Bookmarks
 * Barcodes (Code-128 & Code-39)
 * PPM Images
