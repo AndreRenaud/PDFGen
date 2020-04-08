@@ -1,5 +1,6 @@
 PDFGen
 ======
+<img src="/pdfgen_logo.png" alt="PDFGen Logo" width="480" align="right"/>
 
 Simple C PDF Creation/Generation library.
 All contained a single C-file with header and no external library dependencies.
