@@ -1,5 +1,6 @@
 PDFGen
 ======
+<img src="/pdfgen_logo.png" alt="PDFGen Logo" width="200" align="right"/>
 
 Simple C PDF Creation/Generation library.
 All contained a single C-file with header and no external library dependencies.
@@ -8,7 +9,13 @@ Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
 * Text of various fonts/sizes/colours
-* Lines/Rectangles/Filled Rectangles/Polygons/Filled Polygons
+* Primitive drawing elements
+    * Lines
+    * Rectangles
+    * Filled Rectangles
+    * Polygons
+    * Filled Polygons
+    * Bezier curves
 * Bookmarks
 * Barcodes (Code-128 & Code-39)
 * PPM Images
