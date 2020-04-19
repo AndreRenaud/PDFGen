@@ -2157,7 +2157,7 @@ static int jpeg_details(const unsigned char *data, size_t data_size,
         return -1;
     for (size_t i = 0; i < data_size - 3; i++) {
         /* Search for SOFn marker and decode jpeg details */
-        if (data[i] == 0xff && (data[i + 1] & 0xff) == 0xc0) {
+        if (data[i] == 0xff && (data[i + 1] & 0xf0) == 0xc0) {
             int len = data[i + 2] * 256 + data[i + 3];
             if (len >= 9 && i + len < data_size) {
                 if (height)
