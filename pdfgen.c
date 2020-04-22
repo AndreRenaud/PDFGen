@@ -2033,9 +2033,9 @@ static int find_39_encoding(char ch)
     return -1;
 }
 
-static float pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
-                               float x, float y, float char_width,
-                               float height, uint32_t colour, char ch)
+static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
+                             float x, float y, float char_width, float height,
+                             uint32_t colour, char ch, float *new_x)
 {
     float nw = char_width / 12.0f;
     float ww = char_width / 4.0f;
@@ -2064,7 +2064,9 @@ static float pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
             x += nw;
         }
     }
-    return x;
+    if (new_x)
+        *new_x = x;
+    return 0;
 }
 
 static int pdf_add_barcode_39(struct pdf_doc *pdf, struct pdf_object *page,
@@ -2073,22 +2075,25 @@ static int pdf_add_barcode_39(struct pdf_doc *pdf, struct pdf_object *page,
 {
     size_t len = strlen(string);
     float char_width = width / (len + 2);
+    int e;
 
-    x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
-    if (x < 0)
-        return x;
+    e = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*',
+                          &x);
+    if (e < 0)
+        return e;
 
     while (string && *string) {
-        x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour,
-                              *string);
-        if (x < 0)
-            return x;
+        e = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour,
+                              *string, &x);
+        if (e < 0)
+            return e;
         string++;
     }
 
-    x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
-    if (x < 0)
-        return x;
+    e = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*',
+                          NULL);
+    if (e < 0)
+        return e;
 
     return 0;
 }
@@ -2136,7 +2141,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                     "Unable to allocate %zu bytes memory for image", len);
         return NULL;
     }
-    for (int i = 0; i < width * height * 3; i++) {
+    for (unsigned i = 0; i < width * height * 3; i++) {
         char buf[3] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
                        "0123456789ABCDEF"[data[i] & 0xf], 0};
         dstr_append(&str, buf);

@@ -181,8 +181,8 @@ int main(int argc, char *argv[])
 
     pdf_set_font(pdf, "Times-Roman");
     for (i = 0; i < 3000; i++) {
-        int xpos = (i / 100) * 40;
-        int ypos = (i % 100) * 10;
+        float xpos = (i / 100) * 40.0f;
+        float ypos = (i % 100) * 10.0f;
         pdf_add_text(pdf, NULL, "Text blob", 8, xpos, ypos,
                      PDF_RGB(i, (i * 4) & 0xff, (i * 8) & 0xff));
     }
