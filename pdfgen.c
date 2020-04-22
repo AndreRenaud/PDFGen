@@ -108,6 +108,7 @@ typedef SSIZE_T ssize_t;
 #include <inttypes.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -355,13 +356,14 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
     else if (str->alloc_len < len) {
         char *new_data;
         size_t new_len;
+        bool have_stack_data = !str->data;
 
         new_len = len + 4096;
         new_data = realloc(str->data, new_len);
         if (!new_data)
             return -ENOMEM;
         // If we move beyond the on-stack buffer, copy the old data out
-        if (!str->data && str->used_len > 0)
+        if (have_stack_data && str->used_len > 0)
             memcpy(new_data, str->static_data, str->used_len + 1);
         str->data = new_data;
         str->alloc_len = new_len;
@@ -1036,7 +1038,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %zd >>stream\r\n", len);
+    dstr_printf(&obj->stream, "<< /Length %zu >>stream\r\n", len);
     dstr_append_data(&obj->stream, buffer, len);
     dstr_append(&obj->stream, "\r\nendstream\r\n");
 
@@ -1623,13 +1625,11 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             case PDF_ALIGN_JUSTIFY:
                 if ((len - 1) > 0 && *end != '\r' && *end != '\n' &&
                     *end != '\0')
-                    char_spacing =
-                        ((double)(wrap_width - line_width)) / (len - 2);
+                    char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             case PDF_ALIGN_JUSTIFY_ALL:
                 if ((len - 1) > 0)
-                    char_spacing =
-                        ((double)(wrap_width - line_width)) / (len - 2);
+                    char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             }
 
@@ -2133,7 +2133,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     if (dstr_ensure(&str, len) < 0) {
         dstr_free(&str);
         pdf_set_err(pdf, -ENOMEM,
-                    "Unable to allocate %zd bytes memory for image", len);
+                    "Unable to allocate %zu bytes memory for image", len);
         return NULL;
     }
     for (int i = 0; i < width * height * 3; i++) {
@@ -2233,7 +2233,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 
     jpeg_data = malloc(len);
     if (!jpeg_data) {
-        pdf_set_err(pdf, -errno, "Unable to allocate: %zd", len);
+        pdf_set_err(pdf, -errno, "Unable to allocate: %zu", len);
         fclose(fp);
         return NULL;
     }
