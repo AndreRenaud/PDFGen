@@ -108,10 +108,10 @@ typedef SSIZE_T ssize_t;
 #include <inttypes.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -1625,13 +1625,11 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             case PDF_ALIGN_JUSTIFY:
                 if ((len - 1) > 0 && *end != '\r' && *end != '\n' &&
                     *end != '\0')
-                    char_spacing =
-                        ((double)(wrap_width - line_width)) / (len - 2);
+                    char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             case PDF_ALIGN_JUSTIFY_ALL:
                 if ((len - 1) > 0)
-                    char_spacing =
-                        ((double)(wrap_width - line_width)) / (len - 2);
+                    char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             }
 
