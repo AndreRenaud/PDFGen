@@ -2004,7 +2004,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
  * 2 => wide space
  */
 static const struct {
-    uint32_t code;
+    int code;
     char ch;
 } code_39_encoding[] = {
     {0x012110, '1'}, {0x102110, '2'}, {0x002111, '3'},
@@ -2023,7 +2023,7 @@ static const struct {
     {0x121001, '*'}, // 'stop' character
 };
 
-static uint32_t find_39_encoding(char ch)
+static int find_39_encoding(char ch)
 {
     for (int i = 0; i < ARRAY_SIZE(code_39_encoding); i++) {
         if (code_39_encoding[i].ch == ch) {
@@ -2039,7 +2039,7 @@ static float pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
 {
     float nw = char_width / 12.0f;
     float ww = char_width / 4.0f;
-    uint32_t code = 0;
+    int code = 0;
 
     code = find_39_encoding(ch);
     if (code < 0)
