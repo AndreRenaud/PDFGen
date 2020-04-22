@@ -134,7 +134,7 @@ struct pdf_path_operation {
  * (transparent)
  */
 #define PDF_ARGB(a, r, g, b)                                                 \
-    (uint32_t)((((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) | \
+    (uint32_t)(((uint32_t)((a)&0xff) << 24) | (((r)&0xff) << 16) | (((g)&0xff) << 8) | \
                (((b)&0xff)))
 
 /*! Utility macro to provide bright red */
@@ -156,7 +156,7 @@ struct pdf_path_operation {
  * Utility macro to provide a transparent colour
  * This is used in some places for 'fill' colours, where no fill is required
  */
-#define PDF_TRANSPARENT (uint32_t)(0xff << 24)
+#define PDF_TRANSPARENT (uint32_t)(0xffu << 24)
 
 /**
  * Different alignment options for rendering text
