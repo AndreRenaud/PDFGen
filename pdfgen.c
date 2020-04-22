@@ -2023,26 +2023,30 @@ static const struct {
     {0x121001, '*'}, // 'stop' character
 };
 
+static uint32_t find_39_encoding(char ch)
+{
+    for (int i = 0; i < ARRAY_SIZE(code_39_encoding); i++) {
+        if (code_39_encoding[i].ch == ch) {
+            return code_39_encoding[i].code;
+        }
+    }
+    return -1;
+}
+
 static float pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
                                float x, float y, float char_width,
                                float height, uint32_t colour, char ch)
 {
     float nw = char_width / 12.0f;
     float ww = char_width / 4.0f;
-    int i;
     uint32_t code = 0;
 
-    for (i = 0; i < ARRAY_SIZE(code_39_encoding); i++) {
-        if (code_39_encoding[i].ch == ch) {
-            code = code_39_encoding[i].code;
-            break;
-        }
-    }
-    if (i == ARRAY_SIZE(code_39_encoding))
+    code = find_39_encoding(ch);
+    if (code < 0)
         return pdf_set_err(pdf, -EINVAL, "Invalid Code 39 character %c 0x%x",
                            ch, ch);
 
-    for (i = 5; i >= 0; i--) {
+    for (int i = 5; i >= 0; i--) {
         int pattern = (code >> i * 4) & 0xf;
         if (pattern == 0) { // wide
             if (pdf_add_filled_rectangle(pdf, page, x, y, ww - 1, height, 0,
