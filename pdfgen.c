@@ -355,7 +355,6 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
         str->alloc_len = len;
     else if (str->alloc_len < len) {
         size_t new_len;
-        bool have_stack_data = !str->data;
 
         new_len = len + 4096;
 
