@@ -354,7 +354,6 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
     if (!str->data && len <= sizeof(str->static_data))
         str->alloc_len = len;
     else if (str->alloc_len < len) {
-        char *new_data;
         size_t new_len;
         bool have_stack_data = !str->data;
 
@@ -370,7 +369,7 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
             if (!str->data)
                 return -ENOMEM;
             if (str->used_len)
-                memcpy(new_data, str->static_data, str->used_len + 1);
+                memcpy(str->data, str->static_data, str->used_len + 1);
         }
         str->alloc_len = new_len;
     }
