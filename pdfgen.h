@@ -523,6 +523,9 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
                     float x, float y, float width, float height,
                     const char *string, uint32_t colour);
 
+int pdf_add_text_form(struct pdf_doc *pdf, struct pdf_object *page,
+    float x, float y);
+
 /**
  * Add a PPM file as an image to the document
  * @param pdf PDF document to add PPM to

@@ -63,6 +63,8 @@ int main(int argc, char *argv[])
     pdf_set_font(pdf, "Times-BoldItalic");
     pdf_append_page(pdf);
 
+    pdf_add_text_form(pdf, NULL, 10, 10);
+
     pdf_add_text_wrap(
         pdf, NULL,
         "This is a great big long string that I hope will wrap properly "

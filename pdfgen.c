@@ -18,6 +18,8 @@
  * http://archive.vector.org.uk/art10008970
  * http://www.adobe.com/devnet/acrobat/pdfs/pdf_reference_1-7.pdf
  * https://blog.idrsolutions.com/2013/01/understanding-the-pdf-file-format-overview/
+ * Forms reference example:
+ * https://www.adobe.com/technology/pdfs/presentations/KingPDFTutorial.pdf
  *
  * To validate the PDF output, there are several online validators:
  * http://www.validatepdfa.com/online.htm
@@ -90,6 +92,11 @@
  * w    setlinewidth.
  * W    clip.
  * y    curveto.
+
+ * Tx = is a text field.
+ * Ch = is a choice field.
+ * Btn = is a Button field.
+ * Sig = is a Signature field.
  */
 
 #if defined(_MSC_VER)
@@ -145,6 +152,7 @@ enum {
     OBJ_none, /* skipped */
     OBJ_info,
     OBJ_stream,
+    OBJ_annot,
     OBJ_font,
     OBJ_page,
     OBJ_bookmark,
@@ -502,6 +510,7 @@ static void pdf_object_destroy(struct pdf_object *object)
 {
     switch (object->type) {
     case OBJ_stream:
+    case OBJ_annot:
     case OBJ_image:
         dstr_free(&object->stream);
         break;
@@ -746,6 +755,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     switch (object->type) {
     case OBJ_stream:
+    case OBJ_annot:
     case OBJ_image: {
         fwrite(dstr_data(&object->stream), dstr_len(&object->stream), 1, fp);
         break;
@@ -803,9 +813,18 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         for (int i = 0; i < flexarray_size(&object->page.children); i++) {
             struct pdf_object *child =
                 flexarray_get(&object->page.children, i);
-            fprintf(fp, "%d 0 R\r\n", child->index);
+            if (child->type != OBJ_annot)
+                fprintf(fp, "%d 0 R\r\n", child->index);
         }
         fprintf(fp, "]\r\n");
+        fprintf(fp, "/Annots [\r\n");
+        for (int i = 0; i < flexarray_size(&object->page.children); i++) {
+            struct pdf_object *child =
+                flexarray_get(&object->page.children, i);
+            if (child->type == OBJ_annot)
+                fprintf(fp, "%d 0 R\r\n", child->index);
+        }
+        fprintf(fp, "]\r\n");        
         fprintf(fp, ">>\r\n");
         break;
     }
@@ -2114,6 +2133,51 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     default:
         return pdf_set_err(pdf, -EINVAL, "Invalid barcode code %d", code);
     }
+}
+
+int pdf_add_text_form(struct pdf_doc *pdf, struct pdf_object *page,
+    float x, float y)
+{
+    struct dstr str = INIT_DSTR;
+    struct pdf_object *obj;
+    int ret;
+
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
+
+    //dstr_append(&str, "<</Type/Annot/Subtype/Widget\n"
+//"/Rect[165.7 388.3 315.7 402.5]\n"
+//"/T(Address 1 Text Box)\n"
+//">>\n");
+    //dstr_append(&str, "<</Type/XObject\n"
+//"/Subtype/Form\n"
+//"/BBox[0 0 68.3 14.4]\n"
+//"/Resources 37 0 R\n"
+//"/Length 18\n"
+//"/Filter/FlateDecode\n"
+//">>\n"
+//"stream\n"
+//"x<9c>Ó^O©Ppòuær^Eb^@^T&^B×\n"
+//"endstream\n");
+    dstr_append(&str, "<<\n"
+"/Type /Annot\n"
+"/Subtype /Widget\n"
+"/Rect [ 125 361 451 382 ] /F1\n"
+"/T (FullName) /FT/Tx \n"
+">>\n");
+//"/T (FullName) /FT/Tx /AP << /N 9 0 R >> /AA << /E 10 0 R /X 11 0 R>>\n"
+
+    obj = pdf_add_object(pdf, OBJ_annot);
+    if (!obj) {
+        dstr_free(&str);
+        return -ENOMEM;
+    }
+    obj->stream = str;
+
+    return flexarray_append(&page->page.children, obj);
 }
 
 static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
