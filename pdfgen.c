@@ -257,7 +257,7 @@ static inline int flexarray_get_bin_size(const struct flexarray *flex,
                                          int bin)
 {
     (void)flex;
-    if (bin >= ARRAY_SIZE(bin_offset))
+    if (bin >= ARRAY_SIZE(bin_offset) - 1)
         return -1;
     int next = bin_offset[bin + 1];
     return next - bin_offset[bin];
