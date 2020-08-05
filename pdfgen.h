@@ -569,6 +569,23 @@ int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                       float y, float display_width, float display_height,
                       const unsigned char *jpeg_data, size_t len);
 
+/**
+ * Add a 24 bit per pixel RGB buffer as an image to the document
+ * @param pdf PDF document to add image to
+ * @param page Page to add image to (NULL => most recently added page)
+ * @param x X offset to put image at
+ * @param y Y offset to put image at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param data RGB data to add
+ * @param width width of image in pixels
+ * @param height height of image in pixels
+ * @return < 0 on failure, >= 0 on success
+ */
+int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                  float y, float display_width, float display_height,
+                  const uint8_t *data, unsigned width, unsigned height);
+
 #ifdef __cplusplus
 }
 #endif
