@@ -583,8 +583,8 @@ int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
-                       float y, float display_width, float display_height,
-		       const uint8_t *data, unsigned width, unsigned height);
+                  float y, float display_width, float display_height,
+                  const uint8_t *data, unsigned width, unsigned height);
 
 #ifdef __cplusplus
 }
