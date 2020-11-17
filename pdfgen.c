@@ -100,14 +100,14 @@ typedef SSIZE_T ssize_t;
 #else
 
 #ifndef _POSIX_SOURCE
-#define _POSIX_SOURCE     /* For localtime_r */
+#define _POSIX_SOURCE /* For localtime_r */
 #endif
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600 /* for M_SQRT2 */
 #endif
 
-#include <sys/types.h>    /* for ssize_t */
+#include <sys/types.h> /* for ssize_t */
 #endif
 
 #include <ctype.h>
@@ -297,15 +297,15 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
     if (bin < 0)
         return -EINVAL;
     if (bin >= flex->bin_count) {
-        void ***bins =
-            (void ***)realloc(flex->bins, (flex->bin_count + 1) * sizeof(flex->bins));
+        void ***bins = (void ***)realloc(flex->bins, (flex->bin_count + 1) *
+                                                         sizeof(flex->bins));
         if (!bins)
             return -ENOMEM;
         flex->bin_count++;
         flex->bins = bins;
         flex->bins[flex->bin_count - 1] =
             (void **)calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
-                   sizeof(void *));
+                            sizeof(void *));
         if (!flex->bins[flex->bin_count - 1]) {
             flex->bin_count--;
             return -ENOMEM;
@@ -838,8 +838,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
             struct pdf_object *f, *l;
-            f = (struct pdf_object *)flexarray_get(&object->bookmark.children, 0);
-            l = (struct pdf_object *)flexarray_get(&object->bookmark.children, nchildren - 1);
+            f = (struct pdf_object *)flexarray_get(&object->bookmark.children,
+                                                   0);
+            l = (struct pdf_object *)flexarray_get(&object->bookmark.children,
+                                                   nchildren - 1);
             fprintf(fp, "/First %d 0 R\r\n", f->index);
             fprintf(fp, "/Last %d 0 R\r\n", l->index);
         }
