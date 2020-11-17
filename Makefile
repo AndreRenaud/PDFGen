@@ -33,6 +33,7 @@ tests/penguin.c: data/penguin.jpg
 
 check: testprog pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h tests/main.c
+	$(CXX) -c pdfgen.c $(CFLAGS_OBJECT) /dev/null -Werror -Wall -Wextra
 	./tests.sh
 	./tests.sh acroread
 	$(CLANG_FORMAT) pdfgen.c | colordiff -u pdfgen.c -
