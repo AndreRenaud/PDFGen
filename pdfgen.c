@@ -98,9 +98,16 @@
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #else
-#define _POSIX_SOURCE     /* For localtime_r */
+
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE /* For localtime_r */
+#endif
+
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600 /* for M_SQRT2 */
-#include <sys/types.h>    /* for ssize_t */
+#endif
+
+#include <sys/types.h> /* for ssize_t */
 #endif
 
 #include <ctype.h>
@@ -247,7 +254,7 @@ static int bin_offset[] = {
 static inline int flexarray_get_bin(const struct flexarray *flex, int index)
 {
     (void)flex;
-    for (int i = 0; i < ARRAY_SIZE(bin_offset); i++)
+    for (size_t i = 0; i < ARRAY_SIZE(bin_offset); i++)
         if (index < bin_offset[i])
             return i - 1;
     return -1;
@@ -257,7 +264,7 @@ static inline int flexarray_get_bin_size(const struct flexarray *flex,
                                          int bin)
 {
     (void)flex;
-    if (bin >= ARRAY_SIZE(bin_offset) - 1)
+    if (bin >= (int)ARRAY_SIZE(bin_offset) - 1)
         return -1;
     int next = bin_offset[bin + 1];
     return next - bin_offset[bin];
@@ -290,15 +297,15 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
     if (bin < 0)
         return -EINVAL;
     if (bin >= flex->bin_count) {
-        void *bins =
-            realloc(flex->bins, (flex->bin_count + 1) * sizeof(flex->bins));
+        void ***bins = (void ***)realloc(flex->bins, (flex->bin_count + 1) *
+                                                         sizeof(*flex->bins));
         if (!bins)
             return -ENOMEM;
         flex->bin_count++;
         flex->bins = bins;
         flex->bins[flex->bin_count - 1] =
-            calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
-                   sizeof(void *));
+            (void **)calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
+                            sizeof(void *));
         if (!flex->bins[flex->bin_count - 1]) {
             flex->bin_count--;
             return -ENOMEM;
@@ -359,7 +366,7 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
         bool have_stack_data = !str->data;
 
         new_len = len + 4096;
-        new_data = realloc(str->data, new_len);
+        new_data = (char *)realloc(str->data, new_len);
         if (!new_data)
             return -ENOMEM;
         // If we move beyond the on-stack buffer, copy the old data out
@@ -373,7 +380,7 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
 
 #ifndef SKIP_ATTRIBUTE
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3)));
+    __attribute__((format(printf, 2, 3)));
 #endif
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
 {
@@ -425,7 +432,7 @@ static void dstr_free(struct dstr *str)
 
 #ifndef SKIP_ATTRIBUTE
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
-                       ...) __attribute__((format(gnu_printf, 3, 4)));
+                       ...) __attribute__((format(printf, 3, 4)));
 #endif
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
                        ...)
@@ -442,8 +449,8 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
         return errval;
     }
 
-    if (len >= sizeof(doc->errstr) - 1)
-        len = sizeof(doc->errstr) - 1;
+    if (len >= (int)(sizeof(doc->errstr) - 1))
+        len = (int)(sizeof(doc->errstr) - 1);
 
     /* Make sure we're properly terminated */
     if (len > 0 && doc->errstr[len - 1] != '\n')
@@ -475,7 +482,7 @@ void pdf_clear_err(struct pdf_doc *pdf)
 
 static struct pdf_object *pdf_get_object(const struct pdf_doc *pdf, int index)
 {
-    return flexarray_get(&pdf->objects, index);
+    return (struct pdf_object *)flexarray_get(&pdf->objects, index);
 }
 
 static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
@@ -522,7 +529,7 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 {
     struct pdf_object *obj;
 
-    obj = calloc(1, sizeof(*obj));
+    obj = (struct pdf_object *)calloc(1, sizeof(*obj));
     if (!obj) {
         pdf_set_err(pdf, -errno,
                     "Unable to allocate object %d of type %d: %s",
@@ -573,7 +580,7 @@ struct pdf_doc *pdf_create(float width, float height,
     struct pdf_doc *pdf;
     struct pdf_object *obj;
 
-    pdf = calloc(1, sizeof(*pdf));
+    pdf = (struct pdf_doc *)calloc(1, sizeof(*pdf));
     if (!pdf)
         return NULL;
     pdf->width = width;
@@ -588,7 +595,7 @@ struct pdf_doc *pdf_create(float width, float height,
         pdf_destroy(pdf);
         return NULL;
     }
-    obj->info = calloc(sizeof(*obj->info), 1);
+    obj->info = (struct pdf_info *)calloc(sizeof(*obj->info), 1);
     if (!obj->info) {
         pdf_destroy(pdf);
         return NULL;
@@ -802,7 +809,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, "/Contents [\r\n");
         for (int i = 0; i < flexarray_size(&object->page.children); i++) {
             struct pdf_object *child =
-                flexarray_get(&object->page.children, i);
+                (struct pdf_object *)flexarray_get(&object->page.children, i);
             fprintf(fp, "%d 0 R\r\n", child->index);
         }
         fprintf(fp, "]\r\n");
@@ -831,8 +838,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
             struct pdf_object *f, *l;
-            f = flexarray_get(&object->bookmark.children, 0);
-            l = flexarray_get(&object->bookmark.children, nchildren - 1);
+            f = (struct pdf_object *)flexarray_get(&object->bookmark.children,
+                                                   0);
+            l = (struct pdf_object *)flexarray_get(&object->bookmark.children,
+                                                   nchildren - 1);
             fprintf(fp, "/First %d 0 R\r\n", f->index);
             fprintf(fp, "/Last %d 0 R\r\n", l->index);
         }
@@ -1605,8 +1614,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         if (output) {
             int len = end - start;
             float char_spacing = 0;
-            if (len >= sizeof(line))
-                len = sizeof(line) - 1;
+            if (len >= (int)sizeof(line))
+                len = (int)sizeof(line) - 1;
             strncpy(line, start, len);
             line[len] = '\0';
 
@@ -1938,7 +1947,7 @@ static const struct {
 
 static int find_128_encoding(char ch)
 {
-    for (int i = 0; i < ARRAY_SIZE(code_128a_encoding); i++) {
+    for (int i = 0; i < (int)ARRAY_SIZE(code_128a_encoding); i++) {
         if (code_128a_encoding[i].ch == ch)
             return i;
     }
@@ -2025,7 +2034,7 @@ static const struct {
 
 static int find_39_encoding(char ch)
 {
-    for (int i = 0; i < ARRAY_SIZE(code_39_encoding); i++) {
+    for (int i = 0; i < (int)ARRAY_SIZE(code_39_encoding); i++) {
         if (code_39_encoding[i].ch == ch) {
             return code_39_encoding[i].code;
         }
@@ -2236,7 +2245,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
         return NULL;
     }
 
-    jpeg_data = malloc(len);
+    jpeg_data = (uint8_t *)malloc(len);
     if (!jpeg_data) {
         pdf_set_err(pdf, -errno, "Unable to allocate: %zu", len);
         fclose(fp);
@@ -2336,7 +2345,7 @@ int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, float x,
     }
 
     size = width * height * 3;
-    data = malloc(size);
+    data = (uint8_t *)malloc(size);
     if (!data) {
         fclose(fp);
         return pdf_set_err(pdf, -ENOMEM,
