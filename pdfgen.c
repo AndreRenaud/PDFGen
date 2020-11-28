@@ -1085,7 +1085,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct pdf_object *obj;
     size_t len;
-    bool is_header = ((long)page == PDF_HEADER_PAGE);
+    bool is_header = ((intptr_t)page == PDF_HEADER_PAGE);
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -2489,7 +2489,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
     //const char png_chunk_palette[] =  "PLTE";
     struct pdf_object *obj;
     uint8_t *png_data;
-    void *final_data;
+    uint8_t *final_data;
     int written = 0;
     uint32_t pos;
     struct png_chunk *chunk;
@@ -2556,7 +2556,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "PNG file has zero length");
     }
 
-    final_data = malloc(info.length + 1024);
+    final_data = (uint8_t*)malloc(info.length + 1024);
     if (!final_data) {
 
         free(png_data);
@@ -2614,19 +2614,19 @@ int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
                      int x, int y, int display_width, int display_height,
                      uint8_t *bit_data, uint32_t length, int bitmap_width, int bitmap_height)
 {
-    void *final_data;
+    uint8_t *final_data;
     struct pdf_object *obj;
     int written = 0;
 
-	final_data = malloc(length + 1024);
+	final_data = (uint8_t*)malloc(length + 1024);
     if (!final_data) {
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate bitmap data %u", length + 1024);
     }
 
     written = sprintf((char*)final_data,
-                      "<<\r\n/Type /XObject\r\n/Name /Image%u\r\n"
+                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
                       "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                      "/Width %u\r\n/Height %u\r\n"
+                      "/Width %d\r\n/Height %d\r\n"
                       "/BitsPerComponent 8\r\n"
                       "/Length %u\r\n>>stream\r\n",
                       flexarray_size(&pdf->objects), bitmap_width, bitmap_height, length);
