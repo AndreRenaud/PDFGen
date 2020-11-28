@@ -1085,7 +1085,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct pdf_object *obj;
     size_t len;
-    bool is_header = (page == PDF_HEADER_PAGE);
+    bool is_header = ((int)page == PDF_HEADER_PAGE);
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -2332,7 +2332,7 @@ static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
 
     jpeg_data = get_file(pdf, jpeg_file, &len);
     if (jpeg_data == NULL)
-        return pdf_get_errval(pdf);
+        return NULL;
 
     obj = pdf_add_raw_jpeg_data(pdf, jpeg_data, len);
     if (obj == NULL) {
@@ -2482,14 +2482,14 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
                  int x, int y, int display_width, int display_height,
                  const char *png_file)
 {
-    const char png_signature[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+    const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     const char png_chunk_header[] =   "IHDR";
     const char png_chunk_data[] =     "IDAT";
     const char png_chunk_end[] =      "IEND";
     //const char png_chunk_palette[] =  "PLTE";
     struct pdf_object *obj;
     uint8_t *png_data;
-    char *final_data;
+    void *final_data;
     int written = 0;
     uint32_t pos;
     struct png_chunk *chunk;
@@ -2566,30 +2566,31 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
     switch (info.colortype) {
     case PNG_COLOR_RGB:
         /* RGB colored image */
-        written = sprintf(final_data,
+        written = sprintf((char*)final_data,
                           "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
                           "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                          "/Width %d\r\n/Height %d\r\n"
+                          "/Width %d\r\n/Height %u\r\n"
                           "/Interpolate true\r\n"
-                          "/BitsPerComponent %d\r\n/Filter /FlateDecode\r\n"
-                          "/DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent %d /Columns %d >>\r\n"
-                          "/Length %d\r\n>>stream\r\n",
+                          "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
+                          "/DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent %u /Columns %u >>\r\n"
+                          "/Length %u\r\n>>stream\r\n",
                           flexarray_size(&pdf->objects), info.width, info.height, info.bitdepth, info.bitdepth, info.width, info.length);
         break;
     case PNG_COLOR_INDEXED:
         /* indexed colored image */
-        written = sprintf(final_data,
+        written = sprintf((char*)final_data,
                           "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
                           "/Subtype /Image\r\n/ColorSpace /Indexed /DeviceRGB\r\n"
-                          "/Width %d\r\n/Height %d\r\n"
+                          "/Width %u\r\n/Height %u\r\n"
                           "/Interpolate true\r\n"
-                          "/BitsPerComponent %d\r\n/Filter /FlateDecode\r\n"
-                          "/DecodeParms << /Predictor 15 /Colors 1 /BitsPerComponent %d /Columns %d >>\r\n"
-                          "/Length %d\r\n>>stream\r\n",
+                          "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
+                          "/DecodeParms << /Predictor 15 /Colors 1 /BitsPerComponent %u /Columns %u >>\r\n"
+                          "/Length %u\r\n>>stream\r\n",
                           flexarray_size(&pdf->objects), info.width, info.height, info.bitdepth, info.bitdepth, info.width, info.length);
         break;
     default:
         free(png_data);
+        free(final_data);
         return pdf_set_err(pdf, -EINVAL, "PNG has wrong color type: %d", info.colortype);
     }
 
@@ -2613,7 +2614,7 @@ int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
                      int x, int y, int display_width, int display_height,
                      uint8_t *bit_data, uint32_t length, int bitmap_width, int bitmap_height)
 {
-    char *final_data;
+    void *final_data;
     struct pdf_object *obj;
     int written = 0;
 
@@ -2622,7 +2623,7 @@ int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate bitmap data %d", length + 1024);
     }
 
-    written = sprintf(final_data,
+    written = sprintf((char*)final_data,
                       "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
                       "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
                       "/Width %d\r\n/Height %d\r\n"
