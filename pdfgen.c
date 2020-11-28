@@ -1085,15 +1085,13 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct pdf_object *obj;
     size_t len;
-    bool is_header = true;
+    bool is_header = (page == PDF_HEADER_PAGE);
 
-    if (!page) {
+    if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
 
-        if (!page)
-            return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
-        is_header = false;
-    }
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
 
     len = strlen(buffer);
     /* We don't want any trailing whitespace in the stream */
