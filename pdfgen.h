@@ -158,6 +158,22 @@ struct pdf_path_operation {
  */
 #define PDF_TRANSPARENT (uint32_t)(0xffu << 24)
 
+/*!
+ * Information about color type of PNG format
+ */
+#define PNG_COLOR_ALPHA   (4)
+#define PNG_COLOR_RGB     (2)
+#define PNG_COLOR_INDEXED (3)
+#define PNG_COLOR_GREY    (0)
+
+/*!
+ * Convert big endian value to little endian value.
+ */
+#define BIG_TO_LITTLE(x) (((x) >> 24) | (((x) & 0x00FF0000) >> 8) | (((x) & 0x0000FF00) << 8) | ((x) << 24))
+#define BIG_TO_LITTLE_16(x) (((x) >> 8) | (((x) & 0x00FF) << 8))
+
+#define PDF_HEADER_PAGE    (1)
+
 /**
  * Different alignment options for rendering text
  */
@@ -585,6 +601,34 @@ int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
 int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
                   float y, float display_width, float display_height,
                   const uint8_t *data, unsigned width, unsigned height);
+
+/**
+ * Add a PNG file as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add PNG to (NULL => most recently added page)
+ * @param x X offset to put PNG at
+ * @param y Y offset to put PNG at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param jpeg_file Filename of PNG file to display
+ */
+int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
+                 int x, int y, int display_width, int display_height,
+                 const char *png_file);
+
+/**
+ * Add a BMP file as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add BMP to (NULL => most recently added page)
+ * @param x X offset to put BMP at
+ * @param y Y offset to put BMP at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param jpeg_file Filename of BMP file to display
+ */
+int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
+                 int x, int y, int display_width, int display_height,
+                 const char *bmp_file);
 
 #ifdef __cplusplus
 }
