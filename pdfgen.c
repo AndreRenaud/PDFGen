@@ -2271,7 +2271,7 @@ static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name, uint32_t *l
         return NULL;
     }
 
-    file_data = malloc(len);
+    file_data = (uint8_t*)malloc(len);
     if (!file_data) {
         pdf_set_err(pdf, -ENOMEM, "Unable to allocate: %d", (int)len);
         fclose(fp);
@@ -2596,7 +2596,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
 
     memcpy(&final_data[written], &png_data[info.pos], info.length);
     written += info.length;
-    written += sprintf(&final_data[written], "\r\nendstream\r\n");
+    written += sprintf((char*)&final_data[written], "\r\nendstream\r\n");
 
     free(png_data);
 
@@ -2632,7 +2632,7 @@ int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
                       flexarray_size(&pdf->objects), bitmap_width, bitmap_height, length);
     memcpy(&final_data[written], bit_data, length);
     written += length;
-    written += sprintf(&final_data[written], "\r\nendstream\r\n");
+    written += sprintf((char*)&final_data[written], "\r\nendstream\r\n");
 
     obj = pdf_add_object(pdf, OBJ_image);
     if (!obj) {
@@ -2723,7 +2723,7 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
         width = header->biWidth;
         height = header->biHeight;
         bOffs = header->bfOffBits;
-        line = malloc(width * 3);
+        line = (uint8_t*)malloc(width * 3);
         for (pos = 0; pos < (height / 2); pos++) {
             memcpy(line, &bmp_data[bOffs + pos * width * 3], width * 3);
             memcpy(&bmp_data[bOffs + pos * width * 3], &bmp_data[bOffs + (height - pos - 1) * width * 3], width * 3);
