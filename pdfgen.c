@@ -1085,7 +1085,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct pdf_object *obj;
     size_t len;
-    bool is_header = ((int)page == PDF_HEADER_PAGE);
+    bool is_header = ((long)page == PDF_HEADER_PAGE);
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -2569,7 +2569,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
         written = sprintf((char*)final_data,
                           "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
                           "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                          "/Width %d\r\n/Height %u\r\n"
+                          "/Width %u\r\n/Height %u\r\n"
                           "/Interpolate true\r\n"
                           "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
                           "/DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent %u /Columns %u >>\r\n"
@@ -2620,23 +2620,25 @@ int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
 
 	final_data = malloc(length + 1024);
     if (!final_data) {
-        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate bitmap data %d", length + 1024);
+        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate bitmap data %u", length + 1024);
     }
 
     written = sprintf((char*)final_data,
-                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                      "<<\r\n/Type /XObject\r\n/Name /Image%u\r\n"
                       "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                      "/Width %d\r\n/Height %d\r\n"
+                      "/Width %u\r\n/Height %u\r\n"
                       "/BitsPerComponent 8\r\n"
-                      "/Length %d\r\n>>stream\r\n",
+                      "/Length %u\r\n>>stream\r\n",
                       flexarray_size(&pdf->objects), bitmap_width, bitmap_height, length);
     memcpy(&final_data[written], bit_data, length);
     written += length;
     written += sprintf(&final_data[written], "\r\nendstream\r\n");
 
     obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj)
+    if (!obj) {
+        free(final_data);
         return pdf->errval;
+    }
     dstr_append_data(&obj->stream, final_data, written);
 
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
