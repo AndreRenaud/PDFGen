@@ -2655,7 +2655,6 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
     uint32_t pos, offs;
     uint8_t *line;
     uint32_t len;
-    uint32_t width, height, bOffs;
 
     bmp_data = get_file(pdf, bmp_file, &len);
     if (bmp_data == NULL)
@@ -2667,8 +2666,7 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
                                  bmp_file);
             break;
         }
-        pos = sizeof(bmp_signature);
-        struct bmp_header *header = (struct bmp_header *)&bmp_data[pos];
+        struct bmp_header *header = (struct bmp_header *)&bmp_data[sizeof(bmp_signature)];
         if (header->bfSize != len) {
             result = pdf_set_err(pdf, -EINVAL, "BMP file seems to have wrong length: %s",
                                  bmp_file);
@@ -2720,19 +2718,19 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
             break;
         }
         /* BMP has vertically mirrored representation of lines, so swap them */
-        width = header->biWidth;
-        height = header->biHeight;
-        bOffs = header->bfOffBits;
-        line = (uint8_t*)malloc(width * 3);
-        for (pos = 0; pos < (height / 2); pos++) {
-            memcpy(line, &bmp_data[bOffs + pos * width * 3], width * 3);
-            memcpy(&bmp_data[bOffs + pos * width * 3], &bmp_data[bOffs + (height - pos - 1) * width * 3], width * 3);
-            memcpy(&bmp_data[bOffs + (height - pos - 1) * width * 3], line, width * 3);
+        line = (uint8_t*)malloc(header->biWidth * 3);
+        for (pos = 0; pos < (header->biHeight / 2); pos++) {
+            memcpy(line, &bmp_data[header->bfOffBits + pos * header->biWidth * 3], header->biWidth * 3);
+            memcpy(&bmp_data[header->bfOffBits + pos * header->biWidth * 3],
+                   &bmp_data[header->bfOffBits + (header->biHeight - pos - 1) * header->biWidth * 3],
+                   header->biWidth * 3);
+            memcpy(&bmp_data[header->bfOffBits + (header->biHeight - pos - 1) * header->biWidth * 3],
+                   line, header->biWidth * 3);
         }
         free(line);
 
         result = pdf_add_raw_bitmap(pdf, page, x, y, display_width, display_height,
-                  &bmp_data[bOffs], len, width, height);
+                  &bmp_data[header->bfOffBits], len, header->biWidth, header->biHeight);
         break;
     }
 
