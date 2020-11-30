@@ -159,14 +159,6 @@ struct pdf_path_operation {
 #define PDF_TRANSPARENT (uint32_t)(0xffu << 24)
 
 /*!
- * Information about color type of PNG format
- */
-#define PNG_COLOR_ALPHA   (4)
-#define PNG_COLOR_RGB     (2)
-#define PNG_COLOR_INDEXED (3)
-#define PNG_COLOR_GREY    (0)
-
-/*!
  * Convert big endian value to little endian value.
  */
 #define BIG_TO_LITTLE(x) (((x) >> 24) | (((x) & 0x00FF0000) >> 8) | (((x) & 0x0000FF00) << 8) | ((x) << 24))
@@ -610,7 +602,7 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * @param y Y offset to put PNG at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
- * @param jpeg_file Filename of PNG file to display
+ * @param png_file Filename of PNG file to display
  */
 int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
                  int x, int y, int display_width, int display_height,
@@ -624,7 +616,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
  * @param y Y offset to put BMP at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
- * @param jpeg_file Filename of BMP file to display
+ * @param bmp_file Filename of BMP file to display
  */
 int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
                  int x, int y, int display_width, int display_height,

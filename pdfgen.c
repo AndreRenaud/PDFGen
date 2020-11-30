@@ -222,6 +222,14 @@ struct pdf_doc {
     struct pdf_object *first_objects[OBJ_count];
 };
 
+/*!
+ * Information about color type of PNG format
+ */
+#define PNG_COLOR_ALPHA   (4)
+#define PNG_COLOR_RGB     (2)
+#define PNG_COLOR_INDEXED (3)
+#define PNG_COLOR_GREY    (0)
+
 struct png_chunk {
     uint32_t length;
     char type[4];
@@ -2492,7 +2500,6 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
     uint8_t *final_data;
     int written = 0;
     uint32_t pos;
-    struct png_chunk *chunk;
     struct png_info info;
     uint32_t len;
     int result = 0;
@@ -2512,6 +2519,8 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
     /* process PNG chunks */
     pos = sizeof(png_signature);
     while (1) {
+        struct png_chunk *chunk;
+
         chunk = (struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
@@ -2655,6 +2664,7 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
     uint32_t pos, offs;
     uint8_t *line;
     uint32_t len;
+    uint8_t line_len;
 
     bmp_data = get_file(pdf, bmp_file, &len);
     if (bmp_data == NULL)
@@ -2682,20 +2692,26 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
                                  header->biCompression);
             break;
         }
-        if (len != header->biHeight * header->biWidth * header->biBitCount / 8) {
+        /* BMP rows are 4-bytes padded! */
+        line_len = (((header->biWidth - 1) >> 2) + 1) * 4;
+        if (len != line_len * header->biHeight * header->biBitCount / 8) {
             result = pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
             break;
         }
 
         if (header->biBitCount == 24) {
             /* 24 bits: change R and B colors */
-            for (pos = 0; pos < len; pos += 3)
-            {
+            offs = 0;
+            for (pos = 0; pos < len; pos += 3) {
+                if (pos * 8 / header->biBitCount % line_len == header->biWidth)
+                    pos += (line_len - header->biWidth) * header->biBitCount / 8;
                 temp_val = bmp_data[header->bfOffBits + pos];
-                bmp_data[header->bfOffBits + pos] = bmp_data[header->bfOffBits + pos + 2];
-                bmp_data[header->bfOffBits + pos + 2] = temp_val;
+                bmp_data[header->bfOffBits + offs] = bmp_data[header->bfOffBits + pos + 2];
+                bmp_data[header->bfOffBits + offs + 1] = bmp_data[header->bfOffBits + pos + 1];
+                bmp_data[header->bfOffBits + offs + 2] = temp_val;
+                offs += 3;
             }
-            len = pos;
+            len = offs;
         } else
         if (header->biBitCount == 32) {
             /* 32 bits: change R and B colors, remove key color */
@@ -2703,8 +2719,7 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
             if (bmp_data == NULL)
                 return pdf_get_errval(pdf);
 
-            for (pos = 0; pos < len; pos += 4)
-            {
+            for (pos = 0; pos < len; pos += 4) {
                 temp_val = bmp_data[header->bfOffBits + pos];
                 bmp_data[header->bfOffBits + offs] = bmp_data[header->bfOffBits + pos + 2];
                 bmp_data[header->bfOffBits + offs + 1] = bmp_data[header->bfOffBits + pos + 1];
