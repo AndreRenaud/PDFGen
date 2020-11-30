@@ -2662,15 +2662,16 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
     uint8_t temp_val;
     int result;
     uint32_t pos, offs;
-    uint8_t *line;
     uint32_t len;
-    uint8_t line_len;
 
     bmp_data = get_file(pdf, bmp_file, &len);
     if (bmp_data == NULL)
         return pdf_get_errval(pdf);
 
     while (1) {
+        uint8_t row_len;
+        uint8_t *line;
+
         if (memcmp(bmp_data, bmp_signature, sizeof(bmp_signature))) {
             result = pdf_set_err(pdf, -EINVAL, "File is not correct BMP file: %s",
                                  bmp_file);
@@ -2693,8 +2694,8 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
             break;
         }
         /* BMP rows are 4-bytes padded! */
-        line_len = (((header->biWidth - 1) >> 2) + 1) * 4;
-        if (len != line_len * header->biHeight * header->biBitCount / 8) {
+        row_len = (((header->biWidth - 1) >> 2) + 1) * 4;
+        if (len != row_len * header->biHeight * header->biBitCount / 8) {
             result = pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
             break;
         }
@@ -2703,8 +2704,8 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
             /* 24 bits: change R and B colors */
             offs = 0;
             for (pos = 0; pos < len; pos += 3) {
-                if (pos * 8 / header->biBitCount % line_len == header->biWidth)
-                    pos += (line_len - header->biWidth) * header->biBitCount / 8;
+                if (pos * 8 / header->biBitCount % row_len == header->biWidth)
+                    pos += (row_len - header->biWidth) * header->biBitCount / 8;
                 temp_val = bmp_data[header->bfOffBits + pos];
                 bmp_data[header->bfOffBits + offs] = bmp_data[header->bfOffBits + pos + 2];
                 bmp_data[header->bfOffBits + offs + 1] = bmp_data[header->bfOffBits + pos + 1];
