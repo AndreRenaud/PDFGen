@@ -33,13 +33,6 @@ jobs:
       - run:
           name: Docs
           command: make docs
-      - run:
-          name: Update build statistics
-          command: |
-                  if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
-                          make check CLANG_FORMAT=clang-format-10
-                          ./upload-stats.sh
-                  fi
       - store_artifacts:
           path: output.pdf
       - store_artifacts:
