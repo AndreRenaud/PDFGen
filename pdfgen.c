@@ -159,7 +159,6 @@ enum {
     OBJ_catalog,
     OBJ_pages,
     OBJ_image,
-    OBJ_header,
 
     OBJ_count,
 };
@@ -563,7 +562,6 @@ static void pdf_object_destroy(struct pdf_object *object)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
-    case OBJ_header:
         dstr_free(&object->stream);
         break;
     case OBJ_page:
@@ -807,8 +805,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     switch (object->type) {
     case OBJ_stream:
-    case OBJ_image:
-    case OBJ_header: {
+    case OBJ_image: {
         fwrite(dstr_data(&object->stream), dstr_len(&object->stream), 1, fp);
         break;
     }
@@ -832,7 +829,6 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     case OBJ_page: {
         struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
         struct pdf_object *image = pdf_find_first_object(pdf, OBJ_image);
-        struct pdf_object *header = pdf_find_first_object(pdf, OBJ_header);
 
         fprintf(fp,
                 "<<\r\n"
@@ -869,11 +865,6 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             fprintf(fp, "%d 0 R\r\n", child->index);
         }
 
-        // add header elements here
-        if (header) {
-            for (; header; header = header->next)
-                fprintf(fp, "%d 0 R\r\n", header->index);
-        }
         fprintf(fp, "]\r\n");
         fprintf(fp, ">>\r\n");
         break;
@@ -1093,7 +1084,6 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct pdf_object *obj;
     size_t len;
-    bool is_header = ((intptr_t)page == PDF_HEADER_PAGE);
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -1106,10 +1096,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     while (len >= 1 && (buffer[len - 1] == '\r' || buffer[len - 1] == '\n'))
         len--;
 
-    if (is_header)
-        obj = pdf_add_object(pdf, OBJ_header);
-    else
-        obj = pdf_add_object(pdf, OBJ_stream);
+    obj = pdf_add_object(pdf, OBJ_stream);
     if (!obj)
         return pdf->errval;
 
@@ -1117,8 +1104,6 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_append_data(&obj->stream, buffer, len);
     dstr_append(&obj->stream, "\r\nendstream\r\n");
 
-    if (is_header)
-        return 1;
     return flexarray_append(&page->page.children, obj);
 }
 

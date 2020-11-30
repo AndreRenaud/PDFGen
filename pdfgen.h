@@ -164,8 +164,6 @@ struct pdf_path_operation {
 #define BIG_TO_LITTLE(x) (((x) >> 24) | (((x) & 0x00FF0000) >> 8) | (((x) & 0x0000FF00) << 8) | ((x) << 24))
 #define BIG_TO_LITTLE_16(x) (((x) >> 8) | (((x) & 0x00FF) << 8))
 
-#define PDF_HEADER_PAGE    (1)
-
 /**
  * Different alignment options for rendering text
  */
