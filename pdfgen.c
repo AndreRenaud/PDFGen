@@ -2475,6 +2475,9 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
                  int x, int y, int display_width, int display_height,
                  const char *png_file)
 {
+    /* Convert big endian value to little endian value */
+    #define BIG_TO_LITTLE(x) (((x) >> 24) | (((x) & 0x00FF0000) >> 8) | (((x) & 0x0000FF00) << 8) | ((x) << 24))
+
     const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     const char png_chunk_header[] =   "IHDR";
     const char png_chunk_data[] =     "IDAT";
@@ -2689,8 +2692,11 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page,
             /* 24 bits: change R and B colors */
             offs = 0;
             for (pos = 0; pos < len; pos += 3) {
+                /* Mind 4-bytes padding! */
                 if (pos * 8 / header->biBitCount % row_len == header->biWidth)
                     pos += (row_len - header->biWidth) * header->biBitCount / 8;
+                if (pos >= len)
+                    break;
                 temp_val = bmp_data[header->bfOffBits + pos];
                 bmp_data[header->bfOffBits + offs] = bmp_data[header->bfOffBits + pos + 2];
                 bmp_data[header->bfOffBits + offs + 1] = bmp_data[header->bfOffBits + pos + 1];
