@@ -2604,6 +2604,8 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page,
     }
     dstr_append_data(&obj->stream, final_data, written);
 
+    free(final_data);
+
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
@@ -2637,6 +2639,8 @@ int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf->errval;
     }
     dstr_append_data(&obj->stream, final_data, written);
+
+    free(final_data);
 
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
