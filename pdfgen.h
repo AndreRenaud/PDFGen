@@ -586,6 +586,34 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
                   float y, float display_width, float display_height,
                   const uint8_t *data, unsigned width, unsigned height);
 
+/**
+ * Add a PNG file as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add PNG to (NULL => most recently added page)
+ * @param x X offset to put PNG at
+ * @param y Y offset to put PNG at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param png_file Filename of PNG file to display
+ * @return < 0 on failure, >= 0 on success
+ */
+int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
+                int display_width, int display_height, const char *png_file);
+
+/**
+ * Add a BMP file as an image to the document
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add BMP to (NULL => most recently added page)
+ * @param x X offset to put BMP at
+ * @param y Y offset to put BMP at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param bmp_file Filename of BMP file to display
+ * @return < 0 on failure, >= 0 on success
+ */
+int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
+                int display_width, int display_height, const char *bmp_file);
+
 #ifdef __cplusplus
 }
 #endif
