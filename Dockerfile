@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	git \
 	graphviz \
 	libtinfo5 \
+	llvm-10 \
 	make \
 	mxe-i686-w64-mingw32.static-gcc \
 	pdftk-java \
