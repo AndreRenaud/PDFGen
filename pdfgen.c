@@ -2490,16 +2490,20 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     uint8_t *final_data;
     int written = 0;
     uint32_t pos;
-    struct png_info info = {.pos = 0};
+    struct png_info info = {
+        .pos = 0,
+        .length = 0,
+        .bitdepth = 0,
+        .colortype = 0,
+        .width = 0,
+        .height = 0,
+    };
     uint32_t len;
     int result = 0;
 
     png_data = get_file(pdf, png_file, &len);
     if (png_data == NULL)
         return pdf_get_errval(pdf);
-
-    info.length = 0;
-    info.bitdepth = 0;
 
     if (len <= sizeof(png_signature)) {
         free(png_data);
