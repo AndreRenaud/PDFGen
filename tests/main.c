@@ -48,12 +48,12 @@ int main(int argc, char *argv[])
 
     if (pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg") >= 0)
         return -1;
-	
+
     if (pdf_add_png(pdf, NULL, 200, 500, 100, 100, "data/coal.png") >= 0)
-        return -1;	
-	
+        return -1;
+
     if (pdf_add_bmp(pdf, NULL, 300, 500, 243, 204, "data/bee.bmp") >= 0)
-        return -1;		
+        return -1;
 
     if (pdf_add_text(pdf, NULL, "Page One", 10, 20, 30,
                      PDF_RGB(0xff, 0, 0)) >= 0)
