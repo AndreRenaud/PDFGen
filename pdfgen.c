@@ -2490,7 +2490,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     uint8_t *final_data;
     int written = 0;
     uint32_t pos;
-    struct png_info info = {};
+    struct png_info info = {.pos = 0};
     uint32_t len;
     int result = 0;
 
