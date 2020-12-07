@@ -84,6 +84,8 @@ int main(int argc, char *argv[])
     pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
     pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
+    pdf_add_png(pdf, NULL, 50, 10, 30, 30, "data/coal.png");
+    pdf_add_bmp(pdf, NULL, 100, 10, 30, 30, "data/bee.bmp");
 
     pdf_add_jpeg(pdf, NULL, 150, 10, 50, 150, "data/grey.jpg");
 

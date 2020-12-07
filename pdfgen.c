@@ -96,6 +96,7 @@
 #define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
 #define _USE_MATH_DEFINES
 #include <BaseTsd.h>
+#include <winsock.h> // for ntohl
 typedef SSIZE_T ssize_t;
 #else
 
@@ -107,6 +108,7 @@ typedef SSIZE_T ssize_t;
 #define _XOPEN_SOURCE 600 /* for M_SQRT2 */
 #endif
 
+#include <arpa/inet.h> /* for ntohl */
 #include <sys/types.h> /* for ssize_t */
 #endif
 
@@ -497,9 +499,6 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
     if (len >= (int)(sizeof(doc->errstr) - 1))
         len = (int)(sizeof(doc->errstr) - 1);
 
-    /* Make sure we're properly terminated */
-    if (len > 0 && doc->errstr[len - 1] != '\n')
-        doc->errstr[len - 1] = '\n';
     doc->errstr[len] = '\0';
     doc->errval = errval;
 
@@ -2475,11 +2474,6 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
 int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                 int display_width, int display_height, const char *png_file)
 {
-/* Convert big endian value to little endian value */
-#define BIG_TO_LITTLE(x)                                                     \
-    (((x) >> 24) | (((x)&0x00FF0000) >> 8) | (((x)&0x0000FF00) << 8) |       \
-     ((x) << 24))
-
     const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                      0x0D, 0x0A, 0x1A, 0x0A};
     const char png_chunk_header[] = "IHDR";
@@ -2545,20 +2539,27 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                                      "PDF doesn't support PNG alpha channel");
                 break;
             }
-            info.width = BIG_TO_LITTLE(header->width);
-            info.height = BIG_TO_LITTLE(header->height);
+            info.width = ntohl(header->width);
+            info.height = ntohl(header->height);
             info.bitdepth = header->bitdepth;
             info.colortype = header->colortype;
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
-            info.length = BIG_TO_LITTLE(chunk->length);
+            info.length = ntohl(chunk->length);
             info.pos = pos;
         } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
             /* end of file, exit */
             break;
         }
 
-        pos += BIG_TO_LITTLE(chunk->length); // add chunk length
-        pos += sizeof(uint32_t);             // add CRC length
+        if (ntohl(chunk->length) >= len) {
+            result = pdf_set_err(pdf, -EINVAL,
+                                 "PNG chunk length larger than file for %s",
+                                 png_file);
+            break;
+        }
+
+        pos += ntohl(chunk->length); // add chunk length
+        pos += sizeof(uint32_t);     // add CRC length
         if (pos > len) {
             result = pdf_set_err(pdf, -errno,
                                  "Wrong PNG format, chunks not found");
