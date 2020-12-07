@@ -96,7 +96,6 @@
 #define _CRT_SECURE_NO_WARNINGS 1 // Drop the MSVC complaints about snprintf
 #define _USE_MATH_DEFINES
 #include <BaseTsd.h>
-#include <winsock.h> // for ntohl
 typedef SSIZE_T ssize_t;
 #else
 
@@ -108,7 +107,6 @@ typedef SSIZE_T ssize_t;
 #define _XOPEN_SOURCE 600 /* for M_SQRT2 */
 #endif
 
-#include <arpa/inet.h> /* for ntohl */
 #include <sys/types.h> /* for ssize_t */
 #endif
 
@@ -146,6 +144,29 @@ typedef SSIZE_T ssize_t;
 #define SKIP_ATTRIBUTE
 #else
 #include <strings.h> // strcasecmp
+#endif
+
+static inline uint32_t bswap32(uint32_t x)
+{
+    return (((x & 0xff000000u) >> 24) | ((x & 0x00ff0000u) >> 8) |
+            ((x & 0x0000ff00u) << 8) | ((x & 0x000000ffu) << 24));
+}
+
+#if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
+#ifndef __BYTE_ORDER__
+#error "Unable to determine Endianness"
+#endif
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ || __BYTE_ORDER == __BIG_ENDIAN
+#define __BIG_ENDIAN__
+#else
+#define __LITTLE_ENDIAN__
+#endif
+#endif
+
+#if defined(__LITTLE_ENDIAN__)
+#define ntoh32(x) bswap32((x))
+#elif defined(__BIG_ENDIAN__)
+#define ntoh32(x) (x)
 #endif
 
 typedef struct pdf_object pdf_object;
@@ -2539,27 +2560,27 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                                      "PDF doesn't support PNG alpha channel");
                 break;
             }
-            info.width = ntohl(header->width);
-            info.height = ntohl(header->height);
+            info.width = ntoh32(header->width);
+            info.height = ntoh32(header->height);
             info.bitdepth = header->bitdepth;
             info.colortype = header->colortype;
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
-            info.length = ntohl(chunk->length);
+            info.length = ntoh32(chunk->length);
             info.pos = pos;
         } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
             /* end of file, exit */
             break;
         }
 
-        if (ntohl(chunk->length) >= len) {
+        if (ntoh32(chunk->length) >= len) {
             result = pdf_set_err(pdf, -EINVAL,
                                  "PNG chunk length larger than file for %s",
                                  png_file);
             break;
         }
 
-        pos += ntohl(chunk->length); // add chunk length
-        pos += sizeof(uint32_t);     // add CRC length
+        pos += ntoh32(chunk->length); // add chunk length
+        pos += sizeof(uint32_t);      // add CRC length
         if (pos > len) {
             result = pdf_set_err(pdf, -errno,
                                  "Wrong PNG format, chunks not found");
