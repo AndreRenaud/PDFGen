@@ -146,6 +146,45 @@ typedef SSIZE_T ssize_t;
 #include <strings.h> // strcasecmp
 #endif
 
+/**
+ * Try and support big & little endian machines
+ */
+static inline uint32_t bswap32(uint32_t x)
+{
+    return (((x & 0xff000000u) >> 24) | ((x & 0x00ff0000u) >> 8) |
+            ((x & 0x0000ff00u) << 8) | ((x & 0x000000ffu) << 24));
+}
+
+#ifdef __has_include // C++17, supported as extension to C++11 in clang, GCC
+                     // 5+, vs2015
+#if __has_include(<endian.h>)
+#include <endian.h> // gnu libc normally provides, linux
+#elif __has_include(<machine/endian.h>)
+#include <machine/endian.h> //open bsd, macos
+#elif __has_include(<sys/param.h>)
+#include <sys/param.h> // mingw, some bsd (not open/macos)
+#elif __has_include(<sys/isadefs.h>)
+#include <sys/isadefs.h> // solaris
+#endif
+#endif
+
+#if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
+#ifndef __BYTE_ORDER__
+/* Fall back to little endian by default */
+#define __LITTLE_ENDIAN__
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ || __BYTE_ORDER == __BIG_ENDIAN
+#define __BIG_ENDIAN__
+#else
+#define __LITTLE_ENDIAN__
+#endif
+#endif
+
+#if defined(__LITTLE_ENDIAN__)
+#define ntoh32(x) bswap32((x))
+#elif defined(__BIG_ENDIAN__)
+#define ntoh32(x) (x)
+#endif
+
 typedef struct pdf_object pdf_object;
 
 enum {
@@ -497,9 +536,6 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
     if (len >= (int)(sizeof(doc->errstr) - 1))
         len = (int)(sizeof(doc->errstr) - 1);
 
-    /* Make sure we're properly terminated */
-    if (len > 0 && doc->errstr[len - 1] != '\n')
-        doc->errstr[len - 1] = '\n';
     doc->errstr[len] = '\0';
     doc->errval = errval;
 
@@ -2475,23 +2511,24 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
 int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                 int display_width, int display_height, const char *png_file)
 {
-/* Convert big endian value to little endian value */
-#define BIG_TO_LITTLE(x)                                                     \
-    (((x) >> 24) | (((x)&0x00FF0000) >> 8) | (((x)&0x0000FF00) << 8) |       \
-     ((x) << 24))
-
     const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                      0x0D, 0x0A, 0x1A, 0x0A};
     const char png_chunk_header[] = "IHDR";
     const char png_chunk_data[] = "IDAT";
     const char png_chunk_end[] = "IEND";
-    // const char png_chunk_palette[] =  "PLTE";
     struct pdf_object *obj;
     uint8_t *png_data;
     uint8_t *final_data;
     int written = 0;
     uint32_t pos;
-    struct png_info info;
+    struct png_info info = {
+        .pos = 0,
+        .length = 0,
+        .bitdepth = 0,
+        .colortype = 0,
+        .width = 0,
+        .height = 0,
+    };
     uint32_t len;
     int result = 0;
 
@@ -2499,8 +2536,10 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     if (png_data == NULL)
         return pdf_get_errval(pdf);
 
-    info.length = 0;
-    info.bitdepth = 0;
+    if (len <= sizeof(png_signature)) {
+        free(png_data);
+        return pdf_set_err(pdf, -EINVAL, "File too short: %s", png_file);
+    }
 
     if (memcmp(png_data, png_signature, sizeof(png_signature))) {
         free(png_data);
@@ -2514,9 +2553,19 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
 
         chunk = (struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
+        if (pos > len) {
+            result =
+                pdf_set_err(pdf, -EINVAL, "PNG file too short: %s", png_file);
+            break;
+        }
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             /* header found, process width and height, check errors */
             struct png_header *header = (struct png_header *)&png_data[pos];
+            if (pos + sizeof(struct png_header) > len) {
+                result = pdf_set_err(pdf, -EINVAL, "PNG file too short: %s",
+                                     png_file);
+                break;
+            }
             if (header->deflate != 0) {
                 result =
                     pdf_set_err(pdf, -EINVAL, "Deflate wrong in PNG header");
@@ -2527,20 +2576,27 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                                      "PDF doesn't support PNG alpha channel");
                 break;
             }
-            info.width = BIG_TO_LITTLE(header->width);
-            info.height = BIG_TO_LITTLE(header->height);
+            info.width = ntoh32(header->width);
+            info.height = ntoh32(header->height);
             info.bitdepth = header->bitdepth;
             info.colortype = header->colortype;
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
-            info.length = BIG_TO_LITTLE(chunk->length);
+            info.length = ntoh32(chunk->length);
             info.pos = pos;
         } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
             /* end of file, exit */
             break;
         }
 
-        pos += BIG_TO_LITTLE(chunk->length); // add chunk length
-        pos += sizeof(uint32_t);             // add CRC length
+        if (ntoh32(chunk->length) >= len) {
+            result = pdf_set_err(pdf, -EINVAL,
+                                 "PNG chunk length larger than file for %s",
+                                 png_file);
+            break;
+        }
+
+        pos += ntoh32(chunk->length); // add chunk length
+        pos += sizeof(uint32_t);      // add CRC length
         if (pos > len) {
             result = pdf_set_err(pdf, -errno,
                                  "Wrong PNG format, chunks not found");
@@ -2552,9 +2608,9 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
         return result;
     }
     /* if no length was found */
-    if (info.length == 0) {
+    if (info.length == 0 || info.bitdepth == 0) {
         free(png_data);
-        return pdf_set_err(pdf, -EINVAL, "PNG file has zero length");
+        return pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
     }
 
     final_data = (uint8_t *)malloc(info.length + 1024);
@@ -2666,13 +2722,18 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     const char bmp_signature[] = {0x42, 0x4D};
     uint8_t *bmp_data;
     uint8_t temp_val;
-    int result;
+    int result = 0;
     uint32_t pos, offs;
     uint32_t len;
 
     bmp_data = get_file(pdf, bmp_file, &len);
     if (bmp_data == NULL)
         return pdf_get_errval(pdf);
+
+    if (len < sizeof(bmp_signature) + sizeof(struct bmp_header)) {
+        free(bmp_data);
+        return pdf_set_err(pdf, -EINVAL, "File is too short: %s", bmp_file);
+    }
 
     while (1) {
         uint8_t row_len;

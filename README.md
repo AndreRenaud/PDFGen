@@ -18,8 +18,11 @@ Supports the following PDF features
     * Bezier curves
 * Bookmarks
 * Barcodes (Code-128 & Code-39)
-* PPM Images
-* JPEG Images
+* Embedded images
+    * PPM
+    * JPEG
+    * PNG
+    * BMP
 
 Example usage
 =============
