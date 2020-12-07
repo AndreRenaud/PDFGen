@@ -170,9 +170,9 @@ static inline uint32_t bswap32(uint32_t x)
 
 #if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
 #ifndef __BYTE_ORDER__
-#error "Unable to determine Endianness"
-#endif
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ || __BYTE_ORDER == __BIG_ENDIAN
+/* Fall back to little endian by default */
+#define __LITTLE_ENDIAN__
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ || __BYTE_ORDER == __BIG_ENDIAN
 #define __BIG_ENDIAN__
 #else
 #define __LITTLE_ENDIAN__
