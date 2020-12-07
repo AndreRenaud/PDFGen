@@ -2502,6 +2502,11 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     info.length = 0;
     info.bitdepth = 0;
 
+    if (len <= sizeof(png_signature)) {
+        free(png_data);
+        return pdf_set_err(pdf, -EINVAL, "File too short: %s", png_file);
+    }
+
     if (memcmp(png_data, png_signature, sizeof(png_signature))) {
         free(png_data);
         return pdf_set_err(pdf, -EINVAL, "File is not correct PNG file: %s",
@@ -2514,9 +2519,19 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
 
         chunk = (struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
+        if (pos > len) {
+            result =
+                pdf_set_err(pdf, -EINVAL, "PNG file too short: %s", png_file);
+            break;
+        }
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             /* header found, process width and height, check errors */
             struct png_header *header = (struct png_header *)&png_data[pos];
+            if (pos + sizeof(struct png_header) > len) {
+                result = pdf_set_err(pdf, -EINVAL, "PNG file too short: %s",
+                                     png_file);
+                break;
+            }
             if (header->deflate != 0) {
                 result =
                     pdf_set_err(pdf, -EINVAL, "Deflate wrong in PNG header");
@@ -2673,6 +2688,11 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     bmp_data = get_file(pdf, bmp_file, &len);
     if (bmp_data == NULL)
         return pdf_get_errval(pdf);
+
+    if (len < sizeof(bmp_signature) + sizeof(struct bmp_header)) {
+        free(bmp_data);
+        return pdf_set_err(pdf, -EINVAL, "File is too short: %s", bmp_file);
+    }
 
     while (1) {
         uint8_t row_len;
