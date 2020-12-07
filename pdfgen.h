@@ -595,6 +595,7 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
  * @param png_file Filename of PNG file to display
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                 int display_width, int display_height, const char *png_file);
@@ -608,6 +609,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
  * @param bmp_file Filename of BMP file to display
+ * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
                 int display_width, int display_height, const char *bmp_file);
