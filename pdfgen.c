@@ -2485,13 +2485,12 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     const char png_chunk_header[] = "IHDR";
     const char png_chunk_data[] = "IDAT";
     const char png_chunk_end[] = "IEND";
-    // const char png_chunk_palette[] =  "PLTE";
     struct pdf_object *obj;
     uint8_t *png_data;
     uint8_t *final_data;
     int written = 0;
     uint32_t pos;
-    struct png_info info;
+    struct png_info info = {};
     uint32_t len;
     int result = 0;
 
@@ -2567,9 +2566,9 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
         return result;
     }
     /* if no length was found */
-    if (info.length == 0) {
+    if (info.length == 0 || info.bitdepth == 0) {
         free(png_data);
-        return pdf_set_err(pdf, -EINVAL, "PNG file has zero length");
+        return pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
     }
 
     final_data = (uint8_t *)malloc(info.length + 1024);
@@ -2681,7 +2680,7 @@ int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
     const char bmp_signature[] = {0x42, 0x4D};
     uint8_t *bmp_data;
     uint8_t temp_val;
-    int result;
+    int result = 0;
     uint32_t pos, offs;
     uint32_t len;
 
