@@ -146,11 +146,27 @@ typedef SSIZE_T ssize_t;
 #include <strings.h> // strcasecmp
 #endif
 
+/**
+ * Try and support big & little endian machines
+ */
 static inline uint32_t bswap32(uint32_t x)
 {
     return (((x & 0xff000000u) >> 24) | ((x & 0x00ff0000u) >> 8) |
             ((x & 0x0000ff00u) << 8) | ((x & 0x000000ffu) << 24));
 }
+
+#ifdef __has_include // C++17, supported as extension to C++11 in clang, GCC
+                     // 5+, vs2015
+#if __has_include(<endian.h>)
+#include <endian.h> // gnu libc normally provides, linux
+#elif __has_include(<machine/endian.h>)
+#include <machine/endian.h> //open bsd, macos
+#elif __has_include(<sys/param.h>)
+#include <sys/param.h> // mingw, some bsd (not open/macos)
+#elif __has_include(<sys/isadefs.h>)
+#include <sys/isadefs.h> // solaris
+#endif
+#endif
 
 #if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
 #ifndef __BYTE_ORDER__
