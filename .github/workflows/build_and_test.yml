@@ -24,7 +24,7 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: |
-          if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
+          if [[ "${GITHUB_REF##*/}" == "master" ]] ; then
             ./testprog
             coveralls -i pdfgen.c
           fi
