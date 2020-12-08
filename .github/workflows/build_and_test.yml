@@ -48,10 +48,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
     - name: make
-      run: make CC=cl
+      shell: cmd
+      run: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        make CC=cl
 
   build-macos:
     runs-on: macos-latest
