@@ -34,14 +34,15 @@ jobs:
         run: make docs
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
-          with:
-            path: |
-              output.pdf
-              pdfgen.h
-              pdfgen.o
-              doc/html/
-              testprog
-              testprog.exe
+        with:
+          name: artifacts
+          path: |
+            output.pdf
+            pdfgen.h
+            pdfgen.o
+            doc/html/
+            testprog
+            testprog.exe
 
   build-windows:
     runs-on: windows-latest
