@@ -52,12 +52,14 @@ jobs:
       shell: cmd
       run: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        make CC=cl
+        make clean
+        make testprog CC=cl
     - name: make x86
       shell: cmd
       run: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
-        make CC=cl
+        make clean
+        make testprog CC=cl
 
   build-macos:
     runs-on: macos-latest
