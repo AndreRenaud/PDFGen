@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: 
+      - name: Build Win32
         run: |
           make clean
           make CC=/usr/lib/mxe/usr/bin/i686-w64-mingw32.static-gcc CLANG_FORMAT=clang-format-10
@@ -49,7 +49,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: make
-      run: make CC=gcc
+      run: make CC=cl
 
   build-macos:
     runs-on: macos-latest
