@@ -58,8 +58,7 @@ If you find it useful, please drop me a line at andre@ignavus.net.
 
 Builds
 ======
-
-CircleCI Build status: [![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)](https://circleci.com/gh/AndreRenaud/PDFGen)
+Build status: [![GitHub Actions](https://github.com/AndreRenaud/PDFGen/workflows/Build%20and%20Test/badge.svg)](https://github.com/AndreRenaud/PDFGen/actions)
 
 Appveyor status: [![Build status](https://ci.appveyor.com/api/projects/status/3qpsmr06xg5gx74j/branch/master?svg=true)](https://ci.appveyor.com/project/AndreRenaud/pdfgen/branch/master)
 

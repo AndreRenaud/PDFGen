@@ -20,6 +20,9 @@ jobs:
       - name: Build
         run: make clean && make
       - name: Update coverage statistics
+        shell: bash
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: |
           if [[ "${CIRCLE_BRANCH}" == "master" ]] ; then
             ./testprog
