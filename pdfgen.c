@@ -2677,7 +2677,7 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, float x, float y,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page, float x,
+static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
                        uint8_t *bit_data, uint32_t length, int bitmap_width,
                        int bitmap_height)
