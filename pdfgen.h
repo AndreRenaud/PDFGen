@@ -597,8 +597,8 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * @param png_file Filename of PNG file to display
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                int display_width, int display_height, const char *png_file);
+int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, float x, float y,
+                float display_width, float display_height, const char *png_file);
 
 /**
  * Add a BMP file as an image to the document
@@ -611,8 +611,8 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
  * @param bmp_file Filename of BMP file to display
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                int display_width, int display_height, const char *bmp_file);
+int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, float x, float y,
+                float display_width, float display_height, const char *bmp_file);
 
 #ifdef __cplusplus
 }
