@@ -10,7 +10,7 @@ int LLVMFuzzerTestOneInput(char *data, int size)
     pdf_set_font(pdf, "Times-Roman");
     pdf_append_page(pdf);
     pdf_add_image_data(pdf, NULL, 100, 500, 50, 150, (uint8_t *)data, size);
-    pdf_save(pdf, "fuzz.pdf");
+    pdf_save(pdf, "fuzz-image-data.pdf");
     pdf_destroy(pdf);
     return 0;
 }

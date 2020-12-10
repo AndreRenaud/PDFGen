@@ -63,5 +63,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf fuzz-image.dat doxygen.log tests/penguin.c
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c
 	rm -rf docs fuzz-artifacts infer-out
