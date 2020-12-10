@@ -51,7 +51,7 @@ check-fuzz-%: tests/fuzz-% FORCE
 	mkdir -p fuzz-artifacts
 	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
-fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text check-fuzz-dstr check-fuzz-png check-fuzz-bmp
+fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr
 
 format: FORCE
 	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c
@@ -63,5 +63,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text tests/fuzz-bmp tests/fuzz-png output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf fuzz.png fuzz.bmp doxygen.log tests/penguin.c
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf fuzz-image.dat doxygen.log tests/penguin.c
 	rm -rf docs fuzz-artifacts infer-out
