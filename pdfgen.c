@@ -2508,8 +2508,9 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, float x, float y,
-                float display_width, float display_height, const char *png_file)
+int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                float y, float display_width, float display_height,
+                const char *png_file)
 {
     const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                      0x0D, 0x0A, 0x1A, 0x0A};
@@ -2677,10 +2678,11 @@ int pdf_add_png(struct pdf_doc *pdf, struct pdf_object *page, float x, float y,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page, float x,
-                       float y, float display_width, float display_height,
-                       uint8_t *bit_data, uint32_t length, int bitmap_width,
-                       int bitmap_height)
+static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
+                              float x, float y, float display_width,
+                              float display_height, uint8_t *bit_data,
+                              uint32_t length, int bitmap_width,
+                              int bitmap_height)
 {
     uint8_t *final_data;
     struct pdf_object *obj;
@@ -2716,8 +2718,9 @@ static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page, floa
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, float x, float y,
-                float display_width, float display_height, const char *bmp_file)
+int pdf_add_bmp(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                float y, float display_width, float display_height,
+                const char *bmp_file)
 {
     const char bmp_signature[] = {0x42, 0x4D};
     uint8_t *bmp_data;
