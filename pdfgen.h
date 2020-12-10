@@ -524,7 +524,8 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
                     const char *string, uint32_t colour);
 
 /**
- * Add image data as an image to the document
+ * Add image data as an image to the document. 
+ * Image data must be one of: JPEG, PNG, PPM or BMP formats
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at
@@ -540,7 +541,7 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        unsigned char *data, size_t len);
 
 /**
- * Add a 24 bit per pixel RGB buffer as an image to the document
+ * Add a raw 24 bit per pixel RGB buffer as an image to the document
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at
