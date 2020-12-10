@@ -531,8 +531,8 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
  * @param y Y offset to put image at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
- * @param image_data Image data bytes
- * @param len Length of image_data
+ * @param data Image data bytes
+ * @param len Length of data
  * @return < 0 on failure, >= 0 on success
  */
 int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
