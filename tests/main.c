@@ -43,16 +43,19 @@ int main(int argc, char *argv[])
     }
 
     /* These calls should fail, since we haven't added a page yet */
-    if (pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm") >= 0)
+    if (pdf_add_image_file(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm") >= 0)
         return -1;
 
-    if (pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg") >= 0)
+    if (pdf_add_image_file(pdf, NULL, 100, 500, 50, 150,
+                           "data/penguin.jpg") >= 0)
         return -1;
 
-    if (pdf_add_png(pdf, NULL, 200, 500, 100, 100, "data/coal.png") >= 0)
+    if (pdf_add_image_file(pdf, NULL, 200, 500, 100, 100, "data/coal.png") >=
+        0)
         return -1;
 
-    if (pdf_add_bmp(pdf, NULL, 300, 500, 243, 204, "data/bee.bmp") >= 0)
+    if (pdf_add_image_file(pdf, NULL, 300, 500, 243, 204, "data/bee.bmp") >=
+        0)
         return -1;
 
     if (pdf_add_text(pdf, NULL, "Page One", 10, 20, 30,
@@ -83,14 +86,15 @@ int main(int argc, char *argv[])
         16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY, &height);
     pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
-    pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
-    pdf_add_png(pdf, NULL, 50, 10, 30, 30, "data/coal.png");
-    pdf_add_bmp(pdf, NULL, 100, 10, 30, 30, "data/bee.bmp");
+    pdf_add_image_file(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
+    pdf_add_image_file(pdf, NULL, 50, 10, 30, 30, "data/coal.png");
+    pdf_add_image_file(pdf, NULL, 100, 10, 30, 30, "data/bee.bmp");
+    pdf_add_image_file(pdf, NULL, 150, 10, 30, 30, "data/bee-32-flip.bmp");
 
-    pdf_add_jpeg(pdf, NULL, 150, 10, 50, 150, "data/grey.jpg");
+    pdf_add_image_file(pdf, NULL, 150, 50, 50, 150, "data/grey.jpg");
 
-    pdf_add_jpeg_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
-                      data_penguin_jpg_len);
+    pdf_add_image_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
+                       data_penguin_jpg_len);
 
     pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 50, "Code128",
                     PDF_RGB(0, 0, 0));
