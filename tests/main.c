@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 
     pdf_append_page(pdf);
     pdf_add_text(pdf, NULL, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
-    pdf_add_text(pdf, NULL, "This is some weird text () \\ # : - Wi-Fi", 10,
+    pdf_add_text(pdf, NULL, "This is some weird text () \\ # : - Wi-Fi 27°C", 10,
                  50, 60, PDF_RGB(0, 0, 0));
     pdf_add_text(
         pdf, NULL,
