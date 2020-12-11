@@ -2746,9 +2746,11 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
         /* BMP has vertically mirrored representation of lines, so swap them
          */
         uint8_t *line = (uint8_t *)malloc(width * 3);
-        if (!line)
+        if (!line) {
+            free(bmp_data);
             return pdf_set_err(pdf, -ENOMEM,
                                "Unable to allocate memory for bitmap mirror");
+        }
         for (uint32_t pos = 0; pos < (height / 2); pos++) {
             memcpy(line, &bmp_data[pos * width * 3], width * 3);
             memcpy(&bmp_data[pos * width * 3],
