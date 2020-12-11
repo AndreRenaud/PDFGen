@@ -2324,7 +2324,7 @@ static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
 
     fclose(fp);
 
-    *length = (uint32_t)len;
+    *length = len;
 
     return file_data;
 }
