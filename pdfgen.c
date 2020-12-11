@@ -284,7 +284,7 @@ struct png_info {
     uint32_t pos;
     uint32_t length;
     uint8_t bitdepth;
-    uint8_t colortype;
+    uint8_t ncolours;
     uint32_t width;
     uint32_t height;
 };
@@ -2499,11 +2499,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         .pos = 0,
         .length = 0,
         .bitdepth = 0,
-        .colortype = 0,
+        .ncolours = 0,
         .width = 0,
         .height = 0,
     };
-    int result = 0;
 
     if (len <= sizeof(png_signature))
         return pdf_set_err(pdf, -EINVAL, "PNG file too short");
@@ -2517,31 +2516,30 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
         chunk = (struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
-        if (pos > len) {
-            result = pdf_set_err(pdf, -EINVAL, "PNG file too short");
-            break;
-        }
+        if (pos > len)
+            return pdf_set_err(pdf, -EINVAL, "PNG file too short");
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             /* header found, process width and height, check errors */
             struct png_header *header = (struct png_header *)&png_data[pos];
-            if (pos + sizeof(struct png_header) > len) {
-                result = pdf_set_err(pdf, -EINVAL, "PNG file too short");
-                break;
-            }
-            if (header->deflate != 0) {
-                result =
-                    pdf_set_err(pdf, -EINVAL, "Deflate wrong in PNG header");
-                break;
-            }
-            if (header->colortype & PNG_COLOR_ALPHA) {
-                result = pdf_set_err(pdf, -EINVAL,
-                                     "PDF doesn't support PNG alpha channel");
-                break;
-            }
+            if (pos + sizeof(struct png_header) > len)
+                return pdf_set_err(pdf, -EINVAL, "PNG file too short");
+            if (header->deflate != 0)
+                return pdf_set_err(pdf, -EINVAL,
+                                   "Deflate wrong in PNG header");
+            if (header->colortype & PNG_COLOR_ALPHA)
+                return pdf_set_err(pdf, -EINVAL,
+                                   "PDF doesn't support PNG alpha channel");
             info.width = ntoh32(header->width);
             info.height = ntoh32(header->height);
             info.bitdepth = header->bitdepth;
-            info.colortype = header->colortype;
+            if (header->colortype == PNG_COLOR_RGB)
+                info.ncolours = 3;
+            else if (header->colortype == PNG_COLOR_INDEXED)
+                info.ncolours = 1;
+            else
+                return pdf_set_err(pdf, -EINVAL,
+                                   "PNG has unsupported color type: %d",
+                                   header->colortype);
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
             info.length = ntoh32(chunk->length);
             info.pos = pos;
@@ -2550,70 +2548,38 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
             break;
         }
 
-        if (ntoh32(chunk->length) >= len) {
-            result = pdf_set_err(pdf, -EINVAL,
-                                 "PNG chunk length larger than file");
-            break;
-        }
+        if (ntoh32(chunk->length) >= len)
+            return pdf_set_err(pdf, -EINVAL,
+                               "PNG chunk length larger than file");
 
         pos += ntoh32(chunk->length); // add chunk length
         pos += sizeof(uint32_t);      // add CRC length
-        if (pos > len) {
-            result = pdf_set_err(pdf, -errno,
-                                 "Wrong PNG format, chunks not found");
-            break;
-        }
-    }
-    if (result != 0) {
-        return result;
+        if (pos > len)
+            return pdf_set_err(pdf, -errno,
+                               "Wrong PNG format, chunks not found");
     }
     /* if no length was found */
-    if (info.length == 0 || info.bitdepth == 0) {
+    if (info.length == 0 || info.bitdepth == 0)
         return pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
-    }
 
     final_data = (uint8_t *)malloc(info.length + 1024);
-    if (!final_data) {
+    if (!final_data)
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
                            info.length + 1024);
-    }
 
-    switch (info.colortype) {
-    case PNG_COLOR_RGB:
-        /* RGB colored image */
-        written =
-            sprintf((char *)final_data,
-                    "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                    "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                    "/Width %u\r\n/Height %u\r\n"
-                    "/Interpolate true\r\n"
-                    "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
-                    "/DecodeParms << /Predictor 15 /Colors 3 "
-                    "/BitsPerComponent %u /Columns %u >>\r\n"
-                    "/Length %u\r\n>>stream\r\n",
-                    flexarray_size(&pdf->objects), info.width, info.height,
-                    info.bitdepth, info.bitdepth, info.width, info.length);
-        break;
-    case PNG_COLOR_INDEXED:
-        /* indexed colored image */
-        written =
-            sprintf((char *)final_data,
-                    "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                    "/Subtype /Image\r\n/ColorSpace /Indexed /DeviceRGB\r\n"
-                    "/Width %u\r\n/Height %u\r\n"
-                    "/Interpolate true\r\n"
-                    "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
-                    "/DecodeParms << /Predictor 15 /Colors 1 "
-                    "/BitsPerComponent %u /Columns %u >>\r\n"
-                    "/Length %u\r\n>>stream\r\n",
-                    flexarray_size(&pdf->objects), info.width, info.height,
-                    info.bitdepth, info.bitdepth, info.width, info.length);
-        break;
-    default:
-        free(final_data);
-        return pdf_set_err(pdf, -EINVAL, "PNG has wrong color type: %d",
-                           info.colortype);
-    }
+    /* RGB colored image */
+    written = sprintf((char *)final_data,
+                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                      "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                      "/Width %u\r\n/Height %u\r\n"
+                      "/Interpolate true\r\n"
+                      "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
+                      "/DecodeParms << /Predictor 15 /Colors %d "
+                      "/BitsPerComponent %u /Columns %u >>\r\n"
+                      "/Length %u\r\n>>stream\r\n",
+                      flexarray_size(&pdf->objects), info.width, info.height,
+                      info.ncolours, info.bitdepth, info.bitdepth, info.width,
+                      info.length);
 
     memcpy(&final_data[written], &png_data[info.pos], info.length);
     written += info.length;
