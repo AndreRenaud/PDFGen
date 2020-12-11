@@ -186,7 +186,7 @@ static inline uint32_t bswap32(uint32_t x)
 #endif
 
 // Signatures for various image formats
-static const uint8_t bmp_signature[] = {0x42, 0x4D};
+static const uint8_t bmp_signature[] = {'B', 'M'};
 static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                         0x0D, 0x0A, 0x1A, 0x0A};
 static const uint8_t jpeg_signature[] = {0xff, 0xd8};
@@ -305,8 +305,8 @@ struct bmp_header {
     uint16_t bfReserved2; // ignore!
     uint32_t bfOffBits;
     uint32_t biSize;
-    uint32_t biWidth;
-    uint32_t biHeight;
+    int32_t biWidth;
+    int32_t biHeight;
     uint16_t biPlanes; // ignore!
     uint16_t biBitCount;
     uint32_t biCompression;
@@ -2377,6 +2377,7 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
+// Works like fgets, except it's for a fixed in-memory buffer of data
 static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
                     size_t line_len)
 {
@@ -2633,12 +2634,12 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
                               float x, float y, float display_width,
                               float display_height, uint8_t *bit_data,
-                              uint32_t length, int bitmap_width,
-                              int bitmap_height)
+                              int bitmap_width, int bitmap_height)
 {
     uint8_t *final_data;
     struct pdf_object *obj;
     int written = 0;
+    uint32_t length = bitmap_width * bitmap_height * 3;
 
     final_data = (uint8_t *)malloc(length + 1024);
     if (!final_data) {
@@ -2672,117 +2673,95 @@ static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
 
 static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
-                            float display_height, uint8_t *bmp_data,
-                            size_t len)
+                            float display_height, const uint8_t *data,
+                            const size_t len)
 {
-    uint8_t temp_val;
-    int result = 0;
-    uint32_t pos, offs;
+    struct bmp_header *header;
+    uint8_t *bmp_data = NULL;
+    int retval;
+    uint8_t row_padding;
+    uint32_t width;
+    uint32_t height;
+    bool flip = true;
 
     if (len < sizeof(bmp_signature) + sizeof(struct bmp_header))
         return pdf_set_err(pdf, -EINVAL, "File is too short");
 
-    while (1) {
-        uint8_t row_len;
-        uint8_t *line;
+    if (memcmp(data, bmp_signature, sizeof(bmp_signature)))
+        return pdf_set_err(pdf, -EINVAL, "File is not correct BMP file");
+    header = (struct bmp_header *)&data[sizeof(bmp_signature)];
+    if (header->bfSize != len)
+        return pdf_set_err(pdf, -EINVAL,
+                           "BMP file seems to have wrong length");
+    if (header->biSize != 40)
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP header: biSize");
+    if (header->biCompression != 0)
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP compression value: %d",
+                           header->biCompression);
+    /* BMP rows are 4-bytes padded! */
+    width = header->biWidth;
+    if (header->biHeight < 0) {
+        flip = false;
+        height = -header->biHeight;
+    } else {
+        height = header->biHeight;
+    }
+    row_padding = (width * header->biBitCount / 8) & 3;
 
-        if (memcmp(bmp_data, bmp_signature, sizeof(bmp_signature))) {
-            result =
-                pdf_set_err(pdf, -EINVAL, "File is not correct BMP file");
-            break;
-        }
-        struct bmp_header *header =
-            (struct bmp_header *)&bmp_data[sizeof(bmp_signature)];
-        if (header->bfSize != len) {
-            result = pdf_set_err(pdf, -EINVAL,
-                                 "BMP file seems to have wrong length");
-            break;
-        }
-        len = len - header->bfOffBits;
-        if (header->biSize != 40) {
-            result = pdf_set_err(pdf, -EINVAL, "Wrong BMP header: biSize");
-            break;
-        }
-        if (header->biCompression != 0) {
-            result =
-                pdf_set_err(pdf, -EINVAL, "Wrong BMP compression value: %d",
-                            header->biCompression);
-            break;
-        }
-        /* BMP rows are 4-bytes padded! */
-        row_len = (((header->biWidth - 1) >> 2) + 1) * 4;
-        if (len != row_len * header->biHeight * header->biBitCount / 8) {
-            result = pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
-            break;
-        }
-
-        if (header->biBitCount == 24) {
-            /* 24 bits: change R and B colors */
-            offs = 0;
-            for (pos = 0; pos < len; pos += 3) {
-                /* Mind 4-bytes padding! */
-                if (pos * 8 / header->biBitCount % row_len == header->biWidth)
-                    pos +=
-                        (row_len - header->biWidth) * header->biBitCount / 8;
-                if (pos >= len)
-                    break;
-                temp_val = bmp_data[header->bfOffBits + pos];
-                bmp_data[header->bfOffBits + offs] =
-                    bmp_data[header->bfOffBits + pos + 2];
-                bmp_data[header->bfOffBits + offs + 1] =
-                    bmp_data[header->bfOffBits + pos + 1];
-                bmp_data[header->bfOffBits + offs + 2] = temp_val;
-                offs += 3;
-            }
-            len = offs;
-        } else if (header->biBitCount == 32) {
-            /* 32 bits: change R and B colors, remove key color */
-            offs = 0;
-            if (bmp_data == NULL)
-                return pdf_get_errval(pdf);
-
-            for (pos = 0; pos < len; pos += 4) {
-                temp_val = bmp_data[header->bfOffBits + pos];
-                bmp_data[header->bfOffBits + offs] =
-                    bmp_data[header->bfOffBits + pos + 2];
-                bmp_data[header->bfOffBits + offs + 1] =
-                    bmp_data[header->bfOffBits + pos + 1];
-                bmp_data[header->bfOffBits + offs + 2] = temp_val;
-                offs += 3;
-            }
-            len = offs;
-        } else {
-            result = pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
-                                 header->biBitCount);
-            break;
-        }
-        /* BMP has vertically mirrored representation of lines, so swap them
-         */
-        line = (uint8_t *)malloc(header->biWidth * 3);
-        for (pos = 0; pos < (header->biHeight / 2); pos++) {
-            memcpy(line,
-                   &bmp_data[header->bfOffBits + pos * header->biWidth * 3],
-                   header->biWidth * 3);
-            memcpy(
-                &bmp_data[header->bfOffBits + pos * header->biWidth * 3],
-                &bmp_data[header->bfOffBits +
-                          (header->biHeight - pos - 1) * header->biWidth * 3],
-                header->biWidth * 3);
-            memcpy(
-                &bmp_data[header->bfOffBits +
-                          (header->biHeight - pos - 1) * header->biWidth * 3],
-                line, header->biWidth * 3);
-        }
-        free(line);
-
-        result =
-            pdf_add_raw_bitmap(pdf, page, x, y, display_width, display_height,
-                               &bmp_data[header->bfOffBits], len,
-                               header->biWidth, header->biHeight);
-        break;
+    if (len - header->bfOffBits <
+        height * (width + row_padding) * header->biBitCount / 8) {
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
     }
 
-    return result;
+    if (header->biBitCount == 24) {
+        /* 24 bits: change R and B colors */
+        bmp_data = (uint8_t *)malloc(width * height * 3);
+        if (!bmp_data)
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Insufficient memory for bitmap");
+        for (uint32_t pos = 0; pos < width * height; pos++) {
+            uint32_t src_pos =
+                header->bfOffBits + 3 * (pos + (pos / width) * row_padding);
+
+            bmp_data[pos * 3] = data[src_pos + 2];
+            bmp_data[pos * 3 + 1] = data[src_pos + 1];
+            bmp_data[pos * 3 + 2] = data[src_pos];
+        }
+    } else if (header->biBitCount == 32) {
+        /* 32 bits: change R and B colors, remove key color */
+        int offs = 0;
+        bmp_data = (uint8_t *)malloc(width * height * 3);
+
+        for (uint32_t pos = 0; pos < width * height * 4; pos += 4) {
+            bmp_data[offs] = data[header->bfOffBits + pos + 2];
+            bmp_data[offs + 1] = data[header->bfOffBits + pos + 1];
+            bmp_data[offs + 2] = data[header->bfOffBits + pos];
+            offs += 3;
+        }
+    } else {
+        return pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
+                           header->biBitCount);
+    }
+    if (flip) {
+        /* BMP has vertically mirrored representation of lines, so swap them
+         */
+        uint8_t *line = (uint8_t *)malloc(width * 3);
+        if (!line)
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Unable to allocate memory for bitmap mirror");
+        for (uint32_t pos = 0; pos < (height / 2); pos++) {
+            memcpy(line, &bmp_data[pos * width * 3], width * 3);
+            memcpy(&bmp_data[pos * width * 3],
+                   &bmp_data[(height - pos - 1) * width * 3], width * 3);
+            memcpy(&bmp_data[(height - pos - 1) * width * 3], line,
+                   width * 3);
+        }
+        free(line);
+    }
+    retval = pdf_add_raw_bitmap(pdf, page, x, y, display_width,
+                                display_height, bmp_data, width, height);
+    free(bmp_data);
+    return retval;
 }
 
 enum {
@@ -2814,7 +2793,7 @@ static int header_to_image(const uint8_t *data, size_t length)
 
 int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
-                       uint8_t *data, size_t len)
+                       const uint8_t *data, size_t len)
 {
     // Try and determine which image format it is based on the content
     switch (header_to_image(data, len)) {

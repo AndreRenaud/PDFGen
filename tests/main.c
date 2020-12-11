@@ -89,8 +89,9 @@ int main(int argc, char *argv[])
     pdf_add_image_file(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
     pdf_add_image_file(pdf, NULL, 50, 10, 30, 30, "data/coal.png");
     pdf_add_image_file(pdf, NULL, 100, 10, 30, 30, "data/bee.bmp");
+    pdf_add_image_file(pdf, NULL, 150, 10, 30, 30, "data/bee-32-flip.bmp");
 
-    pdf_add_image_file(pdf, NULL, 150, 10, 50, 150, "data/grey.jpg");
+    pdf_add_image_file(pdf, NULL, 150, 50, 50, 150, "data/grey.jpg");
 
     pdf_add_image_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
                        data_penguin_jpg_len);

@@ -538,7 +538,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
  */
 int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
-                       unsigned char *data, size_t len);
+                       const uint8_t *data, size_t len);
 
 /**
  * Add a raw 24 bit per pixel RGB buffer as an image to the document
