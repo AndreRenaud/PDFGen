@@ -89,14 +89,12 @@ struct pdf_path_operation {
 
 /**
  * Convert a value in inches into a number of points.
- * Always returns an integer value
  * @param inch inches value to convert to points
  */
 #define PDF_INCH_TO_POINT(inch) ((float)((inch)*72.0f))
 
 /**
  * Convert a value in milli-meters into a number of points.
- * Always returns an integer value
  * @param mm millimeter value to convert to points
  */
 #define PDF_MM_TO_POINT(mm) ((float)((mm)*72.0f / 25.4f))
