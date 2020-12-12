@@ -2405,7 +2405,6 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float display_height, const uint8_t *ppm_data,
                             size_t len)
 {
-    struct pdf_object *obj;
     char line[1024];
     unsigned width, height, size;
     size_t pos = 0;
@@ -2445,11 +2444,9 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (size > len - pos) {
         return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
     }
-    obj = pdf_add_raw_rgb24(pdf, &ppm_data[pos], width, height);
-    if (!obj)
-        return pdf->errval;
 
-    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+    return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                         &ppm_data[pos], width, height);
 }
 
 static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
@@ -2605,7 +2602,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     uint32_t width;
     uint32_t height;
     bool flip = true;
-    struct pdf_object *obj;
+    int retval;
 
     if (len < sizeof(bmp_signature) + sizeof(struct bmp_header))
         return pdf_set_err(pdf, -EINVAL, "File is too short");
@@ -2684,12 +2681,11 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
         free(line);
     }
 
-    obj = pdf_add_raw_rgb24(pdf, bmp_data, width, height);
+    retval = pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                           bmp_data, width, height);
     free(bmp_data);
-    if (!obj)
-        return pdf->errval;
 
-    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+    return retval;
 }
 
 enum {
