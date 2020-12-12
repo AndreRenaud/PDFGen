@@ -2235,8 +2235,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
         "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
         "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
         "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
-        flexarray_size(&pdf->objects), height, width,
-        data_len + 1);
+        flexarray_size(&pdf->objects), height, width, data_len + 1);
 
     len = dstr_len(&str) + data_len + strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
