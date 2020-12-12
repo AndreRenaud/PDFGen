@@ -2233,12 +2233,11 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
         &str,
         "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
         "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
-        "/BitsPerComponent 8\r\n/Filter /ASCIIHexDecode\r\n"
-        "/Length %d\r\n>>stream\r\n",
+        "/BitsPerComponent 8\r\n/Length %d\r\n>>stream\r\n",
         flexarray_size(&pdf->objects), height, width,
         width * height * 3 * 2 + 1);
 
-    len = dstr_len(&str) + (size_t)width * (size_t)height * 3 * 2 +
+    len = dstr_len(&str) + (size_t)width * (size_t)height * 3 +
           strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
         dstr_free(&str);
@@ -2246,11 +2245,7 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                     "Unable to allocate %zu bytes memory for image", len);
         return NULL;
     }
-    for (unsigned i = 0; i < width * height * 3; i++) {
-        char buf[3] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
-                       "0123456789ABCDEF"[data[i] & 0xf], 0};
-        dstr_append(&str, buf);
-    }
+    dstr_append_data(&str, data, width * height * 3);
     dstr_append(&str, endstream);
 
     obj = pdf_add_object(pdf, OBJ_image);
@@ -2457,9 +2452,10 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
-                      float y, float display_width, float display_height,
-                      const unsigned char *jpeg_data, size_t len)
+static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
+                             float x, float y, float display_width,
+                             float display_height,
+                             const unsigned char *jpeg_data, size_t len)
 {
     struct pdf_object *obj;
 
@@ -2570,16 +2566,17 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     /* RGB colored image */
     written = sprintf((char *)final_data,
                       "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                      "/Subtype /Image\r\n/ColorSpace %s/DeviceRGB\r\n"
                       "/Width %u\r\n/Height %u\r\n"
                       "/Interpolate true\r\n"
                       "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
                       "/DecodeParms << /Predictor 15 /Colors %d "
                       "/BitsPerComponent %u /Columns %u >>\r\n"
                       "/Length %u\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects), info.width, info.height,
-                      info.ncolours, info.bitdepth, info.bitdepth, info.width,
-                      info.length);
+                      flexarray_size(&pdf->objects),
+                      info.ncolours == 1 ? "/Indexed " : "", info.width,
+                      info.height, info.bitdepth, info.ncolours,
+                      info.bitdepth, info.width, info.length);
 
     memcpy(&final_data[written], &png_data[info.pos], info.length);
     written += info.length;
@@ -2597,46 +2594,6 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-static int pdf_add_raw_bitmap(struct pdf_doc *pdf, struct pdf_object *page,
-                              float x, float y, float display_width,
-                              float display_height, uint8_t *bit_data,
-                              int bitmap_width, int bitmap_height)
-{
-    uint8_t *final_data;
-    struct pdf_object *obj;
-    int written = 0;
-    uint32_t length = bitmap_width * bitmap_height * 3;
-
-    final_data = (uint8_t *)malloc(length + 1024);
-    if (!final_data) {
-        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate bitmap data %u",
-                           length + 1024);
-    }
-
-    written = sprintf((char *)final_data,
-                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
-                      "/Width %d\r\n/Height %d\r\n"
-                      "/BitsPerComponent 8\r\n"
-                      "/Length %u\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects), bitmap_width,
-                      bitmap_height, length);
-    memcpy(&final_data[written], bit_data, length);
-    written += length;
-    written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        free(final_data);
-        return pdf->errval;
-    }
-    dstr_append_data(&obj->stream, final_data, written);
-
-    free(final_data);
-
-    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
-}
-
 static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
                             float display_height, const uint8_t *data,
@@ -2644,11 +2601,11 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
 {
     struct bmp_header *header;
     uint8_t *bmp_data = NULL;
-    int retval;
     uint8_t row_padding;
     uint32_t width;
     uint32_t height;
     bool flip = true;
+    struct pdf_object *obj;
 
     if (len < sizeof(bmp_signature) + sizeof(struct bmp_header))
         return pdf_set_err(pdf, -EINVAL, "File is too short");
@@ -2726,10 +2683,13 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
         }
         free(line);
     }
-    retval = pdf_add_raw_bitmap(pdf, page, x, y, display_width,
-                                display_height, bmp_data, width, height);
+
+    obj = pdf_add_raw_rgb24(pdf, bmp_data, width, height);
     free(bmp_data);
-    return retval;
+    if (!obj)
+        return pdf->errval;
+
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
 enum {
