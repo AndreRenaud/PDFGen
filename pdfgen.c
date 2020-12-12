@@ -2603,6 +2603,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     uint32_t height;
     bool flip = true;
     int retval;
+    size_t data_len;
 
     if (len < sizeof(bmp_signature) + sizeof(struct bmp_header))
         return pdf_set_err(pdf, -EINVAL, "File is too short");
@@ -2627,6 +2628,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
         height = header->biHeight;
     }
     row_padding = (width * header->biBitCount / 8) & 3;
+    data_len = (size_t)width * (size_t)height * 3;
 
     if (len - header->bfOffBits <
         height * (width + row_padding) * header->biBitCount / 8) {
@@ -2635,7 +2637,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
 
     if (header->biBitCount == 24) {
         /* 24 bits: change R and B colors */
-        bmp_data = (uint8_t *)malloc(width * height * 3);
+        bmp_data = (uint8_t *)malloc(data_len);
         if (!bmp_data)
             return pdf_set_err(pdf, -ENOMEM,
                                "Insufficient memory for bitmap");
@@ -2650,7 +2652,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     } else if (header->biBitCount == 32) {
         /* 32 bits: change R and B colors, remove key color */
         int offs = 0;
-        bmp_data = (uint8_t *)malloc(width * height * 3);
+        bmp_data = (uint8_t *)malloc(data_len);
 
         for (uint32_t pos = 0; pos < width * height * 4; pos += 4) {
             bmp_data[offs] = data[header->bfOffBits + pos + 2];
