@@ -3,7 +3,7 @@ name: Submit to Coverity
 on:
  push:
     branches:
-      - master [push]
+      - master
 
 jobs:
   build:
