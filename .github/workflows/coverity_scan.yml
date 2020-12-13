@@ -1,6 +1,9 @@
 name: Submit to Coverity
 
-on: [push]
+on:
+ push:
+    branches:
+      - master [push]
 
 jobs:
   build:
