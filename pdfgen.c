@@ -2289,18 +2289,20 @@ static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
     struct stat buf;
     off_t len;
 
-    if (stat(file_name, &buf) < 0) {
-        pdf_set_err(pdf, -errno, "Unable to access %s: %s", file_name,
-                    strerror(errno));
-        return NULL;
-    }
-    len = buf.st_size;
-
     if ((fp = fopen(file_name, "rb")) == NULL) {
         pdf_set_err(pdf, -errno, "Unable to open %s: %s", file_name,
                     strerror(errno));
         return NULL;
     }
+
+    if (fstat(fileno(fp), &buf) < 0) {
+        pdf_set_err(pdf, -errno, "Unable to access %s: %s", file_name,
+                    strerror(errno));
+        fclose(fp);
+        return NULL;
+    }
+
+    len = buf.st_size;
 
     file_data = (uint8_t *)malloc(len);
     if (!file_data) {
@@ -2652,6 +2654,9 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
         /* 32 bits: change R and B colors, remove key color */
         int offs = 0;
         bmp_data = (uint8_t *)malloc(data_len);
+        if (!bmp_data)
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Insufficient memory for bitmap");
 
         for (uint32_t pos = 0; pos < width * height * 4; pos += 4) {
             bmp_data[offs] = data[header->bfOffBits + pos + 2];
