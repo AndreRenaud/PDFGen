@@ -2093,6 +2093,11 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (i = 1, s = string; *s; s++, i++) {
         int index = find_128_encoding(*s);
+        // This should be impossible, due to the checks above, but confirm
+        // here anyway to stop coverity complaining
+        if (index < 0)
+            return pdf_set_err(pdf, -EINVAL,
+                               "Invalid 128a barcode character 0x%x", *s);
         x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour,
                                 index, 6);
         checksum += index * i;
