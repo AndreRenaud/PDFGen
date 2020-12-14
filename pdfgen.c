@@ -2557,6 +2557,9 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (info.length == 0 || info.bitdepth == 0)
         return pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
 
+    if (info.length + info.pos > len)
+        return pdf_set_err(pdf, -EINVAL, "PNG data length is out of bounds");
+
     final_data = (uint8_t *)malloc(info.length + 1024);
     if (!final_data)
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
