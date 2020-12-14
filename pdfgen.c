@@ -435,9 +435,9 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
         .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
     }
 
-static char *dstr_data(const struct dstr *str)
+static char *dstr_data(struct dstr *str)
 {
-    return str->data ? str->data : (char *)str->static_data;
+    return str->data ? str->data : str->static_data;
 }
 
 static size_t dstr_len(const struct dstr *str)
