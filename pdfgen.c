@@ -435,9 +435,9 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
         .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
     }
 
-static char *dstr_data(const struct dstr *str)
+static char *dstr_data(struct dstr *str)
 {
-    return str->data ? str->data : (char *)str->static_data;
+    return str->data ? str->data : str->static_data;
 }
 
 static size_t dstr_len(const struct dstr *str)
@@ -2506,15 +2506,16 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     /* process PNG chunks */
     pos = sizeof(png_signature);
     while (1) {
-        struct png_chunk *chunk;
+        const struct png_chunk *chunk;
 
-        chunk = (struct png_chunk *)&png_data[pos];
+        chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
         if (pos > len)
             return pdf_set_err(pdf, -EINVAL, "PNG file too short");
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             /* header found, process width and height, check errors */
-            struct png_header *header = (struct png_header *)&png_data[pos];
+            const struct png_header *header =
+                (const struct png_header *)&png_data[pos];
             if (pos + sizeof(struct png_header) > len)
                 return pdf_set_err(pdf, -EINVAL, "PNG file too short");
             if (header->deflate != 0)
@@ -2597,7 +2598,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float display_height, const uint8_t *data,
                             const size_t len)
 {
-    struct bmp_header *header;
+    const struct bmp_header *header;
     uint8_t *bmp_data = NULL;
     uint8_t row_padding;
     uint32_t width;
@@ -2611,7 +2612,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
 
     if (memcmp(data, bmp_signature, sizeof(bmp_signature)))
         return pdf_set_err(pdf, -EINVAL, "File is not correct BMP file");
-    header = (struct bmp_header *)&data[sizeof(bmp_signature)];
+    header = (const struct bmp_header *)&data[sizeof(bmp_signature)];
     if (header->bfSize != len)
         return pdf_set_err(pdf, -EINVAL,
                            "BMP file seems to have wrong length");
