@@ -2557,16 +2557,19 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
             }
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
             uint32_t chunk_len = ntoh32(chunk->length);
-            uint8_t *data =
-                (uint8_t *)realloc(info.data, info.length + chunk_len);
-            if (!data) {
-                if (info.data)
-                    free(info.data);
-                return pdf_set_err(pdf, -ENOMEM, "No memory for PNG data");
+            if (chunk_len > 0 && chunk_len < len - pos) {
+                uint8_t *data =
+                    (uint8_t *)realloc(info.data, info.length + chunk_len);
+                if (!data) {
+                    if (info.data)
+                        free(info.data);
+                    return pdf_set_err(pdf, -ENOMEM,
+                                       "No memory for PNG data");
+                }
+                info.data = data;
+                memcpy(&info.data[info.length], &png_data[pos], chunk_len);
+                info.length += chunk_len;
             }
-            info.data = data;
-            memcpy(&info.data[info.length], &png_data[pos], chunk_len);
-            info.length += chunk_len;
         } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
             /* end of file, exit */
             break;
