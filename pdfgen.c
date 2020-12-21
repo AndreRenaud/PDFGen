@@ -2516,30 +2516,25 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
         if (pos > len) {
-            if (info.data)
-                free(info.data);
-            return pdf_set_err(pdf, -EINVAL, "PNG file too short");
+            pdf_set_err(pdf, -EINVAL, "PNG file too short");
+            goto info_free;
         }
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             /* header found, process width and height, check errors */
             const struct png_header *header =
                 (const struct png_header *)&png_data[pos];
             if (pos + sizeof(struct png_header) > len) {
-                if (info.data)
-                    free(info.data);
-                return pdf_set_err(pdf, -EINVAL, "PNG file too short");
+                pdf_set_err(pdf, -EINVAL, "PNG file too short");
+                goto info_free;
             }
             if (header->deflate != 0) {
-                if (info.data)
-                    free(info.data);
-                return pdf_set_err(pdf, -EINVAL,
-                                   "Deflate wrong in PNG header");
+                pdf_set_err(pdf, -EINVAL, "Deflate wrong in PNG header");
+                goto info_free;
             }
             if (header->colortype & PNG_COLOR_ALPHA) {
-                if (info.data)
-                    free(info.data);
-                return pdf_set_err(pdf, -EINVAL,
-                                   "PDF doesn't support PNG alpha channel");
+                pdf_set_err(pdf, -EINVAL,
+                            "PDF doesn't support PNG alpha channel");
+                goto info_free;
             }
             info.width = ntoh32(header->width);
             info.height = ntoh32(header->height);
@@ -2549,11 +2544,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
             else if (header->colortype == PNG_COLOR_INDEXED)
                 info.ncolours = 1;
             else {
-                if (info.data)
-                    free(info.data);
-                return pdf_set_err(pdf, -EINVAL,
-                                   "PNG has unsupported color type: %d",
-                                   header->colortype);
+                pdf_set_err(pdf, -EINVAL,
+                            "PNG has unsupported color type: %d",
+                            header->colortype);
+                goto info_free;
             }
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
             uint32_t chunk_len = ntoh32(chunk->length);
@@ -2561,10 +2555,8 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                 uint8_t *data =
                     (uint8_t *)realloc(info.data, info.length + chunk_len);
                 if (!data) {
-                    if (info.data)
-                        free(info.data);
-                    return pdf_set_err(pdf, -ENOMEM,
-                                       "No memory for PNG data");
+                    pdf_set_err(pdf, -ENOMEM, "No memory for PNG data");
+                    goto info_free;
                 }
                 info.data = data;
                 memcpy(&info.data[info.length], &png_data[pos], chunk_len);
@@ -2576,32 +2568,28 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         }
 
         if (ntoh32(chunk->length) >= len) {
-            if (info.data)
-                free(info.data);
-            return pdf_set_err(pdf, -EINVAL,
-                               "PNG chunk length larger than file");
+            pdf_set_err(pdf, -EINVAL, "PNG chunk length larger than file");
+            goto info_free;
         }
 
         pos += ntoh32(chunk->length); // add chunk length
         pos += sizeof(uint32_t);      // add CRC length
         if (pos > len) {
-            if (info.data)
-                free(info.data);
-            return pdf_set_err(pdf, -errno,
-                               "Wrong PNG format, chunks not found");
+            pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
+            goto info_free;
         }
     }
     /* if no length was found */
     if (info.length == 0 || info.bitdepth == 0) {
-        free(info.data);
-        return pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
+        pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
+        goto info_free;
     }
 
     final_data = (uint8_t *)malloc(info.length + 1024);
     if (!final_data) {
-        free(info.data);
-        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
-                           info.length + 1024);
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
+                    info.length + 1024);
+        goto info_free;
     }
 
     /* RGB colored image */
@@ -2634,6 +2622,11 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     free(final_data);
 
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+
+info_free:
+    if (info.data)
+        free(info.data);
+    return pdf->errval;
 }
 
 static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
