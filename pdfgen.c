@@ -275,10 +275,16 @@ struct pdf_doc {
 #define PNG_COLOR_INDEXED (3)
 #define PNG_COLOR_GREY (0)
 
+/**
+ * Since we're casting random areas of memory to these, make sure
+ * they're packed properly to match the image format requirements
+ */
+#pragma pack(push, 1)
+
 struct png_chunk {
     uint32_t length;
     char type[4];
-} __attribute__((packed));
+};
 
 struct png_info {
     uint32_t length;
@@ -287,7 +293,7 @@ struct png_info {
     uint32_t width;
     uint32_t height;
     uint8_t *data;
-} __attribute__((packed));
+};
 
 struct png_header {
     uint32_t width;
@@ -297,7 +303,7 @@ struct png_header {
     uint8_t deflate;
     uint8_t filtering;
     uint8_t interlace;
-} __attribute__((packed));
+};
 
 struct bmp_header {
     uint32_t bfSize;
@@ -310,7 +316,8 @@ struct bmp_header {
     uint16_t biPlanes; // ignore!
     uint16_t biBitCount;
     uint32_t biCompression;
-} __attribute__((packed));
+};
+#pragma pack(pop)
 
 /**
  * Simple flexible resizing array implementation
