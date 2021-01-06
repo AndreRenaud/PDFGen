@@ -57,21 +57,24 @@ jobs:
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
         make clean
         make testprog.exe CC=cl
-        ./testprog
+        cp testprog.exe testprog-64.exe
+        testprog-64
     - name: make x86
       shell: cmd
       run: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
         make clean
         make testprog.exe CC=cl
-        ./testprog
+        cp testprog.exe testprog-32.exe
+        testprog-32
     - name: Upload aritfacts
       uses: actions/upload-artifact@v2
       with:
         name: artifacts
         path: |
           output.pdf
-          testprog.exe
+          testprog-32.exe
+          testprog-64.exe
 
   build-macos:
     runs-on: macos-latest
