@@ -59,6 +59,7 @@ jobs:
         make testprog.exe CC=cl
         cp testprog.exe testprog-64.exe
         testprog-64
+        cp output.pdf output-win64.pdf
     - name: make x86
       shell: cmd
       run: |
@@ -67,12 +68,14 @@ jobs:
         make testprog.exe CC=cl
         cp testprog.exe testprog-32.exe
         testprog-32
+        cp output.pdf output-win32.pdf
     - name: Upload aritfacts
       uses: actions/upload-artifact@v2
       with:
         name: artifacts
         path: |
-          output.pdf
+          output-win32.pdf
+          output-win64.pdf
           testprog-32.exe
           testprog-64.exe
 
