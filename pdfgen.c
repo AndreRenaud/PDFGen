@@ -280,19 +280,9 @@ struct pdf_doc {
  * they're packed properly to match the image format requirements
  */
 #pragma pack(push, 1)
-
 struct png_chunk {
     uint32_t length;
     char type[4];
-};
-
-struct png_info {
-    uint32_t length;
-    uint8_t bitdepth;
-    uint8_t ncolours;
-    uint32_t width;
-    uint32_t height;
-    uint8_t *data;
 };
 
 struct png_header {
@@ -318,6 +308,15 @@ struct bmp_header {
     uint32_t biCompression;
 };
 #pragma pack(pop)
+
+struct png_info {
+    uint32_t length;
+    uint8_t bitdepth;
+    uint8_t ncolours;
+    uint32_t width;
+    uint32_t height;
+    uint8_t *data;
+};
 
 /**
  * Simple flexible resizing array implementation
