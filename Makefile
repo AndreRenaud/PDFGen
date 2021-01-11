@@ -8,17 +8,20 @@ CFLAGS=-Wall
 CFLAGS_OBJECT=/Fo:
 CFLAGS_EXE=/Fe:
 O_SUFFIX=.obj
+EXE_SUFFIX=.exe
 else
 CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
 CFLAGS_OBJECT=-o
 CFLAGS_EXE=-o
 O_SUFFIX=.o
+EXE_SUFFIX=
 endif
 
+TESTPROG=testprog$(EXE_SUFFIX)
 
-default: testprog
+default: $(TESTPROG)
 
-testprog: pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX)
+$(TESTPROG): pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX)
 	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX) $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
@@ -31,7 +34,7 @@ tests/penguin.c: data/penguin.jpg
 %$(O_SUFFIX): %.c
 	$(CC) -I. -c $< $(CFLAGS_OBJECT) $@ $(CFLAGS)
 
-check: testprog pdfgen.c pdfgen.h example-check
+check: $(TESTPROG) pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h tests/main.c
 	$(CXX) -c pdfgen.c $(CFLAGS_OBJECT) /dev/null -Werror -Wall -Wextra
 	./tests.sh
@@ -63,5 +66,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps
 	rm -rf docs fuzz-artifacts infer-out

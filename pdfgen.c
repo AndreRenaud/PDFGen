@@ -275,18 +275,14 @@ struct pdf_doc {
 #define PNG_COLOR_INDEXED (3)
 #define PNG_COLOR_GREY (0)
 
+/**
+ * Since we're casting random areas of memory to these, make sure
+ * they're packed properly to match the image format requirements
+ */
+#pragma pack(push, 1)
 struct png_chunk {
     uint32_t length;
     char type[4];
-};
-
-struct png_info {
-    uint32_t pos;
-    uint32_t length;
-    uint8_t bitdepth;
-    uint8_t ncolours;
-    uint32_t width;
-    uint32_t height;
 };
 
 struct png_header {
@@ -310,6 +306,16 @@ struct bmp_header {
     uint16_t biPlanes; // ignore!
     uint16_t biBitCount;
     uint32_t biCompression;
+};
+#pragma pack(pop)
+
+struct png_info {
+    uint32_t length;
+    uint8_t bitdepth;
+    uint8_t ncolours;
+    uint32_t width;
+    uint32_t height;
+    uint8_t *data;
 };
 
 /**
@@ -2495,12 +2501,12 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     int written = 0;
     uint32_t pos;
     struct png_info info = {
-        .pos = 0,
         .length = 0,
         .bitdepth = 0,
         .ncolours = 0,
         .width = 0,
         .height = 0,
+        .data = NULL,
     };
 
     if (len <= sizeof(png_signature))
@@ -2515,20 +2521,27 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
         chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
-        if (pos > len)
-            return pdf_set_err(pdf, -EINVAL, "PNG file too short");
+        if (pos > len) {
+            pdf_set_err(pdf, -EINVAL, "PNG file too short");
+            goto info_free;
+        }
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             /* header found, process width and height, check errors */
             const struct png_header *header =
                 (const struct png_header *)&png_data[pos];
-            if (pos + sizeof(struct png_header) > len)
-                return pdf_set_err(pdf, -EINVAL, "PNG file too short");
-            if (header->deflate != 0)
-                return pdf_set_err(pdf, -EINVAL,
-                                   "Deflate wrong in PNG header");
-            if (header->colortype & PNG_COLOR_ALPHA)
-                return pdf_set_err(pdf, -EINVAL,
-                                   "PDF doesn't support PNG alpha channel");
+            if (pos + sizeof(struct png_header) > len) {
+                pdf_set_err(pdf, -EINVAL, "PNG file too short");
+                goto info_free;
+            }
+            if (header->deflate != 0) {
+                pdf_set_err(pdf, -EINVAL, "Deflate wrong in PNG header");
+                goto info_free;
+            }
+            if (header->colortype & PNG_COLOR_ALPHA) {
+                pdf_set_err(pdf, -EINVAL,
+                            "PDF doesn't support PNG alpha channel");
+                goto info_free;
+            }
             info.width = ntoh32(header->width);
             info.height = ntoh32(header->height);
             info.bitdepth = header->bitdepth;
@@ -2536,39 +2549,54 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                 info.ncolours = 3;
             else if (header->colortype == PNG_COLOR_INDEXED)
                 info.ncolours = 1;
-            else
-                return pdf_set_err(pdf, -EINVAL,
-                                   "PNG has unsupported color type: %d",
-                                   header->colortype);
+            else {
+                pdf_set_err(pdf, -EINVAL,
+                            "PNG has unsupported color type: %d",
+                            header->colortype);
+                goto info_free;
+            }
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
-            info.length = ntoh32(chunk->length);
-            info.pos = pos;
+            uint32_t chunk_len = ntoh32(chunk->length);
+            if (chunk_len > 0 && chunk_len < len - pos) {
+                uint8_t *data =
+                    (uint8_t *)realloc(info.data, info.length + chunk_len);
+                if (!data) {
+                    pdf_set_err(pdf, -ENOMEM, "No memory for PNG data");
+                    goto info_free;
+                }
+                info.data = data;
+                memcpy(&info.data[info.length], &png_data[pos], chunk_len);
+                info.length += chunk_len;
+            }
         } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
             /* end of file, exit */
             break;
         }
 
-        if (ntoh32(chunk->length) >= len)
-            return pdf_set_err(pdf, -EINVAL,
-                               "PNG chunk length larger than file");
+        if (ntoh32(chunk->length) >= len) {
+            pdf_set_err(pdf, -EINVAL, "PNG chunk length larger than file");
+            goto info_free;
+        }
 
         pos += ntoh32(chunk->length); // add chunk length
         pos += sizeof(uint32_t);      // add CRC length
-        if (pos > len)
-            return pdf_set_err(pdf, -errno,
-                               "Wrong PNG format, chunks not found");
+        if (pos > len) {
+            pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
+            goto info_free;
+        }
     }
     /* if no length was found */
-    if (info.length == 0 || info.bitdepth == 0)
-        return pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
-
-    if (info.length + info.pos > len)
-        return pdf_set_err(pdf, -EINVAL, "PNG data length is out of bounds");
+    if (info.length == 0 || info.bitdepth == 0) {
+        pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
+        goto info_free;
+    }
 
     final_data = (uint8_t *)malloc(info.length + 1024);
-    if (!final_data)
-        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
-                           info.length + 1024);
+    if (!final_data) {
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
+                    info.length + 1024);
+        goto info_free;
+    }
 
     /* RGB colored image */
     written = sprintf((char *)final_data,
@@ -2585,7 +2613,8 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                       info.height, info.bitdepth, info.ncolours,
                       info.bitdepth, info.width, info.length);
 
-    memcpy(&final_data[written], &png_data[info.pos], info.length);
+    memcpy(&final_data[written], info.data, info.length);
+    free(info.data);
     written += info.length;
     written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
 
@@ -2599,6 +2628,11 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     free(final_data);
 
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+
+info_free:
+    if (info.data)
+        free(info.data);
+    return pdf->errval;
 }
 
 static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
