@@ -2,6 +2,8 @@ PDFGen
 ======
 <img src="/pdfgen_logo.png" alt="PDFGen Logo" width="200" align="right"/>
 
+<a href="https://www.buymeacoffee.com/EstIgnavus" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+
 Simple C PDF Creation/Generation library.
 All contained a single C-file with header and no external library dependencies.
 
