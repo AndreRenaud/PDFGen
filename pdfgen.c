@@ -2662,6 +2662,9 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->biHeight > 10 * 1024 || header->biHeight < -10 * 1024)
         return pdf_set_err(pdf, -EINVAL, "BMP has invalid height: %d",
                            header->biHeight);
+    if (header->biBitCount != 24 && header->biBitCount != 32)
+        return pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
+                           header->biBitCount);
     width = header->biWidth;
     if (header->biHeight < 0) {
         flip = false;
