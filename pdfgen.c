@@ -2656,7 +2656,12 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->biCompression != 0)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP compression value: %d",
                            header->biCompression);
-    /* BMP rows are 4-bytes padded! */
+    if (header->biWidth > 10 * 1024 || header->biWidth < 0)
+        return pdf_set_err(pdf, -EINVAL, "BMP has invalid width: %d",
+                           header->biWidth);
+    if (header->biHeight > 10 * 1024 || header->biHeight < -10 * 1024)
+        return pdf_set_err(pdf, -EINVAL, "BMP has invalid height: %d",
+                           header->biHeight);
     width = header->biWidth;
     if (header->biHeight < 0) {
         flip = false;
@@ -2664,6 +2669,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     } else {
         height = header->biHeight;
     }
+    /* BMP rows are 4-bytes padded! */
     row_padding = (width * header->biBitCount / 8) & 3;
     data_len = (size_t)width * (size_t)height * 3;
 
