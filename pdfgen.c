@@ -2656,10 +2656,11 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->biCompression != 0)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP compression value: %d",
                            header->biCompression);
-    if (header->biWidth > 10 * 1024 || header->biWidth < 0)
+    if (header->biWidth > 10 * 1024 || header->biWidth <= 0)
         return pdf_set_err(pdf, -EINVAL, "BMP has invalid width: %d",
                            header->biWidth);
-    if (header->biHeight > 10 * 1024 || header->biHeight < -10 * 1024)
+    if (header->biHeight > 10 * 1024 || header->biHeight < -10 * 1024 ||
+        header->biHeight == 0)
         return pdf_set_err(pdf, -EINVAL, "BMP has invalid height: %d",
                            header->biHeight);
     if (header->biBitCount != 24 && header->biBitCount != 32)
