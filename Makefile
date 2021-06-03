@@ -52,7 +52,7 @@ example-check: FORCE
 
 check-fuzz-%: tests/fuzz-% FORCE
 	mkdir -p fuzz-artifacts
-	./$< -verbosity=0 -max_total_time=120 -max_len=8192 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
+	./$< -verbosity=0 -max_total_time=240 -max_len=8192 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
 fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr
 
