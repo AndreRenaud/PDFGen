@@ -2680,7 +2680,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->bfOffBits >= len)
         return pdf_set_err(pdf, -EINVAL, "Invalid BMP image offset");
 
-    if (len - header->bfOffBits < height * (width + row_padding) * bpp)
+    if (len - header->bfOffBits < (size_t)height * (width + row_padding) * bpp)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
 
     if (bpp == 3) {
