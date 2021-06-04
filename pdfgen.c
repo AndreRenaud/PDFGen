@@ -2636,8 +2636,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     const struct bmp_header *header;
     uint8_t *bmp_data = NULL;
     uint8_t row_padding;
-    uint32_t width;
-    uint32_t height;
+    uint32_t width, height, bpp;
     bool flip = true;
     int retval;
     size_t data_len;
@@ -2666,6 +2665,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->biBitCount != 24 && header->biBitCount != 32)
         return pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
                            header->biBitCount);
+    bpp = header->biBitCount / 8;
     width = header->biWidth;
     if (header->biHeight < 0) {
         flip = false;
@@ -2674,15 +2674,17 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
         height = header->biHeight;
     }
     /* BMP rows are 4-bytes padded! */
-    row_padding = (width * header->biBitCount / 8) & 3;
+    row_padding = (width * bpp) & 3;
     data_len = (size_t)width * (size_t)height * 3;
 
-    if (len - header->bfOffBits <
-        height * (width + row_padding) * header->biBitCount / 8) {
-        return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
-    }
+    if (header->bfOffBits >= len)
+        return pdf_set_err(pdf, -EINVAL, "Invalid BMP image offset");
 
-    if (header->biBitCount == 24) {
+    if (len - header->bfOffBits <
+        (size_t)height * (width + row_padding) * bpp)
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
+
+    if (bpp == 3) {
         /* 24 bits: change R and B colors */
         bmp_data = (uint8_t *)malloc(data_len);
         if (!bmp_data)
@@ -2696,7 +2698,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
             bmp_data[pos * 3 + 1] = data[src_pos + 1];
             bmp_data[pos * 3 + 2] = data[src_pos];
         }
-    } else if (header->biBitCount == 32) {
+    } else if (bpp == 4) {
         /* 32 bits: change R and B colors, remove key color */
         int offs = 0;
         bmp_data = (uint8_t *)malloc(data_len);
