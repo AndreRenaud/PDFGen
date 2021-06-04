@@ -1045,8 +1045,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 static uint64_t hash(uint64_t hash, const void *data, size_t len)
 {
     const uint8_t *d8 = (const uint8_t *)data;
-    while (len--)
-        hash = ((hash << 5) + hash) + *d8++;
+    for (; len; len--) {
+        hash = (((hash & 0x07ffffffffffffff) << 5) + hash) + *d8++;
+    }
     return hash;
 }
 
@@ -2388,6 +2389,10 @@ static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
 
     while ((*pos) < len) {
         if (line_pos < line_len) {
+            // Reject non-ascii data
+            if (data[*pos] & 0x80) {
+                return 0;
+            }
             line[line_pos] = data[*pos];
             line_pos++;
         }
