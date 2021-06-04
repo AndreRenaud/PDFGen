@@ -23,7 +23,7 @@ run_fail() {
 }
 
 # Run the test program
-run "valgrind" valgrind --log-file=valgrind.log --leak-check=full --error-exitcode=1 ./testprog
+run "valgrind" valgrind -q --leak-check=full --error-exitcode=1 ./testprog
 
 # We can either use pdftotext or acroread to process it. The results should
 # be the same

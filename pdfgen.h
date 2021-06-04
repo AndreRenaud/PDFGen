@@ -89,14 +89,12 @@ struct pdf_path_operation {
 
 /**
  * Convert a value in inches into a number of points.
- * Always returns an integer value
  * @param inch inches value to convert to points
  */
 #define PDF_INCH_TO_POINT(inch) ((float)((inch)*72.0f))
 
 /**
  * Convert a value in milli-meters into a number of points.
- * Always returns an integer value
  * @param mm millimeter value to convert to points
  */
 #define PDF_MM_TO_POINT(mm) ((float)((mm)*72.0f / 25.4f))
@@ -524,50 +522,54 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
                     const char *string, uint32_t colour);
 
 /**
- * Add a PPM file as an image to the document
- * @param pdf PDF document to add PPM to
- * @param page Page to add PPM to (NULL => most recently added page)
- * @param x X offset to put PPM at
- * @param y Y offset to put PPM at
+ * Add image data as an image to the document.
+ * Image data must be one of: JPEG, PNG, PPM or BMP formats
+ * @param pdf PDF document to add image to
+ * @param page Page to add image to (NULL => most recently added page)
+ * @param x X offset to put image at
+ * @param y Y offset to put image at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
- * @param ppm_file Filename of P6 (binary) ppm file to display
+ * @param data Image data bytes
+ * @param len Length of data
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, float x,
-                float y, float display_width, float display_height,
-                const char *ppm_file);
+int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const uint8_t *data, size_t len);
 
 /**
- * Add a JPEG file as an image to the document
- * @param pdf PDF document to add JPEG to
- * @param page Page to add JPEG to (NULL => most recently added page)
- * @param x X offset to put JPEG at
- * @param y Y offset to put JPEG at
+ * Add a raw 24 bit per pixel RGB buffer as an image to the document
+ * @param pdf PDF document to add image to
+ * @param page Page to add image to (NULL => most recently added page)
+ * @param x X offset to put image at
+ * @param y Y offset to put image at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
- * @param jpeg_file Filename of JPEG file to display
+ * @param data RGB data to add
+ * @param width width of image in pixels
+ * @param height height of image in pixels
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, float x,
-                 float y, float display_width, float display_height,
-                 const char *jpeg_file);
+int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                  float y, float display_width, float display_height,
+                  const uint8_t *data, unsigned width, unsigned height);
 
 /**
- * Add JPEG data as an image to the document
- * @param pdf PDF document to add JPEG to
- * @param page Page to add JPEG to (NULL => most recently added page)
- * @param x X offset to put JPEG at
- * @param y Y offset to put JPEG at
+ * Add an image file as an image to the document.
+ * Support image formats: JPEG, PNG, BMP & PPM
+ * @param pdf PDF document to add bookmark to
+ * @param page Page to add BMP to (NULL => most recently added page)
+ * @param x X offset to put BMP at
+ * @param y Y offset to put BMP at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
- * @param jpeg_data JPEG data to add
- * @param len Length of JPEG data
+ * @param image_filename Filename of image file to display
  * @return < 0 on failure, >= 0 on success
  */
-int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
-                      float y, float display_width, float display_height,
-                      const unsigned char *jpeg_data, size_t len);
+int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const char *image_filename);
 
 #ifdef __cplusplus
 }

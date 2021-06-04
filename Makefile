@@ -8,18 +8,21 @@ CFLAGS=-Wall
 CFLAGS_OBJECT=/Fo:
 CFLAGS_EXE=/Fe:
 O_SUFFIX=.obj
+EXE_SUFFIX=.exe
 else
 CFLAGS=-g -Wall -pipe --std=c1x -O3 -pedantic -Wsuggest-attribute=const -Wsuggest-attribute=format -Wclobbered -Wempty-body -Wignored-qualifiers -Wmissing-field-initializers -Wold-style-declaration -Wmissing-parameter-type -Woverride-init -Wtype-limits -Wuninitialized -Wunused-but-set-parameter -fprofile-arcs -ftest-coverage
 CFLAGS_OBJECT=-o
 CFLAGS_EXE=-o
 O_SUFFIX=.o
+EXE_SUFFIX=
 endif
 
+TESTPROG=testprog$(EXE_SUFFIX)
 
-default: testprog
+default: $(TESTPROG)
 
-testprog: pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX)
-	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) $(LFLAGS)
+$(TESTPROG): pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX)
+	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX) $(LFLAGS)
 
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $< pdfgen.c -fsanitize=fuzzer,address
@@ -31,8 +34,9 @@ tests/penguin.c: data/penguin.jpg
 %$(O_SUFFIX): %.c
 	$(CC) -I. -c $< $(CFLAGS_OBJECT) $@ $(CFLAGS)
 
-check: testprog pdfgen.c pdfgen.h example-check
+check: $(TESTPROG) pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h tests/main.c
+	$(CXX) -c pdfgen.c $(CFLAGS_OBJECT) /dev/null -Werror -Wall -Wextra
 	./tests.sh
 	./tests.sh acroread
 	$(CLANG_FORMAT) pdfgen.c | colordiff -u pdfgen.c -
@@ -48,12 +52,12 @@ example-check: FORCE
 
 check-fuzz-%: tests/fuzz-% FORCE
 	mkdir -p fuzz-artifacts
-	./$< -verbosity=0 -max_total_time=60 -max_len=4096 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
+	./$< -verbosity=0 -max_total_time=240 -max_len=8192 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
-fuzz-check: check-fuzz-ppm check-fuzz-jpg check-fuzz-header check-fuzz-text check-fuzz-dstr
+fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr
 
 format: FORCE
-	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-ppm.c tests/fuzz-jpg.c tests/fuzz-header.c tests/fuzz-text.c
+	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c
 
 docs: FORCE
 	doxygen pdfgen.dox 2>&1 | tee doxygen.log
@@ -62,5 +66,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) testprog *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-ppm tests/fuzz-jpg tests/fuzz-header tests/fuzz-text output.pdftk fuzz.jpg fuzz.ppm fuzz.pdf doxygen.log tests/penguin.c valgrind.log
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps
 	rm -rf docs fuzz-artifacts infer-out

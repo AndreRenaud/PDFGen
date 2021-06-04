@@ -32,7 +32,7 @@ before_build:
   - if "%PLATFORM%"=="win32" SET PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;C:\MinGW\bin;%PATH%
 
 build_script:
-  - mingw32-make testprog CC=cl
+  - mingw32-make testprog.exe CC=cl
   - testprog
 
 artifacts:

@@ -6,6 +6,8 @@
 extern unsigned char data_penguin_jpg[];
 extern unsigned int data_penguin_jpg_len;
 
+extern unsigned char data_rgb[];
+
 int main(int argc, char *argv[])
 {
     struct pdf_info info = {.creator = "My software",
@@ -41,10 +43,19 @@ int main(int argc, char *argv[])
     }
 
     /* These calls should fail, since we haven't added a page yet */
-    if (pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm") >= 0)
+    if (pdf_add_image_file(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm") >= 0)
         return -1;
 
-    if (pdf_add_jpeg(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg") >= 0)
+    if (pdf_add_image_file(pdf, NULL, 100, 500, 50, 150,
+                           "data/penguin.jpg") >= 0)
+        return -1;
+
+    if (pdf_add_image_file(pdf, NULL, 200, 500, 100, 100, "data/coal.png") >=
+        0)
+        return -1;
+
+    if (pdf_add_image_file(pdf, NULL, 300, 500, 243, 204, "data/bee.bmp") >=
+        0)
         return -1;
 
     if (pdf_add_text(pdf, NULL, "Page One", 10, 20, 30,
@@ -75,12 +86,15 @@ int main(int argc, char *argv[])
         16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY, &height);
     pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
-    pdf_add_ppm(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
+    pdf_add_image_file(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
+    pdf_add_image_file(pdf, NULL, 50, 10, 30, 30, "data/coal.png");
+    pdf_add_image_file(pdf, NULL, 100, 10, 30, 30, "data/bee.bmp");
+    pdf_add_image_file(pdf, NULL, 150, 10, 30, 30, "data/bee-32-flip.bmp");
 
-    pdf_add_jpeg(pdf, NULL, 150, 10, 50, 150, "data/grey.jpg");
+    pdf_add_image_file(pdf, NULL, 150, 50, 50, 150, "data/grey.jpg");
 
-    pdf_add_jpeg_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
-                      data_penguin_jpg_len);
+    pdf_add_image_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
+                       data_penguin_jpg_len);
 
     pdf_add_barcode(pdf, NULL, PDF_BARCODE_128A, 50, 300, 200, 50, "Code128",
                     PDF_RGB(0, 0, 0));
@@ -134,8 +148,8 @@ int main(int argc, char *argv[])
 
     pdf_append_page(pdf);
     pdf_add_text(pdf, NULL, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
-    pdf_add_text(pdf, NULL, "This is some weird text () \\ # : - Wi-Fi", 10,
-                 50, 60, PDF_RGB(0, 0, 0));
+    pdf_add_text(pdf, NULL, "This is some weird text () \\ # : - Wi-Fi 27°C",
+                 10, 50, 60, PDF_RGB(0, 0, 0));
     pdf_add_text(
         pdf, NULL,
         "Control characters ( ) < > [ ] { } / % \n \r \t \b \f ending", 10,
@@ -193,6 +207,7 @@ int main(int argc, char *argv[])
     pdf_page_set_size(pdf, NULL, PDF_A3_HEIGHT, PDF_A3_WIDTH);
     pdf_add_text(pdf, NULL, "This is an A3 landscape page", 10, 20, 30,
                  PDF_RGB(0xff, 0, 0));
+    pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
     pdf_save(pdf, "output.pdf");
 
