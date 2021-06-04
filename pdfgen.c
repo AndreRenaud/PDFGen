@@ -1045,8 +1045,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 static uint64_t hash(uint64_t hash, const void *data, size_t len)
 {
     const uint8_t *d8 = (const uint8_t *)data;
-    while (len--)
-        hash = ((hash << 5) + hash) + *d8++;
+    for (; len; len--) {
+        hash = (((hash & 0x07ffffffffffffff) << 5) + hash) + *d8++;
+    }
     return hash;
 }
 
@@ -1191,7 +1192,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
-    uint32_t ch = *utf8;
+    uint32_t ch = *(uint8_t *)utf8;
     uint8_t mask;
 
     if ((ch & 0x80) == 0) {
@@ -1285,7 +1286,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
             char buf[3];
             /* Escape some characters */
             buf[0] = '\\';
-            buf[1] = code;
+            buf[1] = (uint8_t)code;
             buf[2] = '\0';
             dstr_append(&str, buf);
         } else if (strrchr("\n\r\t\b\f", code)) {
@@ -2388,6 +2389,10 @@ static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
 
     while ((*pos) < len) {
         if (line_pos < line_len) {
+            // Reject non-ascii data
+            if (data[*pos] & 0x80) {
+                return 0;
+            }
             line[line_pos] = data[*pos];
             line_pos++;
         }
