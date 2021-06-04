@@ -458,18 +458,23 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
     if (!str->data && len <= sizeof(str->static_data))
         str->alloc_len = len;
     else if (str->alloc_len < len) {
-        char *new_data;
         size_t new_len;
-        bool have_stack_data = !str->data;
 
         new_len = len + 4096;
-        new_data = (char *)realloc(str->data, new_len);
-        if (!new_data)
-            return -ENOMEM;
-        // If we move beyond the on-stack buffer, copy the old data out
-        if (have_stack_data && str->used_len > 0)
-            memcpy(new_data, str->static_data, str->used_len + 1);
-        str->data = new_data;
+
+        if (str->data) {
+            char *new_data = (char *)realloc((void *)str->data, new_len);
+            if (!new_data)
+                return -ENOMEM;
+            str->data = new_data;
+        } else {
+            str->data = (char *)malloc(new_len);
+            if (!str->data)
+                return -ENOMEM;
+            if (str->used_len)
+                memcpy(str->data, str->static_data, str->used_len + 1);
+        }
+
         str->alloc_len = new_len;
     }
     return 0;
