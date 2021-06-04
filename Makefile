@@ -24,6 +24,9 @@ default: $(TESTPROG)
 $(TESTPROG): pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX)
 	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX) $(LFLAGS)
 
+tests/fuzz-dstr: tests/fuzz-dstr.c pdfgen.c
+	$(CLANG) -I. -g -o $@ $< -fsanitize=fuzzer,address,undefined,integer
+
 tests/fuzz-%: tests/fuzz-%.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $< pdfgen.c -fsanitize=fuzzer,address,undefined,integer
 

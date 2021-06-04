@@ -1192,7 +1192,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
-    uint32_t ch = *utf8;
+    uint32_t ch = *(uint8_t *)utf8;
     uint8_t mask;
 
     if ((ch & 0x80) == 0) {
@@ -1286,7 +1286,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
             char buf[3];
             /* Escape some characters */
             buf[0] = '\\';
-            buf[1] = code;
+            buf[1] = (uint8_t)code;
             buf[2] = '\0';
             dstr_append(&str, buf);
         } else if (strrchr("\n\r\t\b\f", code)) {
