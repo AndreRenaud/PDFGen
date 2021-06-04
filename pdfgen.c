@@ -463,12 +463,12 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
         new_len = len + 4096;
 
         if (str->data) {
-            char *new_data = realloc(str->data, new_len);
+            char *new_data = (char *)realloc((void *)str->data, new_len);
             if (!new_data)
                 return -ENOMEM;
             str->data = new_data;
         } else {
-            str->data = malloc(new_len);
+            str->data = (char *)malloc(new_len);
             if (!str->data)
                 return -ENOMEM;
             if (str->used_len)
