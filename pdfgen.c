@@ -850,7 +850,8 @@ static int pdf_get_bookmark_count(const struct pdf_object *obj)
         count += nchildren;
         for (int i = 0; i < nchildren; i++) {
             count += pdf_get_bookmark_count(
-                flexarray_get(&obj->bookmark.children, i));
+                (const struct pdf_object *)flexarray_get(
+                    &obj->bookmark.children, i));
         }
     }
     return count;
