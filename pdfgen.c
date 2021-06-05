@@ -635,6 +635,9 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 {
     struct pdf_object *obj;
 
+    if (!pdf)
+        return NULL;
+
     obj = (struct pdf_object *)calloc(1, sizeof(*obj));
     if (!obj) {
         pdf_set_err(pdf, -errno,
@@ -770,12 +773,16 @@ void pdf_destroy(struct pdf_doc *pdf)
 static struct pdf_object *pdf_find_first_object(const struct pdf_doc *pdf,
                                                 int type)
 {
+    if (!pdf)
+        return NULL;
     return pdf->first_objects[type];
 }
 
 static struct pdf_object *pdf_find_last_object(const struct pdf_doc *pdf,
                                                int type)
 {
+    if (!pdf)
+        return NULL;
     return pdf->last_objects[type];
 }
 
@@ -832,6 +839,21 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page,
     page->page.width = width;
     page->page.height = height;
     return 0;
+}
+
+// Recursively scan for the number of children
+static int pdf_get_bookmark_count(const struct pdf_object *obj)
+{
+    int count = 0;
+    if (obj->type == OBJ_bookmark) {
+        int nchildren = flexarray_size(&obj->bookmark.children);
+        count += nchildren;
+        for (int i = 0; i < nchildren; i++) {
+            count += pdf_get_bookmark_count(
+                flexarray_get(&obj->bookmark.children, i));
+        }
+    }
+    return count;
 }
 
 static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
@@ -927,10 +949,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             break;
         fprintf(fp,
                 "<<\r\n"
-                "/A << /Type /Action\r\n"
-                "      /S /GoTo\r\n"
-                "      /D [%d 0 R /XYZ 0 %f null]\r\n"
-                "   >>\r\n"
+                "/Dest [%d 0 R /XYZ 0 %f null]\r\n"
                 "/Parent %d 0 R\r\n"
                 "/Title (%s)\r\n",
                 object->bookmark.page->index, pdf->height, parent->index,
@@ -944,6 +963,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                                                    nchildren - 1);
             fprintf(fp, "/First %d 0 R\r\n", f->index);
             fprintf(fp, "/Last %d 0 R\r\n", l->index);
+            fprintf(fp, "/Count %d\r\n", pdf_get_bookmark_count(object));
         }
         // Find the previous bookmark with the same parent
         for (other = object->prev;
@@ -973,7 +993,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             cur = first;
             while (cur) {
                 if (!cur->bookmark.parent)
-                    count++;
+                    count += pdf_get_bookmark_count(cur) + 1;
                 cur = cur->next;
             }
 
@@ -1064,7 +1084,7 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     uint64_t id1, id2;
     time_t now = time(NULL);
 
-    fprintf(fp, "%%PDF-1.2\r\n");
+    fprintf(fp, "%%PDF-1.3\r\n");
     /* Hibit bytes */
     fprintf(fp, "%c%c%c%c%c\r\n", 0x25, 0xc7, 0xec, 0x8f, 0xa2);
 
