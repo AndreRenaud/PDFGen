@@ -190,6 +190,7 @@ int main(int argc, char *argv[])
     bm = pdf_add_bookmark(pdf, NULL, -1, "Another Page");
     bm = pdf_add_bookmark(pdf, NULL, bm, "Another Page again");
     pdf_add_bookmark(pdf, NULL, bm, "A child page");
+    pdf_add_bookmark(pdf, NULL, bm, "Another child page");
     pdf_add_bookmark(pdf, NULL, -1, "Top level again");
     pdf_append_page(pdf);
 
@@ -205,6 +206,8 @@ int main(int argc, char *argv[])
 
     pdf_append_page(pdf);
     pdf_page_set_size(pdf, NULL, PDF_A3_HEIGHT, PDF_A3_WIDTH);
+    pdf_add_bookmark(pdf, NULL, -1, "Last Page");
+
     pdf_add_text(pdf, NULL, "This is an A3 landscape page", 10, 20, 30,
                  PDF_RGB(0xff, 0, 0));
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
