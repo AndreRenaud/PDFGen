@@ -205,6 +205,7 @@ enum {
     OBJ_catalog,
     OBJ_pages,
     OBJ_image,
+    OBJ_encryption,
 
     OBJ_count,
 };
@@ -220,7 +221,7 @@ struct flexarray {
  * stack before falling back to malloc once things get large
  */
 struct dstr {
-    char static_data[128];
+    char static_data[64];
     char *data;
     size_t alloc_len;
     size_t used_len;
@@ -239,7 +240,10 @@ struct pdf_object {
             struct pdf_object *parent;
             struct flexarray children;
         } bookmark;
-        struct dstr stream;
+        struct {
+            struct dstr header;
+            struct dstr data;
+        } stream;
         struct {
             float width;
             float height;
@@ -250,6 +254,11 @@ struct pdf_object {
             char name[64];
             int index;
         } font;
+        struct {
+            uint16_t flags;
+            uint8_t user[32];
+            uint8_t owner[32];
+        } encryption;
     };
 };
 
@@ -265,6 +274,8 @@ struct pdf_doc {
 
     struct pdf_object *last_objects[OBJ_count];
     struct pdf_object *first_objects[OBJ_count];
+
+    uint64_t id1;
 };
 
 /*!
@@ -529,6 +540,205 @@ static void dstr_free(struct dstr *str)
 }
 
 /**
+ * MD5 implementation, for encryption
+ * Sourced from https://gist.github.com/creationix/4710780
+ */
+// leftrotate function definition
+#define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
+
+// These vars will contain the hash
+
+static void md5(uint8_t *initial_msg, size_t initial_len, uint8_t *result)
+{
+
+    // Message (to prepare)
+    uint8_t *msg = NULL;
+    uint32_t h0, h1, h2, h3;
+
+    // Note: All variables are unsigned 32 bit and wrap modulo 2^32 when
+    // calculating
+
+    // r specifies the per-round shift amounts
+
+    uint32_t r[] = {7,  12, 17, 22, 7,  12, 17, 22, 7,  12, 17, 22, 7,
+                    12, 17, 22, 5,  9,  14, 20, 5,  9,  14, 20, 5,  9,
+                    14, 20, 5,  9,  14, 20, 4,  11, 16, 23, 4,  11, 16,
+                    23, 4,  11, 16, 23, 4,  11, 16, 23, 6,  10, 15, 21,
+                    6,  10, 15, 21, 6,  10, 15, 21, 6,  10, 15, 21};
+
+    // Use binary integer part of the sines of integers (in radians) as
+    // constants// Initialize variables:
+    uint32_t k[] = {
+        0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf,
+        0x4787c62a, 0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af,
+        0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e,
+        0x49b40821, 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
+        0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8, 0x21e1cde6,
+        0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8,
+        0x676f02d9, 0x8d2a4c8a, 0xfffa3942, 0x8771f681, 0x6d9d6122,
+        0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+        0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039,
+        0xe6db99e5, 0x1fa27cf8, 0xc4ac5665, 0xf4292244, 0x432aff97,
+        0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d,
+        0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
+        0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
+
+    h0 = 0x67452301;
+    h1 = 0xefcdab89;
+    h2 = 0x98badcfe;
+    h3 = 0x10325476;
+
+    // Pre-processing: adding a single 1 bit
+    // append "1" bit to message
+    /* Notice: the input bytes are considered as bits strings,
+       where the first bit is the most significant bit of the byte.[37] */
+
+    // Pre-processing: padding with zeros
+    // append "0" bit until message length in bit ≡ 448 (mod 512)
+    // append length mod (2 pow 64) to message
+
+    int new_len = ((((initial_len + 8) / 64) + 1) * 64) - 8;
+
+    msg = calloc(new_len + 64, 1); // also appends "0" bits
+                                   // (we alloc also 64 extra bytes...)
+    memcpy(msg, initial_msg, initial_len);
+    msg[initial_len] = 128; // write the "1" bit
+
+    uint32_t bits_len = 8 * initial_len; // note, we append the len
+    memcpy(msg + new_len, &bits_len, 4); // in bits at the end of the buffer
+
+    // Process the message in successive 512-bit chunks:
+    // for each 512-bit chunk of message:
+    int offset;
+    for (offset = 0; offset < new_len; offset += (512 / 8)) {
+
+        // break chunk into sixteen 32-bit words w[j], 0 ≤ j ≤ 15
+        uint32_t *w = (uint32_t *)(msg + offset);
+
+        // Initialize hash value for this chunk:
+        uint32_t a = h0;
+        uint32_t b = h1;
+        uint32_t c = h2;
+        uint32_t d = h3;
+
+        // Main loop:
+        uint32_t i;
+        for (i = 0; i < 64; i++) {
+
+            uint32_t f, g;
+
+            if (i < 16) {
+                f = (b & c) | ((~b) & d);
+                g = i;
+            } else if (i < 32) {
+                f = (d & b) | ((~d) & c);
+                g = (5 * i + 1) % 16;
+            } else if (i < 48) {
+                f = b ^ c ^ d;
+                g = (3 * i + 5) % 16;
+            } else {
+                f = c ^ (b | (~d));
+                g = (7 * i) % 16;
+            }
+
+            uint32_t temp = d;
+            d = c;
+            c = b;
+            b = b + LEFTROTATE((a + f + k[i] + w[g]), r[i]);
+            a = temp;
+        }
+
+        // Add this chunk's hash to result so far:
+
+        h0 += a;
+        h1 += b;
+        h2 += c;
+        h3 += d;
+    }
+
+    // cleanup
+    free(msg);
+
+    result[0] = h0 & 0xff;
+    result[1] = h0 >> 8;
+    result[2] = h0 >> 16;
+    result[3] = h0 >> 24;
+    result[4] = h1 & 0xff;
+    result[5] = h1 >> 8;
+    result[6] = h1 >> 16;
+    result[7] = h1 >> 24;
+    result[8] = h2 & 0xff;
+    result[9] = h2 >> 8;
+    result[10] = h2 >> 16;
+    result[11] = h2 >> 24;
+    result[12] = h3 & 0xff;
+    result[13] = h3 >> 8;
+    result[14] = h3 >> 16;
+    result[15] = h3 >> 24;
+}
+
+/**
+ * RC4 implementation, for encryption
+ * Sourced from https://gist.github.com/rverton/a44fc8ca67ab9ec32089
+ */
+
+#define N 256 // 2^8
+
+static inline void swap(uint8_t *a, uint8_t *b)
+{
+    uint8_t tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+static int ksa(const uint8_t *key, int keylen, uint8_t *S)
+{
+
+    int j = 0;
+
+    for (int i = 0; i < N; i++)
+        S[i] = i;
+
+    for (int i = 0; i < N; i++) {
+        j = (j + S[i] + key[i % keylen]) % N;
+
+        swap(&S[i], &S[j]);
+    }
+
+    return 0;
+}
+
+static int prga(uint8_t *S, const uint8_t *plaintext, size_t len,
+                uint8_t *ciphertext)
+{
+
+    int i = 0;
+    int j = 0;
+
+    for (size_t n = 0; n < len; n++) {
+        i = (i + 1) % N;
+        j = (j + S[i]) % N;
+
+        swap(&S[i], &S[j]);
+        int rnd = S[(S[i] + S[j]) % N];
+
+        ciphertext[n] = rnd ^ plaintext[n];
+    }
+
+    return 0;
+}
+
+static void rc4(const uint8_t *key, int keylen, const uint8_t *plaintext,
+                size_t len, uint8_t *ciphertext)
+{
+
+    uint8_t S[N];
+    ksa(key, keylen, S);
+
+    prga(S, plaintext, len, ciphertext);
+}
+
+/**
  * PDF Implementation
  */
 
@@ -616,7 +826,8 @@ static void pdf_object_destroy(struct pdf_object *object)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
-        dstr_free(&object->stream);
+        dstr_free(&object->stream.header);
+        dstr_free(&object->stream.data);
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
@@ -683,6 +894,16 @@ static void pdf_del_object(struct pdf_doc *pdf, struct pdf_object *obj)
     pdf_object_destroy(obj);
 }
 
+// Slightly modified djb2 hash algorithm to get pseudo-random ID
+static uint64_t hash(uint64_t hash, const void *data, size_t len)
+{
+    const uint8_t *d8 = (const uint8_t *)data;
+    for (; len; len--) {
+        hash = (((hash & 0x07ffffffffffffff) << 5) + hash) + *d8++;
+    }
+    return hash;
+}
+
 struct pdf_doc *pdf_create(float width, float height,
                            const struct pdf_info *info)
 {
@@ -732,6 +953,9 @@ struct pdf_doc *pdf_create(float width, float height,
         strftime(obj->info->date, sizeof(obj->info->date), "%Y%m%d%H%M%SZ",
                  &tm);
     }
+
+    // Store the ID1 entry for encryption
+    pdf->id1 = hash(5381, obj->info, sizeof(struct pdf_info));
 
     if (!pdf_add_object(pdf, OBJ_pages)) {
         pdf_destroy(pdf);
@@ -841,6 +1065,51 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page,
     return 0;
 }
 
+int pdf_set_encryption(struct pdf_doc *pdf, uint16_t flags,
+                       const uint8_t *user, int user_len,
+                       const uint8_t *owner, int owner_len)
+{
+    struct pdf_object *obj;
+    const uint8_t user_pad[] = {
+        0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41, 0x64, 0x00, 0x4E,
+        0x56, 0xFF, 0xFA, 0x01, 0x08, 0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68,
+        0x3E, 0x80, 0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A};
+
+    if (pdf_find_first_object(pdf, OBJ_encryption))
+        return pdf_set_err(pdf, -EINVAL, "Encryption already set");
+
+    obj = pdf_add_object(pdf, OBJ_encryption);
+    if (!obj)
+        return pdf->errval;
+
+    /* Put in the user password, and pad it with user_pad up to the max size
+     */
+    if (user_len > sizeof(obj->encryption.user))
+        user_len = sizeof(obj->encryption.user);
+    memcpy(obj->encryption.user, user, user_len);
+    memcpy(&obj->encryption.user[user_len], user_pad,
+           sizeof(obj->encryption.user) - user_len);
+
+    /* Put in the owner password, padded with zeros */
+    if (owner_len > sizeof(obj->encryption.owner))
+        owner_len = sizeof(obj->encryption.owner);
+    memcpy(obj->encryption.owner, owner, owner_len);
+    memset(&obj->encryption.owner[owner_len], 0,
+           sizeof(obj->encryption.owner) - owner_len);
+
+    // Make sure the compulsory bits are set, and the others are clear
+    obj->encryption.flags = (flags | 0xffc0) & ~3;
+    // printf("Added encryption %x\n", pdf->encryption.flags);
+
+    // uint8_t res[16];
+    // char *input = "The quick brown fox jumps over the lazy dog.";
+    // md5(input, strlen(input), res);
+    // printf("md5: %2.2x%2.2x%2.2x%2.2x ... %2.2x%2.2x%2.2x%2.2x\n", res[0],
+    // res[1], res[2], res[3], res[12], res[13], res[14], res[15]);
+
+    return 0;
+}
+
 // Recursively scan for the number of children
 static int pdf_get_bookmark_count(const struct pdf_object *obj)
 {
@@ -857,7 +1126,8 @@ static int pdf_get_bookmark_count(const struct pdf_object *obj)
     return count;
 }
 
-static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
+static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index,
+                           uint8_t *enc_key)
 {
     struct pdf_object *object = pdf_get_object(pdf, index);
     if (!object)
@@ -873,7 +1143,22 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image: {
-        fwrite(dstr_data(&object->stream), dstr_len(&object->stream), 1, fp);
+        fwrite(dstr_data(&object->stream.header),
+               dstr_len(&object->stream.header), 1, fp);
+        if (enc_key) {
+            size_t len = dstr_len(&object->stream.data);
+            uint8_t *tmp = malloc(len);
+            if (!tmp)
+                return -ENOMEM;
+            rc4(enc_key, 5, (const uint8_t *)dstr_data(&object->stream.data),
+                len, tmp);
+            fwrite(tmp, len, 1, fp);
+            free(tmp);
+        } else {
+            fwrite(dstr_data(&object->stream.data),
+                   dstr_len(&object->stream.data), 1, fp);
+        }
+        fprintf(fp, "\r\nendstream\r\n");
         break;
     }
     case OBJ_info: {
@@ -1057,6 +1342,27 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         break;
     }
 
+    case OBJ_encryption: {
+        fprintf(fp, "<<\r\n");
+        fprintf(fp, "  /Filter /Standard\r\n");
+        fprintf(fp, "  /V 1\r\n");
+        fprintf(fp, "  /R 2\r\n");
+
+        fprintf(fp, "  /U (");
+        // TODO: Should be encrypting these
+        for (int i = 0; i < sizeof(object->encryption.user); i++)
+            fprintf(fp, "%2.2x", object->encryption.user[i]);
+        fprintf(fp, ")\r\n");
+        fprintf(fp, "  /O (");
+        for (int i = 0; i < sizeof(object->encryption.owner); i++)
+            fprintf(fp, "%2.2x", object->encryption.owner[i]);
+        fprintf(fp, ")\r\n");
+
+        fprintf(fp, "  /P %d\r\n", object->encryption.flags);
+        fprintf(fp, ">>\r\n");
+        break;
+    }
+
     default:
         return pdf_set_err(pdf, -EINVAL, "Invalid PDF object type %d",
                            object->type);
@@ -1067,14 +1373,39 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     return 0;
 }
 
-// Slightly modified djb2 hash algorithm to get pseudo-random ID
-static uint64_t hash(uint64_t hash, const void *data, size_t len)
+/**
+ * Construct the 40-bit RC4 key
+ */
+static bool pdf_encryption_key(struct pdf_doc *pdf, uint8_t key[5])
 {
-    const uint8_t *d8 = (const uint8_t *)data;
-    for (; len; len--) {
-        hash = (((hash & 0x07ffffffffffffff) << 5) + hash) + *d8++;
-    }
-    return hash;
+    uint8_t input[32 + 32 + 4 + 8];
+    uint8_t res[8];
+    struct pdf_object *obj;
+
+    obj = pdf_find_first_object(pdf, OBJ_encryption);
+    if (!obj)
+        return false;
+
+    // See 'Algorithm 3.2: Computing an Encryption Key' in the PDF spec
+    memcpy(&input[0], obj->encryption.user, 32);
+    memcpy(&input[32], obj->encryption.owner, 32);
+    input[64] = obj->encryption.flags;
+    input[65] = obj->encryption.flags >> 8;
+    input[66] = 0;
+    input[67] = 0;
+    input[68] = pdf->id1;
+    input[69] = pdf->id1 >> 8;
+    input[70] = pdf->id1 >> 16;
+    input[71] = pdf->id1 >> 24;
+    input[72] = pdf->id1 >> 32;
+    input[73] = pdf->id1 >> 40;
+    input[74] = pdf->id1 >> 48;
+    input[75] = pdf->id1 >> 56;
+
+    md5(input, sizeof(input), res);
+
+    memcpy(key, res, 5);
+    return true;
 }
 
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
@@ -1082,8 +1413,12 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     struct pdf_object *obj;
     int xref_offset;
     int xref_count = 0;
-    uint64_t id1, id2;
+    uint64_t id2;
     time_t now = time(NULL);
+    bool encrypting;
+    uint8_t enc_key[5];
+
+    encrypting = pdf_encryption_key(pdf, enc_key);
 
     fprintf(fp, "%%PDF-1.3\r\n");
     /* Hibit bytes */
@@ -1091,7 +1426,7 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 
     /* Dump all the objects & get their file offsets */
     for (int i = 0; i < flexarray_size(&pdf->objects); i++)
-        if (pdf_save_object(pdf, fp, i) >= 0)
+        if (pdf_save_object(pdf, fp, i, encrypting ? enc_key : NULL) >= 0)
             xref_count++;
 
     /* xref */
@@ -1112,17 +1447,28 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
             xref_count + 1);
     obj = pdf_find_first_object(pdf, OBJ_catalog);
     fprintf(fp, "/Root %d 0 R\r\n", obj->index);
+
+    obj = pdf_find_first_object(pdf, OBJ_encryption);
+    if (obj)
+        fprintf(fp, "/Encrypt %d 0 R\r\n", obj->index);
+
     obj = pdf_find_first_object(pdf, OBJ_info);
     fprintf(fp, "/Info %d 0 R\r\n", obj->index);
-    /* Generate document unique IDs */
-    id1 = hash(5381, obj->info, sizeof(struct pdf_info));
-    id1 = hash(id1, &xref_count, sizeof(xref_count));
+
+    /* Generate changing unique id */
     id2 = hash(5381, &now, sizeof(now));
-    fprintf(fp, "/ID [<%16.16" PRIx64 "> <%16.16" PRIx64 ">]\r\n", id1, id2);
+    fprintf(fp, "/ID [<%16.16" PRIx64 "> <%16.16" PRIx64 ">]\r\n", pdf->id1,
+            id2);
     fprintf(fp, ">>\r\n"
                 "startxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
+
+#if 0
+    uint8_t c[5];
+    rc4((const uint8_t*)"Wiki", 4, (const uint8_t*)"pedia", 5, c);
+    printf("rc4: %2.2x%2.2x%2.2x%2.2x%2.2x\n", c[0], c[1], c[2], c[3], c[4]);
+#endif
 
     return 0;
 }
@@ -1169,9 +1515,9 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %zu >>stream\r\n", len);
-    dstr_append_data(&obj->stream, buffer, len);
-    dstr_append(&obj->stream, "\r\nendstream\r\n");
+    dstr_printf(&obj->stream.header, "<< /Length %zu >>stream\r\n", len);
+    dstr_append_data(&obj->stream.data, buffer, len);
+    // dstr_append(&obj->stream, "\r\nendstream\r\n");
 
     return flexarray_append(&page->page.children, obj);
 }
@@ -2256,34 +2602,35 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                                      unsigned width, unsigned height)
 {
     struct pdf_object *obj;
-    size_t len;
-    const char *endstream = ">\r\nendstream\r\n";
-    struct dstr str = INIT_DSTR;
+    // size_t len;
+    // const char *endstream = ">\r\nendstream\r\n";
+    struct dstr header = INIT_DSTR;
+    struct dstr obj_data = INIT_DSTR;
     size_t data_len = (size_t)width * (size_t)height * 3;
 
     dstr_printf(
-        &str,
+        &header,
         "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
         "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
         "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
         flexarray_size(&pdf->objects), height, width, data_len + 1);
 
-    len = dstr_len(&str) + data_len + strlen(endstream) + 1;
-    if (dstr_ensure(&str, len) < 0) {
-        dstr_free(&str);
+    if (dstr_append_data(&obj_data, data, data_len) < 0) {
+        dstr_free(&header);
         pdf_set_err(pdf, -ENOMEM,
-                    "Unable to allocate %zu bytes memory for image", len);
+                    "Unable to allocate %zu bytes memory for image data",
+                    data_len);
         return NULL;
     }
-    dstr_append_data(&str, data, data_len);
-    dstr_append(&str, endstream);
 
     obj = pdf_add_object(pdf, OBJ_image);
     if (!obj) {
-        dstr_free(&str);
+        dstr_free(&header);
+        dstr_free(&obj_data);
         return NULL;
     }
-    obj->stream = str;
+    obj->stream.header = header;
+    obj->stream.data = obj_data;
 
     return obj;
 }
@@ -2371,7 +2718,7 @@ static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
     obj = pdf_add_object(pdf, OBJ_image);
     if (!obj)
         return NULL;
-    dstr_printf(&obj->stream,
+    dstr_printf(&obj->stream.header,
                 "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
                 "/Subtype /Image\r\n/ColorSpace %s\r\n"
                 "/Width %d\r\n/Height %d\r\n"
@@ -2380,9 +2727,7 @@ static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
                 flexarray_size(&pdf->objects),
                 ncolours == 1 ? "/DeviceGray" : "/DeviceRGB", width, height,
                 (int)len);
-    dstr_append_data(&obj->stream, jpeg_data, len);
-
-    dstr_printf(&obj->stream, "\r\nendstream\r\n");
+    dstr_append_data(&obj->stream.data, jpeg_data, len);
 
     return obj;
 }
@@ -2521,8 +2866,8 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     const char png_chunk_data[] = "IDAT";
     const char png_chunk_end[] = "IEND";
     struct pdf_object *obj;
-    uint8_t *final_data;
-    int written = 0;
+    // uint8_t *final_data;
+    // int written = 0;
     uint32_t pos;
     struct png_info info = {
         .length = 0,
@@ -2615,41 +2960,46 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto info_free;
     }
 
-    final_data = (uint8_t *)malloc(info.length + 1024);
-    if (!final_data) {
-        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
-                    info.length + 1024);
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj)
         goto info_free;
-    }
+    /*
+        final_data = (uint8_t *)malloc(info.length + 1024);
+        if (!final_data) {
+            pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
+                        info.length + 1024);
+            goto info_free;
+        }
+        */
 
     /* RGB colored image */
-    written = sprintf((char *)final_data,
-                      "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace %s/DeviceRGB\r\n"
-                      "/Width %u\r\n/Height %u\r\n"
-                      "/Interpolate true\r\n"
-                      "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
-                      "/DecodeParms << /Predictor 15 /Colors %d "
-                      "/BitsPerComponent %u /Columns %u >>\r\n"
-                      "/Length %u\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects),
-                      info.ncolours == 1 ? "/Indexed " : "", info.width,
-                      info.height, info.bitdepth, info.ncolours,
-                      info.bitdepth, info.width, info.length);
+    dstr_printf(&obj->stream.header,
+                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                "/Subtype /Image\r\n/ColorSpace %s/DeviceRGB\r\n"
+                "/Width %u\r\n/Height %u\r\n"
+                "/Interpolate true\r\n"
+                "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
+                "/DecodeParms << /Predictor 15 /Colors %d "
+                "/BitsPerComponent %u /Columns %u >>\r\n"
+                "/Length %u\r\n>>stream\r\n",
+                flexarray_size(&pdf->objects),
+                info.ncolours == 1 ? "/Indexed " : "", info.width,
+                info.height, info.bitdepth, info.ncolours, info.bitdepth,
+                info.width, info.length);
 
-    memcpy(&final_data[written], info.data, info.length);
-    free(info.data);
-    written += info.length;
-    written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        free(final_data);
-        return pdf_get_errval(pdf);
+    if (dstr_append_data(&obj->stream.data, info.data, info.length) < 0) {
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
+                    info.length);
+        goto info_free;
     }
-    dstr_append_data(&obj->stream, final_data, written);
+    // memcpy(&final_data[written], info.data, info.length);
+    // free(info.data);
+    // written += info.length;
+    // written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
 
-    free(final_data);
+    // dstr_append_data(&obj->stream, final_data, written);
+
+    // free(final_data);
 
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 

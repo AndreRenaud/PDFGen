@@ -172,6 +172,16 @@ enum {
 };
 
 /**
+ * PDF Encrpytion settings flags
+ */
+enum {
+    PDF_ENCRYPTION_PRINT = (1 << 2),
+    PDF_ENCRYPTION_MODIFY = (1 << 3),
+    PDF_ENCRYPTION_COPY_TEXT = (1 << 4),
+    PDF_ENCRYPTION_ADD_EDIT = (1 << 5),
+};
+
+/**
  * Create a new PDF object, with the given page
  * width/height
  * @param width Width of the page
@@ -201,6 +211,20 @@ const char *pdf_get_err(const struct pdf_doc *pdf, int *errval);
  * @param pdf pdf document to clear the error message from
  */
 void pdf_clear_err(struct pdf_doc *pdf);
+
+/**
+ * Enable encryption & usage restrictions on the PDF
+ * @param pdf pdf document to set encryption/flags on
+ * @param flags Flags to apple (See PDF_ENCRYPTION_xxx)
+ * @param user Up to 32-bytes of user password
+ * @param user_len Number of bytes in user
+ * @param owner Up to 32-bytes of owner password
+ * @param owner_len Number of bytes in owner
+ * @return < 0 on failure, 0 on success
+ */
+int pdf_set_encryption(struct pdf_doc *pdf, uint16_t flags,
+                       const uint8_t *user, int user_len,
+                       const uint8_t *owner, int owner_len);
 
 /**
  * Sets the font to use for text objects. Default value is Times-Roman if

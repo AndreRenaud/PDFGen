@@ -212,6 +212,9 @@ int main(int argc, char *argv[])
                  PDF_RGB(0xff, 0, 0));
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
+    uint8_t password[] = {'a', 'b', 'c'};
+    pdf_set_encryption(pdf, 0, NULL, 0, password, sizeof(password));
+
     pdf_save(pdf, "output.pdf");
 
     const char *err_str = pdf_get_err(pdf, &err);
