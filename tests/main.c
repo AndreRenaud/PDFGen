@@ -213,7 +213,8 @@ int main(int argc, char *argv[])
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
     uint8_t password[] = {'a', 'b', 'c'};
-    pdf_set_encryption(pdf, 0, NULL, 0, password, sizeof(password));
+    pdf_set_encryption(pdf, 0, password, sizeof(password), NULL,
+                       0); // password, sizeof(password));
 
     pdf_save(pdf, "output.pdf");
 

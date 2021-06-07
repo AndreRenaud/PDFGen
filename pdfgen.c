@@ -185,6 +185,9 @@ static inline uint32_t bswap32(uint32_t x)
 #define ntoh32(x) (x)
 #endif
 
+// How many bytes in an MD5 sum
+#define MD5_BYTES (128 / 8)
+
 // Signatures for various image formats
 static const uint8_t bmp_signature[] = {'B', 'M'};
 static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
@@ -1094,18 +1097,13 @@ int pdf_set_encryption(struct pdf_doc *pdf, uint16_t flags,
     if (owner_len > sizeof(obj->encryption.owner))
         owner_len = sizeof(obj->encryption.owner);
     memcpy(obj->encryption.owner, owner, owner_len);
+    // memcpy(&obj->encryption.owner[owner_len], obj->encryption.user,
+    // sizeof(obj->encryption.owner) - owner_len);
     memset(&obj->encryption.owner[owner_len], 0,
            sizeof(obj->encryption.owner) - owner_len);
 
     // Make sure the compulsory bits are set, and the others are clear
     obj->encryption.flags = (flags | 0xffc0) & ~3;
-    // printf("Added encryption %x\n", pdf->encryption.flags);
-
-    // uint8_t res[16];
-    // char *input = "The quick brown fox jumps over the lazy dog.";
-    // md5(input, strlen(input), res);
-    // printf("md5: %2.2x%2.2x%2.2x%2.2x ... %2.2x%2.2x%2.2x%2.2x\n", res[0],
-    // res[1], res[2], res[3], res[12], res[13], res[14], res[15]);
 
     return 0;
 }
@@ -1147,11 +1145,12 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index,
                dstr_len(&object->stream.header), 1, fp);
         if (enc_key) {
             size_t len = dstr_len(&object->stream.data);
+            const uint8_t *data =
+                (const uint8_t *)dstr_data(&object->stream.data);
             uint8_t *tmp = malloc(len);
             if (!tmp)
                 return -ENOMEM;
-            rc4(enc_key, 5, (const uint8_t *)dstr_data(&object->stream.data),
-                len, tmp);
+            rc4(enc_key, 5, data, len, tmp);
             fwrite(tmp, len, 1, fp);
             free(tmp);
         } else {
@@ -1165,6 +1164,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index,
         struct pdf_info *info = object->info;
 
         fprintf(fp, "<<\r\n");
+        // TODO: Encrypt these items
         if (info->creator[0])
             fprintf(fp, "  /Creator (%s)\r\n", info->creator);
         if (info->producer[0])
@@ -1343,19 +1343,28 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index,
     }
 
     case OBJ_encryption: {
+        uint8_t tmp[sizeof(object->encryption.user)];
+        uint8_t md5sum[MD5_BYTES];
         fprintf(fp, "<<\r\n");
         fprintf(fp, "  /Filter /Standard\r\n");
         fprintf(fp, "  /V 1\r\n");
         fprintf(fp, "  /R 2\r\n");
 
         fprintf(fp, "  /U (");
-        // TODO: Should be encrypting these
+        // md5(object->encryption.user, sizeof(object->encryption.user),
+        // md5sum);
+        rc4(enc_key, 5, object->encryption.user,
+            sizeof(object->encryption.user), tmp);
         for (int i = 0; i < sizeof(object->encryption.user); i++)
-            fprintf(fp, "%2.2x", object->encryption.user[i]);
+            fprintf(fp, "%c", tmp[i]);
         fprintf(fp, ")\r\n");
         fprintf(fp, "  /O (");
+        // TODO: Actuall use owner password
+        md5(object->encryption.user, sizeof(object->encryption.user), md5sum);
+        rc4(md5sum, 5, object->encryption.user,
+            sizeof(object->encryption.user), tmp);
         for (int i = 0; i < sizeof(object->encryption.owner); i++)
-            fprintf(fp, "%2.2x", object->encryption.owner[i]);
+            fprintf(fp, "%c", tmp[i]);
         fprintf(fp, ")\r\n");
 
         fprintf(fp, "  /P %d\r\n", object->encryption.flags);

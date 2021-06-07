@@ -25,6 +25,9 @@ Supports the following PDF features
     * JPEG
     * PNG
     * BMP
+* Encryption & permissions
+    * PDF v1.3 40-bit RC4 encryption support
+    * NOTE: This encryption method is no longer considered to be secure against a determined attack. It is not suitable for highly confidential documents.
 
 Example usage
 =============
