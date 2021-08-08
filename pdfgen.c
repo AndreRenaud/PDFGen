@@ -2681,8 +2681,6 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
     free(final_data);
 
-    // pdf_page_set_size(pdf, page, info.width, info.height);
-    // return pdf_add_image(pdf, page, obj, x, y, info.width, info.height);
     get_img_display_dimensions(info.width, info.height, &display_width,
                                &display_height);
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
