@@ -2392,21 +2392,31 @@ static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
 /**
  * Get the display dimensions of an image, respecting the images aspect ratio
  * if only one desired display dimension is defined.
+ * The pdf parameter is only used for setting the error value.
  */
-static int get_img_display_dimensions(uint32_t img_width, uint32_t img_height,
+static int get_img_display_dimensions(struct pdf_doc *pdf, uint32_t img_width,
+                                      uint32_t img_height,
                                       float *display_width,
                                       float *display_height)
 {
     if (!display_height || !display_height) {
-        return -EINVAL;
+        return pdf_set_err(
+            pdf, -EINVAL,
+            "display_width and display_height may not be null pointers");
     }
 
     const float display_width_in = *display_width;
     const float display_height_in = *display_height;
 
-    if ((display_width_in < 0 && display_height_in < 0) || img_width == 0 ||
-        img_height == 0) {
-        return -EINVAL;
+    if (display_width_in < 0 && display_height_in < 0) {
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to determine image display dimensions, "
+                           "display_width and display_height are both < 0");
+    }
+    if (img_width == 0 || img_height == 0) {
+        return pdf_set_err(pdf, -EINVAL,
+                           "Invalid image dimensions received, the loaded "
+                           "image appears to be empty.");
     }
 
     if (display_width_in < 0) {
@@ -2529,10 +2539,9 @@ static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    const int ret = get_img_display_dimensions(
-        img_width, img_height, &display_width, &display_height);
-    if (ret != 0) {
-        return ret;
+    if (get_img_display_dimensions(pdf, img_width, img_height, &display_width,
+                                   &display_height)) {
+        return pdf->errval;
     }
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
@@ -2547,10 +2556,9 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
     if (!obj)
         return pdf->errval;
 
-    const int ret = get_img_display_dimensions(width, height, &display_width,
-                                               &display_height);
-    if (ret != 0) {
-        return ret;
+    if (get_img_display_dimensions(pdf, width, height, &display_width,
+                                   &display_height)) {
+        return pdf->errval;
     }
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
@@ -2694,10 +2702,9 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
     free(final_data);
 
-    const int ret = get_img_display_dimensions(
-        info.width, info.height, &display_width, &display_height);
-    if (ret != 0) {
-        return ret;
+    if (get_img_display_dimensions(pdf, info.width, info.height,
+                                   &display_width, &display_height)) {
+        return pdf->errval;
     }
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 
@@ -2852,11 +2859,6 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
                        const uint8_t *data, size_t len)
 {
-    if (display_width < 0 && display_height < 0) {
-        return pdf_set_err(pdf, -EINVAL,
-                           "Cannot place image with display dimensions < 0.");
-    }
-
     // Try and determine which image format it is based on the content
     switch (header_to_image(data, len)) {
     case IMAGE_PNG:
