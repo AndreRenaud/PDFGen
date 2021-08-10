@@ -2760,7 +2760,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto info_free;
     }
 
-    char *colour_space;
+    char *colour_space = NULL;
     switch (info.color_type) {
     case PNG_COLOR_GREYSCALE:
         colour_space = calloc(12, sizeof(char));
@@ -2817,6 +2817,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                       flexarray_size(&pdf->objects), colour_space, info.width,
                       info.height, info.bitdepth, ncolours, info.bitdepth,
                       info.width, info.length);
+    free(colour_space);
 
     memcpy(&final_data[written], info.data, info.length);
     free(info.data);
