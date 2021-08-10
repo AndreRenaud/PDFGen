@@ -553,7 +553,8 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
  */
 int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
                   float y, float display_width, float display_height,
-                  const uint8_t *data, unsigned width, unsigned height);
+                  const uint8_t *data, uint32_t width, uint32_t height);
+
 
 /**
  * Add an image file as an image to the document.

@@ -2253,7 +2253,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
 }
 
 static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
-                                     unsigned width, unsigned height)
+                                     uint32_t width, uint32_t height)
 {
     struct pdf_object *obj;
     size_t len;
@@ -2289,8 +2289,8 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
 }
 
 /* See http://www.videotechnology.com/jpeg/j1.html for details */
-static int jpeg_details(const unsigned char *data, size_t data_size,
-                        int *width, int *height, int *ncolours)
+static int jpeg_details(const uint8_t *data, size_t data_size, int *width,
+                        int *height, int *ncolours)
 {
     if (data_size < 4 || data[0] != 0xFF || data[1] != 0xD8)
         return -1;
@@ -2357,8 +2357,7 @@ static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
 }
 
 static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
-                                         const unsigned char *jpeg_data,
-                                         size_t len)
+                                         const uint8_t *jpeg_data, size_t len)
 {
     struct pdf_object *obj;
     int width, height, ncolours;
@@ -2442,7 +2441,7 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                             size_t len)
 {
     char line[1024];
-    unsigned width, height, size;
+    uint32_t width, height, size;
     size_t pos = 0;
 
     /* Load the PPM file */
@@ -2487,8 +2486,8 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
 
 static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
                              float x, float y, float display_width,
-                             float display_height,
-                             const unsigned char *jpeg_data, size_t len)
+                             float display_height, const uint8_t *jpeg_data,
+                             size_t len)
 {
     struct pdf_object *obj;
 
@@ -2501,7 +2500,7 @@ static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
 
 int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
                   float y, float display_width, float display_height,
-                  const uint8_t *data, unsigned width, unsigned height)
+                  const uint8_t *data, uint32_t width, uint32_t height)
 {
     struct pdf_object *obj;
 
