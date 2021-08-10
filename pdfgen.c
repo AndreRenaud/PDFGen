@@ -313,6 +313,7 @@ struct png_info {
     uint32_t length;
     uint8_t bitdepth;
     uint8_t ncolours;
+    bool is_indexed;
     uint32_t width;
     uint32_t height;
     uint8_t *data;
@@ -1591,7 +1592,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
                                 ptrdiff_t text_len, float size,
                                 const uint16_t *widths, float *point_width)
 {
-    unsigned int len = 0;
+    uint32_t len = 0;
     if (text_len < 0)
         text_len = strlen(text);
     *point_width = 0.0f;
@@ -2252,6 +2253,43 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     }
 }
 
+static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
+                                          const uint8_t *data, uint32_t width,
+                                          uint32_t height)
+{
+    struct pdf_object *obj;
+    size_t len;
+    const char *endstream = ">\r\nendstream\r\n";
+    struct dstr str = INIT_DSTR;
+    size_t data_len = (size_t)width * (size_t)height;
+
+    dstr_printf(
+        &str,
+        "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
+        "/ColorSpace /DeviceGray\r\n/Height %d\r\n/Width %d\r\n"
+        "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
+        flexarray_size(&pdf->objects), height, width, data_len + 1);
+
+    len = dstr_len(&str) + data_len + strlen(endstream) + 1;
+    if (dstr_ensure(&str, len) < 0) {
+        dstr_free(&str);
+        pdf_set_err(pdf, -ENOMEM,
+                    "Unable to allocate %zu bytes memory for image", len);
+        return NULL;
+    }
+    dstr_append_data(&str, data, data_len);
+    dstr_append(&str, endstream);
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj) {
+        dstr_free(&str);
+        return NULL;
+    }
+    obj->stream = str;
+
+    return obj;
+}
+
 static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                                      uint32_t width, uint32_t height)
 {
@@ -2511,6 +2549,19 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
+int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const uint8_t *data, uint32_t width, uint32_t height)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_raw_grayscale8(pdf, data, width, height);
+    if (!obj)
+        return pdf->errval;
+
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
 static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
                             float display_height, const uint8_t *png_data,
@@ -2527,6 +2578,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         .length = 0,
         .bitdepth = 0,
         .ncolours = 0,
+        .is_indexed = false,
         .width = 0,
         .height = 0,
         .data = NULL,
@@ -2568,11 +2620,14 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
             info.width = ntoh32(header->width);
             info.height = ntoh32(header->height);
             info.bitdepth = header->bitdepth;
-            if (header->colortype == PNG_COLOR_RGB)
+            if (header->colortype == PNG_COLOR_RGB) {
                 info.ncolours = 3;
-            else if (header->colortype == PNG_COLOR_INDEXED)
+            } else if (header->colortype == PNG_COLOR_GREY) {
                 info.ncolours = 1;
-            else {
+            } else if (header->colortype == PNG_COLOR_INDEXED) {
+                info.ncolours = 1;
+                info.is_indexed = true;
+            } else {
                 pdf_set_err(pdf, -EINVAL,
                             "PNG has unsupported color type: %d",
                             header->colortype);
@@ -2621,18 +2676,28 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto info_free;
     }
 
+    // Determine the colour space based on the indexed flag and the number of
+    // colour channels
+    char *colour_space;
+    if (info.is_indexed) {
+        colour_space = "/Indexed/DeviceRGB";
+    } else if (info.ncolours == 1) {
+        colour_space = "/DeviceGray";
+    } else {
+        colour_space = "/DeviceRGB";
+    }
+
     /* RGB colored image */
     written = sprintf((char *)final_data,
                       "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace %s/DeviceRGB\r\n"
+                      "/Subtype /Image\r\n/ColorSpace %s\r\n"
                       "/Width %u\r\n/Height %u\r\n"
                       "/Interpolate true\r\n"
                       "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
                       "/DecodeParms << /Predictor 15 /Colors %d "
                       "/BitsPerComponent %u /Columns %u >>\r\n"
                       "/Length %u\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects),
-                      info.ncolours == 1 ? "/Indexed " : "", info.width,
+                      flexarray_size(&pdf->objects), colour_space, info.width,
                       info.height, info.bitdepth, info.ncolours,
                       info.bitdepth, info.width, info.length);
 
