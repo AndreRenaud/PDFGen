@@ -2594,7 +2594,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     int written = 0;
     int chunk_index = 0;
     uint32_t pos;
-    uint8_t ncolours;
+    uint8_t ncolours = 0;
     struct png_info info = {
         .length = 0,
         .bitdepth = 0,
@@ -2688,7 +2688,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                 if (!palette_buffer) {
                     pdf_set_err(pdf, -ENOMEM,
                                 "Could not allocate memory for indexed color "
-                                "palette (%d bytes)",
+                                "palette (%zu bytes)",
                                 palette_buffer_length *
                                     sizeof(struct rgb_value));
                     goto info_free;
@@ -2746,53 +2746,37 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto info_free;
     }
     /* if no color type was found (header chunk missing?) */
-    if (info.color_type == PNG_COLOR_INVALID) {
+    if (info.color_type == PNG_COLOR_INVALID || ncolours == 0) {
         pdf_set_err(
             pdf, -EINVAL,
             "PNG file missing color type, is the header chunk missing?");
         goto info_free;
     }
 
-    final_data = (uint8_t *)malloc(info.length + 1024);
-    if (!final_data) {
-        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
-                    info.length + 1024);
-        goto info_free;
-    }
-
-    char *colour_space = NULL;
+    struct dstr colour_space = INIT_DSTR;
     switch (info.color_type) {
     case PNG_COLOR_GREYSCALE:
-        colour_space = calloc(12, sizeof(char));
-        snprintf(colour_space, 12, "/DeviceGray");
+        dstr_append(&colour_space, "/DeviceGray");
         break;
     case PNG_COLOR_RGB:
-        colour_space = calloc(11, sizeof(char));
-        snprintf(colour_space, 11, "/DeviceRGB");
+        dstr_append(&colour_space, "/DeviceRGB");
         break;
     case PNG_COLOR_INDEXED:
         // Write the color palette to the color_palette buffer
-        // the 2KiB buffer length should never be exceeded, even if all 256
-        // palette indices have an assigned RGB value
-        const size_t buffer_size = 2048;
-        colour_space = calloc(buffer_size, sizeof(char));
-        int buffer_pos = snprintf(colour_space, buffer_size,
-                                  "[ /Indexed\r\n"
-                                  "  /DeviceRGB\r\n"
-                                  "  %d\r\n"
-                                  "  <",
-                                  palette_buffer_length - 1);
+        dstr_printf(&colour_space,
+                    "[ /Indexed\r\n"
+                    "  /DeviceRGB\r\n"
+                    "  %zu\r\n"
+                    "  <",
+                    palette_buffer_length - 1);
         // write individual paletter values
         // the index value for every RGB value is determined by its position
         // (0, 1, 2, ...)
         for (size_t i = 0; i < palette_buffer_length; i++) {
-            buffer_pos +=
-                snprintf(&colour_space[buffer_pos], buffer_pos,
-                         "%02X%02X%02X ", palette_buffer[i].red,
-                         palette_buffer[i].green, palette_buffer[i].blue);
+            dstr_printf(&colour_space, "%02X%02X%02X ", palette_buffer[i].red,
+                        palette_buffer[i].green, palette_buffer[i].blue);
         }
-        buffer_pos +=
-            snprintf(&colour_space[buffer_pos], buffer_pos, ">\r\n]");
+        dstr_append(&colour_space, ">\r\n]");
         break;
 
     default:
@@ -2801,6 +2785,14 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                     info.color_type);
         goto info_free;
         break;
+    }
+
+    final_data =
+        (uint8_t *)malloc(info.length + 1024 + dstr_len(&colour_space));
+    if (!final_data) {
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
+                    info.length + 1024);
+        goto info_free;
     }
 
     // Write image information to PDF
@@ -2814,10 +2806,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                       "/DecodeParms << /Predictor 15 /Colors %d "
                       "/BitsPerComponent %u /Columns %u >>\r\n"
                       "/Length %u\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects), colour_space, info.width,
-                      info.height, info.bitdepth, ncolours, info.bitdepth,
-                      info.width, info.length);
-    free(colour_space);
+                      flexarray_size(&pdf->objects), dstr_data(&colour_space),
+                      info.width, info.height, info.bitdepth, ncolours,
+                      info.bitdepth, info.width, info.length);
+    dstr_free(&colour_space);
 
     memcpy(&final_data[written], info.data, info.length);
     free(info.data);
@@ -2829,6 +2821,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         free(final_data);
         return pdf_get_errval(pdf);
     }
+
     dstr_append_data(&obj->stream, final_data, written);
 
     free(final_data);
