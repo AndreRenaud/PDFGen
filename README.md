@@ -23,7 +23,7 @@ Supports the following PDF features
 * Embedded images
     * PPM
     * JPEG
-    * PNG
+    * PNG (Alpha Channels are not supported)
     * BMP
 
 Example usage
