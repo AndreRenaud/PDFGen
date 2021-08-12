@@ -2399,7 +2399,7 @@ static int get_img_display_dimensions(struct pdf_doc *pdf, uint32_t img_width,
                                       float *display_width,
                                       float *display_height)
 {
-    if (!display_height || !display_height) {
+    if (!display_height || !display_width) {
         return pdf_set_err(
             pdf, -EINVAL,
             "display_width and display_height may not be null pointers");
