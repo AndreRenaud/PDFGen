@@ -2689,11 +2689,11 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
         chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
-        const uint32_t chunk_length = ntoh32(chunk->length);
         if (pos > len) {
             pdf_set_err(pdf, -EINVAL, "PNG file too short");
             goto info_free;
         }
+        const uint32_t chunk_length = ntoh32(chunk->length);
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             if (chunk_index != 0) {
                 pdf_set_err(
@@ -2744,6 +2744,11 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         } else if (strncmp(chunk->type, png_chunk_palette, 4) == 0) {
             // Palette chunk
             if (info.color_type == PNG_COLOR_INDEXED) {
+                if (palette_buffer) {
+                    pdf_set_err(pdf, -EINVAL,
+                                "PNG contains multiple palettes");
+                    goto info_free;
+                }
                 // palette chunk is needed for indexed images
                 if (chunk_length % 3 != 0) {
                     pdf_set_err(pdf, -EINVAL,
