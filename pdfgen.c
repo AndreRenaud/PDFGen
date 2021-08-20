@@ -191,6 +191,7 @@ static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                         0x0D, 0x0A, 0x1A, 0x0A};
 static const uint8_t jpeg_signature[] = {0xff, 0xd8};
 static const uint8_t ppm_signature[] = {'P', '6'};
+static const uint8_t pgm_signature[] = {'P', '5'};
 
 typedef struct pdf_object pdf_object;
 
@@ -2542,6 +2543,7 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     char line[1024];
     uint32_t width, height, size;
     size_t pos = 0;
+    int bpp;
 
     /* Load the PPM file */
     if (!dgets(ppm_data, &pos, len, line, sizeof(line) - 1)) {
@@ -2549,8 +2551,13 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     }
 
     /* We only support binary ppms */
-    if (strncmp(line, "P6", 2) != 0)
+    if (strncmp(line, "P6", 2) == 0) {
+        bpp = 3;
+    } else if (strncmp(line, "P5", 2) == 0) {
+        bpp = 1;
+    } else {
         return pdf_set_err(pdf, -EINVAL, "Only binary PPM files supported");
+    }
 
     /* Skip the header comments until we get to the dimensions info */
     do {
@@ -2574,13 +2581,18 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                            height);
     }
 
-    size = width * height * 3;
+    size = width * height * bpp;
     if (size > len - pos) {
         return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
     }
 
-    return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
-                         &ppm_data[pos], width, height);
+    if (bpp == 1)
+        return pdf_add_grayscale8(pdf, page, x, y, display_width,
+                                  display_height, &ppm_data[pos], width,
+                                  height);
+    else
+        return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                             &ppm_data[pos], width, height);
 }
 
 static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
@@ -2629,6 +2641,10 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
     if (!obj)
         return pdf->errval;
 
+    if (get_img_display_dimensions(pdf, width, height, &display_width,
+                                   &display_height)) {
+        return pdf->errval;
+    }
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
@@ -2745,9 +2761,8 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                                     sizeof(struct rgb_value));
                     goto info_free;
                 }
-                size_t offset;
                 for (size_t i = 0; i < palette_buffer_length; i++) {
-                    offset = (i * 3) + pos;
+                    size_t offset = (i * 3) + pos;
                     palette_buffer[i].red = png_data[offset];
                     palette_buffer[i].green = png_data[offset + 1];
                     palette_buffer[i].blue = png_data[offset + 2];
@@ -3030,6 +3045,9 @@ static int header_to_image(const uint8_t *data, size_t length)
         return IMAGE_JPG;
     if (length >= sizeof(ppm_signature) &&
         memcmp(data, ppm_signature, sizeof(ppm_signature)) == 0)
+        return IMAGE_PPM;
+    if (length >= sizeof(pgm_signature) &&
+        memcmp(data, pgm_signature, sizeof(pgm_signature)) == 0)
         return IMAGE_PPM;
 
     return IMAGE_UNKNOWN;
