@@ -2674,6 +2674,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     // Stores palette information for indexed PNGs
     struct rgb_value *palette_buffer = NULL;
     size_t palette_buffer_length = 0;
+    struct dstr colour_space = INIT_DSTR;
 
     if (len <= sizeof(png_signature))
         return pdf_set_err(pdf, -EINVAL, "PNG file too short");
@@ -2820,7 +2821,6 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto info_free;
     }
 
-    struct dstr colour_space = INIT_DSTR;
     switch (info.color_type) {
     case PNG_COLOR_GREYSCALE:
         dstr_append(&colour_space, "/DeviceGray");
