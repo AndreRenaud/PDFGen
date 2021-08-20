@@ -191,6 +191,7 @@ static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                         0x0D, 0x0A, 0x1A, 0x0A};
 static const uint8_t jpeg_signature[] = {0xff, 0xd8};
 static const uint8_t ppm_signature[] = {'P', '6'};
+static const uint8_t pgm_signature[] = {'P', '5'};
 
 typedef struct pdf_object pdf_object;
 
@@ -267,13 +268,24 @@ struct pdf_doc {
     struct pdf_object *first_objects[OBJ_count];
 };
 
-/*!
+/**
  * Information about color type of PNG format
+ * As defined by https://www.w3.org/TR/2003/REC-PNG-20031110/#6Colour-values
  */
-#define PNG_COLOR_ALPHA (4)
-#define PNG_COLOR_RGB (2)
-#define PNG_COLOR_INDEXED (3)
-#define PNG_COLOR_GREY (0)
+enum {
+    // Greyscale
+    PNG_COLOR_GREYSCALE = 0,
+    // Truecolour
+    PNG_COLOR_RGB = 2,
+    // Indexed-colour
+    PNG_COLOR_INDEXED = 3,
+    // Greyscale with alpha
+    PNG_COLOR_GREYSCALE_A = 4,
+    // Truecolour with alpha
+    PNG_COLOR_RGBA = 6,
+
+    PNG_COLOR_INVALID = 255
+};
 
 /**
  * Since we're casting random areas of memory to these, make sure
@@ -312,10 +324,18 @@ struct bmp_header {
 struct png_info {
     uint32_t length;
     uint8_t bitdepth;
-    uint8_t ncolours;
+    uint8_t color_type;
     uint32_t width;
     uint32_t height;
     uint8_t *data;
+};
+
+// Simple data container to store a single 24 Bit RGB value, used for
+// processing PNG images
+struct rgb_value {
+    uint8_t red;
+    uint8_t blue;
+    uint8_t green;
 };
 
 /**
@@ -1591,7 +1611,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
                                 ptrdiff_t text_len, float size,
                                 const uint16_t *widths, float *point_width)
 {
-    unsigned int len = 0;
+    uint32_t len = 0;
     if (text_len < 0)
         text_len = strlen(text);
     *point_width = 0.0f;
@@ -2252,6 +2272,43 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     }
 }
 
+static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
+                                          const uint8_t *data, uint32_t width,
+                                          uint32_t height)
+{
+    struct pdf_object *obj;
+    size_t len;
+    const char *endstream = ">\r\nendstream\r\n";
+    struct dstr str = INIT_DSTR;
+    size_t data_len = (size_t)width * (size_t)height;
+
+    dstr_printf(
+        &str,
+        "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
+        "/ColorSpace /DeviceGray\r\n/Height %d\r\n/Width %d\r\n"
+        "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
+        flexarray_size(&pdf->objects), height, width, data_len + 1);
+
+    len = dstr_len(&str) + data_len + strlen(endstream) + 1;
+    if (dstr_ensure(&str, len) < 0) {
+        dstr_free(&str);
+        pdf_set_err(pdf, -ENOMEM,
+                    "Unable to allocate %zu bytes memory for image", len);
+        return NULL;
+    }
+    dstr_append_data(&str, data, data_len);
+    dstr_append(&str, endstream);
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj) {
+        dstr_free(&str);
+        return NULL;
+    }
+    obj->stream = str;
+
+    return obj;
+}
+
 static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
                                      uint32_t width, uint32_t height)
 {
@@ -2486,6 +2543,7 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     char line[1024];
     uint32_t width, height, size;
     size_t pos = 0;
+    int bpp;
 
     /* Load the PPM file */
     if (!dgets(ppm_data, &pos, len, line, sizeof(line) - 1)) {
@@ -2493,8 +2551,13 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     }
 
     /* We only support binary ppms */
-    if (strncmp(line, "P6", 2) != 0)
+    if (strncmp(line, "P6", 2) == 0) {
+        bpp = 3;
+    } else if (strncmp(line, "P5", 2) == 0) {
+        bpp = 1;
+    } else {
         return pdf_set_err(pdf, -EINVAL, "Only binary PPM files supported");
+    }
 
     /* Skip the header comments until we get to the dimensions info */
     do {
@@ -2518,13 +2581,18 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                            height);
     }
 
-    size = width * height * 3;
+    size = width * height * bpp;
     if (size > len - pos) {
         return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
     }
 
-    return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
-                         &ppm_data[pos], width, height);
+    if (bpp == 1)
+        return pdf_add_grayscale8(pdf, page, x, y, display_width,
+                                  display_height, &ppm_data[pos], width,
+                                  height);
+    else
+        return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                             &ppm_data[pos], width, height);
 }
 
 static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
@@ -2563,26 +2631,49 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
+int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const uint8_t *data, uint32_t width, uint32_t height)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_raw_grayscale8(pdf, data, width, height);
+    if (!obj)
+        return pdf->errval;
+
+    if (get_img_display_dimensions(pdf, width, height, &display_width,
+                                   &display_height)) {
+        return pdf->errval;
+    }
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
 static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
                             float display_height, const uint8_t *png_data,
                             size_t len)
 {
     const char png_chunk_header[] = "IHDR";
+    const char png_chunk_palette[] = "PLTE";
     const char png_chunk_data[] = "IDAT";
     const char png_chunk_end[] = "IEND";
     struct pdf_object *obj;
-    uint8_t *final_data;
+    uint8_t *final_data = NULL;
     int written = 0;
+    int chunk_index = 0;
     uint32_t pos;
+    uint8_t ncolours = 0;
     struct png_info info = {
         .length = 0,
         .bitdepth = 0,
-        .ncolours = 0,
+        .color_type = PNG_COLOR_INVALID,
         .width = 0,
         .height = 0,
         .data = NULL,
     };
+    // Stores palette information for indexed PNGs
+    struct rgb_value *palette_buffer = NULL;
+    size_t palette_buffer_length = 0;
 
     if (len <= sizeof(png_signature))
         return pdf_set_err(pdf, -EINVAL, "PNG file too short");
@@ -2591,16 +2682,24 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "File is not correct PNG file");
     /* process PNG chunks */
     pos = sizeof(png_signature);
+
     while (1) {
         const struct png_chunk *chunk;
 
         chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
+        const uint32_t chunk_length = ntoh32(chunk->length);
         if (pos > len) {
             pdf_set_err(pdf, -EINVAL, "PNG file too short");
             goto info_free;
         }
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
+            if (chunk_index != 0) {
+                pdf_set_err(
+                    pdf, -EINVAL,
+                    "PNG format error: header chunk is not the first chunk");
+                goto info_free;
+            }
             /* header found, process width and height, check errors */
             const struct png_header *header =
                 (const struct png_header *)&png_data[pos];
@@ -2612,81 +2711,175 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                 pdf_set_err(pdf, -EINVAL, "Deflate wrong in PNG header");
                 goto info_free;
             }
-            if (header->colortype & PNG_COLOR_ALPHA) {
+            // Determine the number of colour channels
+            switch (header->colortype) {
+            case PNG_COLOR_GREYSCALE:
+                ncolours = 1;
+                break;
+            case PNG_COLOR_RGB:
+                ncolours = 3;
+                break;
+            case PNG_COLOR_INDEXED:
+                ncolours = 1;
+                break;
+
+            case PNG_COLOR_GREYSCALE_A:
+            case PNG_COLOR_RGBA:
                 pdf_set_err(pdf, -EINVAL,
-                            "PDF doesn't support PNG alpha channel");
+                            "PNGs with an alpha channel are not supported");
                 goto info_free;
+                break;
+
+            default:
+                pdf_set_err(pdf, -EINVAL, "Unknown PNG color type %d",
+                            header->colortype);
+                goto info_free;
+                break;
             }
+            info.color_type = header->colortype;
             info.width = ntoh32(header->width);
             info.height = ntoh32(header->height);
             info.bitdepth = header->bitdepth;
-            if (header->colortype == PNG_COLOR_RGB)
-                info.ncolours = 3;
-            else if (header->colortype == PNG_COLOR_INDEXED)
-                info.ncolours = 1;
-            else {
+        } else if (strncmp(chunk->type, png_chunk_palette, 4) == 0) {
+            // Palette chunk
+            if (info.color_type == PNG_COLOR_INDEXED) {
+                // palette chunk is needed for indexed images
+                if (chunk_length % 3 != 0) {
+                    pdf_set_err(pdf, -EINVAL,
+                                "PNG format error: palette chunk length is "
+                                "not divisbly by 3!");
+                    goto info_free;
+                }
+                palette_buffer_length = (size_t)(chunk_length / 3);
+                palette_buffer = (struct rgb_value *)malloc(
+                    palette_buffer_length * sizeof(struct rgb_value));
+                if (!palette_buffer) {
+                    pdf_set_err(pdf, -ENOMEM,
+                                "Could not allocate memory for indexed color "
+                                "palette (%zu bytes)",
+                                palette_buffer_length *
+                                    sizeof(struct rgb_value));
+                    goto info_free;
+                }
+                for (size_t i = 0; i < palette_buffer_length; i++) {
+                    size_t offset = (i * 3) + pos;
+                    palette_buffer[i].red = png_data[offset];
+                    palette_buffer[i].green = png_data[offset + 1];
+                    palette_buffer[i].blue = png_data[offset + 2];
+                }
+            } else if (info.color_type == PNG_COLOR_RGB ||
+                       info.color_type == PNG_COLOR_RGBA) {
+                // palette chunk is optional for RGB(A) images
+                // but we do not process them
+            } else {
                 pdf_set_err(pdf, -EINVAL,
-                            "PNG has unsupported color type: %d",
-                            header->colortype);
+                            "Unexpected palette chunk for color type %d",
+                            info.color_type);
                 goto info_free;
             }
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
-            uint32_t chunk_len = ntoh32(chunk->length);
-            if (chunk_len > 0 && chunk_len < len - pos) {
+            if (chunk_length > 0 && chunk_length < len - pos) {
                 uint8_t *data =
-                    (uint8_t *)realloc(info.data, info.length + chunk_len);
+                    (uint8_t *)realloc(info.data, info.length + chunk_length);
                 if (!data) {
                     pdf_set_err(pdf, -ENOMEM, "No memory for PNG data");
                     goto info_free;
                 }
                 info.data = data;
-                memcpy(&info.data[info.length], &png_data[pos], chunk_len);
-                info.length += chunk_len;
+                memcpy(&info.data[info.length], &png_data[pos], chunk_length);
+                info.length += chunk_length;
             }
         } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
             /* end of file, exit */
             break;
         }
 
-        if (ntoh32(chunk->length) >= len) {
+        if (chunk_length >= len) {
             pdf_set_err(pdf, -EINVAL, "PNG chunk length larger than file");
             goto info_free;
         }
 
-        pos += ntoh32(chunk->length); // add chunk length
-        pos += sizeof(uint32_t);      // add CRC length
+        pos += chunk_length;     // add chunk length
+        pos += sizeof(uint32_t); // add CRC length
         if (pos > len) {
             pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
             goto info_free;
         }
+        chunk_index++;
     }
     /* if no length was found */
     if (info.length == 0 || info.bitdepth == 0) {
         pdf_set_err(pdf, -EINVAL, "PNG file has zero length/bitdepth");
         goto info_free;
     }
+    /* if no color type was found (header chunk missing?) */
+    if (info.color_type == PNG_COLOR_INVALID || ncolours == 0) {
+        pdf_set_err(
+            pdf, -EINVAL,
+            "PNG file missing color type, is the header chunk missing?");
+        goto info_free;
+    }
 
-    final_data = (uint8_t *)malloc(info.length + 1024);
+    struct dstr colour_space = INIT_DSTR;
+    switch (info.color_type) {
+    case PNG_COLOR_GREYSCALE:
+        dstr_append(&colour_space, "/DeviceGray");
+        break;
+    case PNG_COLOR_RGB:
+        dstr_append(&colour_space, "/DeviceRGB");
+        break;
+    case PNG_COLOR_INDEXED:
+        // Write the color palette to the color_palette buffer
+        dstr_printf(&colour_space,
+                    "[ /Indexed\r\n"
+                    "  /DeviceRGB\r\n"
+                    "  %zu\r\n"
+                    "  <",
+                    palette_buffer_length - 1);
+        // write individual paletter values
+        // the index value for every RGB value is determined by its position
+        // (0, 1, 2, ...)
+        for (size_t i = 0; i < palette_buffer_length; i++) {
+            dstr_printf(&colour_space, "%02X%02X%02X ", palette_buffer[i].red,
+                        palette_buffer[i].green, palette_buffer[i].blue);
+        }
+        dstr_append(&colour_space, ">\r\n]");
+        break;
+
+    default:
+        pdf_set_err(pdf, -EINVAL,
+                    "Cannot map PNG color type %d to PDF color space",
+                    info.color_type);
+        goto info_free;
+        break;
+    }
+
+    if (palette_buffer)
+        free(palette_buffer);
+
+    final_data =
+        (uint8_t *)malloc(info.length + 1024 + dstr_len(&colour_space));
     if (!final_data) {
         pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
                     info.length + 1024);
         goto info_free;
     }
 
-    /* RGB colored image */
+    // Write image information to PDF
     written = sprintf((char *)final_data,
                       "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                      "/Subtype /Image\r\n/ColorSpace %s/DeviceRGB\r\n"
+                      "/Subtype /Image\r\n"
+                      "/ColorSpace %s\r\n"
                       "/Width %u\r\n/Height %u\r\n"
                       "/Interpolate true\r\n"
                       "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
                       "/DecodeParms << /Predictor 15 /Colors %d "
                       "/BitsPerComponent %u /Columns %u >>\r\n"
                       "/Length %u\r\n>>stream\r\n",
-                      flexarray_size(&pdf->objects),
-                      info.ncolours == 1 ? "/Indexed " : "", info.width,
-                      info.height, info.bitdepth, info.ncolours,
+                      flexarray_size(&pdf->objects), dstr_data(&colour_space),
+                      info.width, info.height, info.bitdepth, ncolours,
                       info.bitdepth, info.width, info.length);
+    dstr_free(&colour_space);
 
     memcpy(&final_data[written], info.data, info.length);
     free(info.data);
@@ -2698,6 +2891,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         free(final_data);
         return pdf_get_errval(pdf);
     }
+
     dstr_append_data(&obj->stream, final_data, written);
 
     free(final_data);
@@ -2711,6 +2905,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 info_free:
     if (info.data)
         free(info.data);
+    if (final_data)
+        free(final_data);
+    if (palette_buffer)
+        free(palette_buffer);
     return pdf->errval;
 }
 
@@ -2850,6 +3048,9 @@ static int header_to_image(const uint8_t *data, size_t length)
         return IMAGE_JPG;
     if (length >= sizeof(ppm_signature) &&
         memcmp(data, ppm_signature, sizeof(ppm_signature)) == 0)
+        return IMAGE_PPM;
+    if (length >= sizeof(pgm_signature) &&
+        memcmp(data, pgm_signature, sizeof(pgm_signature)) == 0)
         return IMAGE_PPM;
 
     return IMAGE_UNKNOWN;

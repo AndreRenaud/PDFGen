@@ -523,7 +523,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
 
 /**
  * Add image data as an image to the document.
- * Image data must be one of: JPEG, PNG, PPM or BMP formats
+ * Image data must be one of: JPEG, PNG, PPM, PGM or BMP formats
  * Passing 0 for either the display width or height will
  * include the image but not render it visible.
  * Passing a negative number either the display height or width will
@@ -564,12 +564,29 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
                   const uint8_t *data, uint32_t width, uint32_t height);
 
 /**
+ * Add a raw 8 bit per pixel grayscale buffer as an image to the document
+ * @param pdf PDF document to add image to
+ * @param page Page to add image to (NULL => most recently added page)
+ * @param x X offset to put image at
+ * @param y Y offset to put image at
+ * @param display_width Displayed width of image
+ * @param display_height Displayed height of image
+ * @param data grayscale pixel data to add
+ * @param width width of image in pixels
+ * @param height height of image in pixels
+ * @return < 0 on failure, >= 0 on success
+ */
+int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const uint8_t *data, uint32_t width, uint32_t height);
+
+/**
  * Add an image file as an image to the document.
  * Passing 0 for either the display width or height will
  * include the image but not render it visible.
  * Passing a negative number either the display height or width will
  * have the image be resized while keeping the original aspect ratio.
- * Supports image formats: JPEG, PNG, BMP & PPM
+ * Supports image formats: JPEG, PNG, PPM, PGM & BMP
  * @param pdf PDF document to add bookmark to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at

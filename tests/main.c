@@ -92,6 +92,9 @@ int main(int argc, char *argv[])
     pdf_add_image_file(pdf, NULL, 150, 10, 30, 30, "data/bee-32-flip.bmp");
 
     pdf_add_image_file(pdf, NULL, 150, 50, 50, 150, "data/grey.jpg");
+    pdf_add_image_file(pdf, NULL, 200, 50, 50, -1, "data/bee.pgm");
+    pdf_add_image_file(pdf, NULL, 400, 100, 100, 100, "data/grey.png");
+    pdf_add_image_file(pdf, NULL, 400, 210, 100, 100, "data/indexed.png");
 
     pdf_add_image_data(pdf, NULL, 100, 500, 50, 150, data_penguin_jpg,
                        data_penguin_jpg_len);
