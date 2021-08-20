@@ -524,6 +524,10 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
 /**
  * Add image data as an image to the document.
  * Image data must be one of: JPEG, PNG, PPM or BMP formats
+ * Passing 0 for either the display width or height will
+ * include the image but not render it visible.
+ * Passing a negative number either the display height or width will
+ * have the image be resized while keeping the original aspect ratio.
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at
@@ -540,6 +544,10 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
 
 /**
  * Add a raw 24 bit per pixel RGB buffer as an image to the document
+ * Passing 0 for either the display width or height will
+ * include the image but not render it visible.
+ * Passing a negative number either the display height or width will
+ * have the image be resized while keeping the original aspect ratio.
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at
@@ -574,11 +582,15 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
 
 /**
  * Add an image file as an image to the document.
- * Support image formats: JPEG, PNG, BMP & PPM
+ * Passing 0 for either the display width or height will
+ * include the image but not render it visible.
+ * Passing a negative number either the display height or width will
+ * have the image be resized while keeping the original aspect ratio.
+ * Supports image formats: JPEG, PNG, BMP & PPM
  * @param pdf PDF document to add bookmark to
- * @param page Page to add BMP to (NULL => most recently added page)
- * @param x X offset to put BMP at
- * @param y Y offset to put BMP at
+ * @param page Page to add image to (NULL => most recently added page)
+ * @param x X offset to put image at
+ * @param y Y offset to put image at
  * @param display_width Displayed width of image
  * @param display_height Displayed height of image
  * @param image_filename Filename of image file to display
