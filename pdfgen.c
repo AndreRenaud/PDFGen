@@ -2859,8 +2859,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         break;
     }
 
-    if (palette_buffer)
+    if (palette_buffer) {
         free(palette_buffer);
+        palette_buffer = NULL;
+    }
 
     final_data =
         (uint8_t *)malloc(info.length + 1024 + dstr_len(&colour_space));
@@ -2888,6 +2890,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
     memcpy(&final_data[written], info.data, info.length);
     free(info.data);
+    info.data = NULL;
     written += info.length;
     written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
 
