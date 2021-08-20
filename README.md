@@ -21,7 +21,7 @@ Supports the following PDF features
 * Bookmarks
 * Barcodes (Code-128 & Code-39)
 * Embedded images
-    * PPM
+    * PPM/PGM (binary format only)
     * JPEG
     * PNG (Alpha Channels are not supported)
     * BMP
