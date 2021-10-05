@@ -157,8 +157,8 @@ int main(int argc, char *argv[])
         pdf, NULL,
         "Control characters ( ) < > [ ] { } / % \n \r \t \b \f ending", 10,
         50, 45, PDF_RGB(0, 0, 0));
-    pdf_add_text(pdf, NULL, "Special characters: €ÜŽžŠšÁáüöäÄÜÖß", 10, 50, 15,
-                 PDF_RGB(0, 0, 0));
+    pdf_add_text(pdf, NULL, "Special characters: €ÜŽžŠšÁáüöäÄÜÖß—“”‘’", 10,
+                 50, 15, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "This one has a new line in it\nThere it was", 10,
                  50, 80, PDF_RGB(0, 0, 0));
     pdf_add_text(

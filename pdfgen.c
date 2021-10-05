@@ -1304,22 +1304,40 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 
         if (code > 255) {
             /* We support *some* minimal UTF-8 characters */
+            // See Appendix D of
+            // https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
+            // These are all in WinAnsiEncoding
             char buf[5] = {0};
             switch (code) {
-            case 0x160:
-                buf[0] = '\x8a';
+            case 0x160: // Latin Capital Letter S with Caron
+                buf[0] = '\212';
                 break;
-            case 0x161:
-                buf[0] = '\x9a';
+            case 0x161: // Latin Small Letter S with Caron
+                buf[0] = '\232';
                 break;
-            case 0x17d:
-                buf[0] = '\x8e';
+            case 0x17d: // Latin Capital Letter Z with Caron
+                buf[0] = '\216';
                 break;
-            case 0x17e:
-                buf[0] = '\x9e';
+            case 0x17e: // Latin Small Letter Z with Caron
+                buf[0] = '\236';
                 break;
-            case 0x20ac:
-                strcpy(buf, "\\200");
+            case 0x2014: // emdash
+                buf[0] = '\227';
+                break;
+            case 0x2018: // left single quote
+                buf[0] = '\221';
+                break;
+            case 0x2019: // right single quote
+                buf[0] = '\222';
+                break;
+            case 0x201c: // left double quote
+                buf[0] = '\223';
+                break;
+            case 0x201d: // right double quote
+                buf[0] = '\224';
+                break;
+            case 0x20ac: // Euro
+                buf[0] = '\200';
                 break;
             default:
                 dstr_free(&str);
