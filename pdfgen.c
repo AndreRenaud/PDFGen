@@ -1276,6 +1276,8 @@ static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
     uint32_t code;
     int code_len;
 
+    *res = 0;
+
     code_len = utf8_to_utf32(utf8, len, &code);
     if (code_len < 0) {
         return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
@@ -1649,7 +1651,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
     *point_width = 0.0f;
 
     for (int i = 0; i < (int)text_len;) {
-        uint8_t pdf_char;
+        uint8_t pdf_char = 0;
         int code_len;
         code_len =
             utf8_to_pdfencoding(pdf, &text[i], text_len - i, &pdf_char);
