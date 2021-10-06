@@ -1775,6 +1775,9 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                     if (this_width < wrap_width)
                         break;
                 }
+                if (i == 0)
+                    return pdf_set_err(pdf, -EINVAL,
+                                       "Unable to find suitable line break");
 
                 end = start + i;
             } else
