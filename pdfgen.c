@@ -1270,6 +1270,64 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
     return len;
 }
 
+static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
+                               char *res)
+{
+    uint32_t code;
+    int code_len;
+
+    code_len = utf8_to_utf32(utf8, len, &code);
+    if (code_len < 0) {
+        return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
+    }
+
+    if (code > 255) {
+        /* We support *some* minimal UTF-8 characters */
+        // See Appendix D of
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
+        // These are all in WinAnsiEncoding
+        switch (code) {
+        case 0x160: // Latin Capital Letter S with Caron
+            *res = 0212;
+            break;
+        case 0x161: // Latin Small Letter S with Caron
+            *res = 0232;
+            break;
+        case 0x17d: // Latin Capital Letter Z with Caron
+            *res = 0216;
+            break;
+        case 0x17e: // Latin Small Letter Z with Caron
+            *res = 0236;
+            break;
+        case 0x2014: // emdash
+            *res = 0227;
+            break;
+        case 0x2018: // left single quote
+            *res = 0221;
+            break;
+        case 0x2019: // right single quote
+            *res = '\222';
+            break;
+        case 0x201c: // left double quote
+            *res = '\223';
+            break;
+        case 0x201d: // right double quote
+            *res = '\224';
+            break;
+        case 0x20ac: // Euro
+            *res = '\200';
+            break;
+        default:
+            return pdf_set_err(pdf, -EINVAL,
+                               "Unsupported UTF-8 character: 0x%x 0o%o", code,
+                               code);
+        }
+    } else {
+        *res = code;
+    }
+    return code_len;
+}
+
 static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
                                 const char *text, float size, float xoff,
                                 float yoff, uint32_t colour, float spacing)
@@ -1294,71 +1352,27 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 
     /* Escape magic characters properly */
     for (size_t i = 0; i < len;) {
-        uint32_t code;
         int code_len;
-        code_len = utf8_to_utf32(&text[i], len - i, &code);
+        char pdf_char;
+        code_len = utf8_to_pdfencoding(pdf, &text[i], len - i, &pdf_char);
         if (code_len < 0) {
             dstr_free(&str);
-            return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
+            return code_len;
         }
 
-        if (code > 255) {
-            /* We support *some* minimal UTF-8 characters */
-            // See Appendix D of
-            // https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
-            // These are all in WinAnsiEncoding
-            char buf[5] = {0};
-            switch (code) {
-            case 0x160: // Latin Capital Letter S with Caron
-                buf[0] = '\212';
-                break;
-            case 0x161: // Latin Small Letter S with Caron
-                buf[0] = '\232';
-                break;
-            case 0x17d: // Latin Capital Letter Z with Caron
-                buf[0] = '\216';
-                break;
-            case 0x17e: // Latin Small Letter Z with Caron
-                buf[0] = '\236';
-                break;
-            case 0x2014: // emdash
-                buf[0] = '\227';
-                break;
-            case 0x2018: // left single quote
-                buf[0] = '\221';
-                break;
-            case 0x2019: // right single quote
-                buf[0] = '\222';
-                break;
-            case 0x201c: // left double quote
-                buf[0] = '\223';
-                break;
-            case 0x201d: // right double quote
-                buf[0] = '\224';
-                break;
-            case 0x20ac: // Euro
-                buf[0] = '\200';
-                break;
-            default:
-                dstr_free(&str);
-                return pdf_set_err(pdf, -EINVAL,
-                                   "Unsupported UTF-8 character: 0x%x 0o%o",
-                                   code, code);
-            }
-            dstr_append(&str, buf);
-        } else if (strchr("()\\", code)) {
+        if (strchr("()\\", pdf_char)) {
             char buf[3];
             /* Escape some characters */
             buf[0] = '\\';
-            buf[1] = (uint8_t)code;
+            buf[1] = (uint8_t)pdf_char;
             buf[2] = '\0';
             dstr_append(&str, buf);
-        } else if (strrchr("\n\r\t\b\f", code)) {
+        } else if (strrchr("\n\r\t\b\f", pdf_char)) {
             /* Skip over these characters */
             ;
         } else {
             char buf[2];
-            buf[0] = code;
+            buf[0] = pdf_char;
             buf[1] = '\0';
             dstr_append(&str, buf);
         }
@@ -1635,21 +1649,18 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
     *point_width = 0.0f;
 
     for (int i = 0; i < (int)text_len;) {
-        uint32_t code;
+        char pdf_char;
         int code_len;
-        code_len = utf8_to_utf32(&text[i], text_len - i, &code);
+        code_len =
+            utf8_to_pdfencoding(pdf, &text[i], text_len - i, &pdf_char);
         if (code_len < 0)
             return pdf_set_err(pdf, code_len,
                                "Invalid unicode string at position %d in %s",
                                i, text);
-        if (code >= 255)
-            return pdf_set_err(
-                pdf, code_len,
-                "Unable to determine width of character code %d", code);
         i += code_len;
 
-        if (code != '\n' && code != '\r')
-            len += widths[(uint8_t)code];
+        if (pdf_char != '\n' && pdf_char != '\r')
+            len += widths[(uint8_t)pdf_char];
     }
 
     /* Our widths arrays are for 14pt fonts */
