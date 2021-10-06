@@ -1762,6 +1762,12 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                 /* Find the best character to chop it at */
                 for (i = end - start - 1; i > 0; i--) {
                     float this_width;
+                    // Don't look at places that are in the middle of a utf-8
+                    // sequence
+                    if ((start[i - 1] & 0xc0) == 0xc0 ||
+                        ((start[i - 1] & 0xc0) == 0x80 &&
+                         (start[i] & 0xc0) == 0x80))
+                        continue;
                     e = pdf_text_point_width(pdf, start, i, size, widths,
                                              &this_width);
                     if (e < 0)

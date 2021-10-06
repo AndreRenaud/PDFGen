@@ -82,6 +82,8 @@ int main(int argc, char *argv[])
         "I've put some embedded line breaks in to "
         "see how it copes with them. Hopefully it all works properly.\n\n\n"
         "We even include multiple breaks\n"
+        "And special stuff €ÜŽžŠšÁ that áüöä should ÄÜÖß— “”‘’ break\n"
+        "————————————————————————————————————————————————\n"
         "thisisanenourmouswordthatwillneverfitandwillhavetobecut",
         16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY, &height);
     pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
