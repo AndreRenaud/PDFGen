@@ -1271,7 +1271,7 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 }
 
 static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
-                               char *res)
+                               uint8_t *res)
 {
     uint32_t code;
     int code_len;
@@ -1353,7 +1353,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     /* Escape magic characters properly */
     for (size_t i = 0; i < len;) {
         int code_len;
-        char pdf_char;
+        uint8_t pdf_char;
         code_len = utf8_to_pdfencoding(pdf, &text[i], len - i, &pdf_char);
         if (code_len < 0) {
             dstr_free(&str);
@@ -1364,7 +1364,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
             char buf[3];
             /* Escape some characters */
             buf[0] = '\\';
-            buf[1] = (uint8_t)pdf_char;
+            buf[1] = pdf_char;
             buf[2] = '\0';
             dstr_append(&str, buf);
         } else if (strrchr("\n\r\t\b\f", pdf_char)) {
@@ -1649,7 +1649,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
     *point_width = 0.0f;
 
     for (int i = 0; i < (int)text_len;) {
-        char pdf_char;
+        uint8_t pdf_char;
         int code_len;
         code_len =
             utf8_to_pdfencoding(pdf, &text[i], text_len - i, &pdf_char);
@@ -1660,7 +1660,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
         i += code_len;
 
         if (pdf_char != '\n' && pdf_char != '\r')
-            len += widths[(uint8_t)pdf_char];
+            len += widths[pdf_char];
     }
 
     /* Our widths arrays are for 14pt fonts */
