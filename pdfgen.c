@@ -1373,10 +1373,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
             /* Skip over these characters */
             ;
         } else {
-            char buf[2];
-            buf[0] = pdf_char;
-            buf[1] = '\0';
-            dstr_append(&str, buf);
+            dstr_append_data(&str, &pdf_char, 1);
         }
 
         i += code_len;
