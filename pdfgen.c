@@ -2346,8 +2346,9 @@ static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
     return obj;
 }
 
-static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
-                                     uint32_t width, uint32_t height)
+static struct pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
+                                            const uint8_t *data,
+                                            uint32_t width, uint32_t height)
 {
     struct pdf_object *obj;
     size_t len;
@@ -2450,10 +2451,9 @@ static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
     return file_data;
 }
 
-static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
-                                         const uint8_t *jpeg_data, size_t len,
-                                         uint32_t *width_read,
-                                         uint32_t *height_read)
+static struct pdf_object *
+pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const uint8_t *jpeg_data,
+                      size_t len, uint32_t *width_read, uint32_t *height_read)
 {
     struct pdf_object *obj;
     int ncolours;
