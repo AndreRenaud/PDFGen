@@ -2513,17 +2513,17 @@ static int parse_ppm_header(struct img_info *info, const uint8_t *data,
         return -EINVAL;
     }
 
-    // TODO reconsider this piece of code: determining color channels and
-    // whether we use text or binary should be seperate errors (if the format
-    // actually supports it...)
-
     // Determine number of color channels (Also, we only support binary ppms)
+    int ncolors;
     if (strncmp(line, "P6", 2) == 0) {
-        info->specific_info.ppm.ncolours = 3;
+        info->specific_info.ppm.color_space = PPM_BINARY_COLOR_RGB;
+        ncolors = 3;
     } else if (strncmp(line, "P5", 2) == 0) {
-        info->specific_info.ppm.ncolours = 1;
+        info->specific_info.ppm.color_space = PPM_BINARY_COLOR_GRAY;
+        ncolors = 1;
     } else {
-        snprintf(err_msg, err_msg_length, "Only binary PPM files supported");
+        snprintf(err_msg, err_msg_length,
+                 "Only binary PPM files (grayscale, RGB) supported");
         return -EINVAL;
     }
 
@@ -2540,8 +2540,7 @@ static int parse_ppm_header(struct img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "Unable to find PPM size");
         return -EINVAL;
     }
-    info->specific_info.ppm.size =
-        info->width * info->height * info->specific_info.ppm.ncolours;
+    info->specific_info.ppm.size = info->width * info->height * ncolors;
     info->specific_info.ppm.data_begin_pos = pos;
 
     return 0;
@@ -2572,22 +2571,22 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
     }
 
-    switch (info->specific_info.ppm.ncolours) {
-    case 1: // todo enum stuff
+    switch (info->specific_info.ppm.color_space) {
+    case PPM_BINARY_COLOR_GRAY:
         return pdf_add_grayscale8(pdf, page, x, y, display_width,
                                   display_height, &ppm_data[pos], info->width,
                                   info->height);
         break;
 
-    case 3: // todo enum stuff
+    case PPM_BINARY_COLOR_RGB:
         return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
                              &ppm_data[pos], info->width, info->height);
         break;
 
     default:
         return pdf_set_err(pdf, -EINVAL,
-                           "Invalid number of color channels in ppm file: %i",
-                           info->specific_info.ppm.ncolours);
+                           "Invalid color space in ppm file: %i",
+                           info->specific_info.ppm.color_space);
         break;
     }
 }

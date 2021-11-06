@@ -134,11 +134,17 @@ struct jpeg_header {
     int ncolours;
 };
 
+enum /* PPM color spaces */ {
+    // binary ppm with RGB colors (magic number P5)
+    PPM_BINARY_COLOR_RGB,
+    // binary ppm with grayscale colors (magic number P6)
+    PPM_BINARY_COLOR_GRAY
+};
+
 struct ppm_header {
     uint64_t size;         // Indicate the size of the image data
     size_t data_begin_pos; // position in the data where the image starts
-    int ncolours;          // number of color channels (1=grayscale,3=rgb)
-    // TODO consider making ncolours an enum for both ppm and jpeg
+    int color_space;        // PPM color space
 };
 
 union format_specific_img_info {
