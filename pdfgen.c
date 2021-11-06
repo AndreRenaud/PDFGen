@@ -2896,7 +2896,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     final_data = (uint8_t *)malloc(png_data_total_length + 1024 +
                                    dstr_len(&colour_space));
     if (!final_data) {
-        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %d",
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %zu",
                     png_data_total_length + 1024 + dstr_len(&colour_space));
         goto free_buffers;
     }
@@ -2912,7 +2912,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                 "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
                 "/DecodeParms << /Predictor 15 /Colors %d "
                 "/BitsPerComponent %u /Columns %u >>\r\n"
-                "/Length %u\r\n>>stream\r\n",
+                "/Length %zu\r\n>>stream\r\n",
                 flexarray_size(&pdf->objects), dstr_data(&colour_space),
                 header->width, header->height, header->bitDepth, ncolours,
                 header->bitDepth, header->width, png_data_total_length);
