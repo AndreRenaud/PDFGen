@@ -2847,7 +2847,6 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         }
 
         pos += chunk_length; // add chunk length
-        // TODO consider actually checking the CRC, might be useful who knows
         pos += sizeof(uint32_t); // add CRC length
         if (pos > png_data_length) {
             pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
