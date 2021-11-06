@@ -2756,13 +2756,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     case PNG_COLOR_INDEXED:
         ncolours = 1;
         break;
-        // TODO Check if these color modes are supported
-        // case PNG_COLOR_GREYSCALE_A:
-        //     ncolours = 2;
-        //     break;
-        // case PNG_COLOR_RGBA:
-        //     ncolours = 4;
-        //     break;
+    // PNG_COLOR_RGBA and PNG_COLOR_GREYSCALE_A are unsupported
     default:
         pdf_set_err(pdf, -EINVAL, "PNG has unsupported color type: %d",
                     header->colorType);
