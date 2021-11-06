@@ -2540,7 +2540,8 @@ static int parse_ppm_header(struct img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "Unable to find PPM size");
         return -EINVAL;
     }
-    info->specific_info.ppm.size = info->width * info->height * ncolors;
+    info->specific_info.ppm.size =
+        (uint64_t)info->width * info->height * ncolors;
     info->specific_info.ppm.data_begin_pos = pos;
 
     return 0;
@@ -2846,7 +2847,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
             goto free_buffers;
         }
 
-        pos += chunk_length; // add chunk length
+        pos += chunk_length;     // add chunk length
         pos += sizeof(uint32_t); // add CRC length
         if (pos > png_data_length) {
             pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
