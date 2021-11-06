@@ -69,6 +69,96 @@ struct pdf_info {
 };
 
 /**
+ * Enum that declares the different image file formats we currently support.
+ * Each value has a corresponding header struct used within
+ * the format_specific_img_info union.
+ */
+enum {
+    IMAGE_PNG,
+    IMAGE_JPG,
+    IMAGE_PPM,
+    IMAGE_BMP,
+
+    IMAGE_UNKNOWN
+};
+
+/**
+ * Since we're casting random areas of memory to these, make sure
+ * they're packed properly to match the image format requirements
+ */
+#pragma pack(push, 1)
+
+/**
+ * Information about color type of PNG format
+ * As defined by https://www.w3.org/TR/2003/REC-PNG-20031110/#6Colour-values
+ */
+enum /* png colortype */ {
+    // Greyscale
+    PNG_COLOR_GREYSCALE = 0,
+    // Truecolour
+    PNG_COLOR_RGB = 2,
+    // Indexed-colour
+    PNG_COLOR_INDEXED = 3,
+    // Greyscale with alpha
+    PNG_COLOR_GREYSCALE_A = 4,
+    // Truecolour with alpha
+    PNG_COLOR_RGBA = 6,
+
+    PNG_COLOR_INVALID = 255
+};
+
+struct png_header {
+    uint32_t width;
+    uint32_t height;
+    uint8_t bitDepth;
+    uint8_t colorType;
+    uint8_t deflate;
+    uint8_t filtering;
+    uint8_t interlace;
+};
+
+struct bmp_header {
+    uint32_t bfSize;
+    uint16_t bfReserved1; // ignore!
+    uint16_t bfReserved2; // ignore!
+    uint32_t bfOffBits;
+    uint32_t biSize;
+    int32_t biWidth;
+    int32_t biHeight;
+    uint16_t biPlanes; // ignore!
+    uint16_t biBitCount;
+    uint32_t biCompression;
+};
+#pragma pack(pop)
+struct jpeg_header {
+    int ncolours;
+};
+
+struct ppm_header {
+    uint64_t size;         // Indicate the size of the image data
+    size_t data_begin_pos; // position in the data where the image starts
+    int ncolours;          // number of color channels (1=grayscale,3=rgb)
+    // TODO consider making ncolours an enum for both ppm and jpeg
+};
+
+union format_specific_img_info {
+    struct png_header png;
+    struct bmp_header bmp;
+    struct jpeg_header jpeg;
+    struct ppm_header ppm;
+};
+
+struct img_info {
+    int image_format; // Indicates the image format (IMAGE_PNG, IMAGE_JPG,
+                      // ...)
+    uint32_t width;
+    uint32_t height;
+
+    union format_specific_img_info
+        specific_info; // Information specific to the used file format
+};
+
+/**
  * pdf_path_operation holds information about a path
  * drawing operation.
  * See PDF reference for detailed usage.
@@ -599,6 +689,9 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
 int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
                        const char *image_filename);
+
+int parse_image_header(struct img_info *info, const uint8_t *data,
+                       size_t length, char *err_msg, size_t err_msg_length);
 
 #ifdef __cplusplus
 }

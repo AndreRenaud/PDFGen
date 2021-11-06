@@ -6,5 +6,6 @@
 testprog
 output.pdf
 output.txt
+output.pdftk
 docs/
 tests/penguin.c
