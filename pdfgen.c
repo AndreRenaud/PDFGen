@@ -2526,12 +2526,12 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
     }
 
     // Skip comments before header
-    while (line[0] == '#') {
+    do {
         if (!dgets(data, &pos, length, line, sizeof(line) - 1)) {
-            snprintf(err_msg, err_msg_length, "Unable to find PPM size");
+            snprintf(err_msg, err_msg_length, "Unable to find PPM header");
             return -EINVAL;
         }
-    }
+    } while (line[0] == '#');
 
     // Read image dimensions
     if (sscanf(line, "%u %u\n", &(info->width), &(info->height)) != 2) {
@@ -2962,7 +2962,7 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "File is not correct BMP file");
         return -EINVAL;
     }
-    memcpy(&info->bmp, data, sizeof(bmp_signature));
+    memcpy(&info->bmp, &data[sizeof(bmp_signature)], sizeof(struct bmp_header));
     info->width = info->bmp.biWidth;
     // biHeight might be negative (positive indicates vertically mirrored
     // lines)
@@ -3122,9 +3122,10 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        const uint8_t *data, size_t len)
 {
     struct pdf_img_info info = {
+        .image_format = IMAGE_UNKNOWN,
         .width = 0,
         .height = 0,
-        .image_format = IMAGE_UNKNOWN,
+        .jpeg = {0},
     };
 
     int ret = pdf_parse_image_header(&info, data, len, pdf->errstr,
