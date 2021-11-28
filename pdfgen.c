@@ -2384,10 +2384,9 @@ static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
     return file_data;
 }
 
-static struct pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
-                                                const struct img_info *info,
-                                                const uint8_t *jpeg_data,
-                                                size_t len)
+static struct pdf_object *
+pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
+                      const uint8_t *jpeg_data, size_t len)
 {
     struct pdf_object *obj = pdf_add_object(pdf, OBJ_image);
     if (!obj)
@@ -2400,8 +2399,7 @@ static struct pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
                 "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
                 "/Length %zu\r\n>>stream\r\n",
                 flexarray_size(&pdf->objects),
-                (info->specific_info.jpeg.ncolours == 1) ? "/DeviceGray"
-                                                         : "/DeviceRGB",
+                (info->jpeg.ncolours == 1) ? "/DeviceGray" : "/DeviceRGB",
                 info->width, info->height, len);
     dstr_append_data(&obj->stream, jpeg_data, len);
 
@@ -2499,7 +2497,7 @@ static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
     return *pos;
 }
 
-static int parse_ppm_header(struct img_info *info, const uint8_t *data,
+static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
                             size_t length, char *err_msg,
                             size_t err_msg_length)
 {
@@ -2516,10 +2514,10 @@ static int parse_ppm_header(struct img_info *info, const uint8_t *data,
     // Determine number of color channels (Also, we only support binary ppms)
     int ncolors;
     if (strncmp(line, "P6", 2) == 0) {
-        info->specific_info.ppm.color_space = PPM_BINARY_COLOR_RGB;
+        info->ppm.color_space = PPM_BINARY_COLOR_RGB;
         ncolors = 3;
     } else if (strncmp(line, "P5", 2) == 0) {
-        info->specific_info.ppm.color_space = PPM_BINARY_COLOR_GRAY;
+        info->ppm.color_space = PPM_BINARY_COLOR_GRAY;
         ncolors = 1;
     } else {
         snprintf(err_msg, err_msg_length,
@@ -2540,22 +2538,22 @@ static int parse_ppm_header(struct img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "Unable to find PPM size");
         return -EINVAL;
     }
-    info->specific_info.ppm.size =
-        (uint64_t)info->width * info->height * ncolors;
-    info->specific_info.ppm.data_begin_pos = pos;
+    info->ppm.size = (uint64_t)info->width * info->height * ncolors;
+    info->ppm.data_begin_pos = pos;
 
     return 0;
 }
 
 static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
-                            float display_height, const struct img_info *info,
+                            float display_height,
+                            const struct pdf_img_info *info,
                             const uint8_t *ppm_data, size_t len)
 {
     char line[1024];
     // We start reading at the position delivered by parse_ppm_header,
     // since we already parsed the header of the file there.
-    size_t pos = info->specific_info.ppm.data_begin_pos;
+    size_t pos = info->ppm.data_begin_pos;
 
     /* Skip over the byte-size line */
     if (!dgets(ppm_data, &pos, len, line, sizeof(line) - 1))
@@ -2568,11 +2566,11 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                            info->width, info->height);
     }
 
-    if (info->specific_info.ppm.size > len - pos) {
+    if (info->ppm.size > len - pos) {
         return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
     }
 
-    switch (info->specific_info.ppm.color_space) {
+    switch (info->ppm.color_space) {
     case PPM_BINARY_COLOR_GRAY:
         return pdf_add_grayscale8(pdf, page, x, y, display_width,
                                   display_height, &ppm_data[pos], info->width,
@@ -2587,12 +2585,12 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     default:
         return pdf_set_err(pdf, -EINVAL,
                            "Invalid color space in ppm file: %i",
-                           info->specific_info.ppm.color_space);
+                           info->ppm.color_space);
         break;
     }
 }
 
-static int parse_jpeg_header(struct img_info *info, const uint8_t *data,
+static int parse_jpeg_header(struct pdf_img_info *info, const uint8_t *data,
                              size_t length, char *err_msg,
                              size_t err_msg_length)
 {
@@ -2605,7 +2603,7 @@ static int parse_jpeg_header(struct img_info *info, const uint8_t *data,
                 if (len >= 9 && i + len < length) {
                     info->height = data[i + 5] * 256 + data[i + 6];
                     info->width = data[i + 7] * 256 + data[i + 8];
-                    info->specific_info.jpeg.ncolours = data[i + 9];
+                    info->jpeg.ncolours = data[i + 9];
                     return 0;
                 }
             }
@@ -2617,7 +2615,7 @@ static int parse_jpeg_header(struct img_info *info, const uint8_t *data,
 
 static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
                              float x, float y, float display_width,
-                             float display_height, struct img_info *info,
+                             float display_height, struct pdf_img_info *info,
                              const uint8_t *jpeg_data, size_t len)
 {
     struct pdf_object *obj;
@@ -2667,7 +2665,7 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
     return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
 }
 
-static int parse_png_header(struct img_info *info, const uint8_t *data,
+static int parse_png_header(struct pdf_img_info *info, const uint8_t *data,
                             size_t length, char *err_msg,
                             size_t err_msg_length)
 {
@@ -2691,7 +2689,7 @@ static int parse_png_header(struct img_info *info, const uint8_t *data,
     }
     if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
         // header found, process width and height, check errors
-        struct png_header *header = &(info->specific_info.png);
+        struct png_header *header = &info->png;
         memcpy(header, &data[pos], sizeof(struct png_header));
 
         if (pos + sizeof(struct png_header) > length) {
@@ -2721,7 +2719,7 @@ static int parse_png_header(struct img_info *info, const uint8_t *data,
 static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
                             float display_height,
-                            const struct img_info *img_info,
+                            const struct pdf_img_info *img_info,
                             const uint8_t *png_data, size_t png_data_length)
 {
     // indicates if we return an error or add the img at the
@@ -2744,7 +2742,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     struct rgb_value *palette_buffer = NULL;
     size_t palette_buffer_length = 0;
 
-    const struct png_header *header = &(img_info->specific_info.png);
+    const struct png_header *header = &img_info->png;
 
     // Father info from png header
     switch (header->colorType) {
@@ -2951,7 +2949,7 @@ free_buffers:
         return pdf->errval;
 }
 
-static int parse_bmp_header(struct img_info *info, const uint8_t *data,
+static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
                             size_t data_length, char *err_msg,
                             size_t err_msg_length)
 {
@@ -2964,20 +2962,21 @@ static int parse_bmp_header(struct img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "File is not correct BMP file");
         return -EINVAL;
     }
-    memcpy(&(info->specific_info.bmp), data, sizeof(bmp_signature));
-    info->width = info->specific_info.bmp.biWidth;
+    memcpy(&info->bmp, data, sizeof(bmp_signature));
+    info->width = info->bmp.biWidth;
     // biHeight might be negative (positive indicates vertically mirrored
     // lines)
-    info->height = abs(info->specific_info.bmp.biHeight);
+    info->height = abs(info->bmp.biHeight);
     return 0;
 }
 
 static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
                             float x, float y, float display_width,
-                            float display_height, const struct img_info *info,
+                            float display_height,
+                            const struct pdf_img_info *info,
                             const uint8_t *data, const size_t len)
 {
-    const struct bmp_header *header = &(info->specific_info.bmp);
+    const struct bmp_header *header = &info->bmp;
     uint8_t *bmp_data = NULL;
     uint8_t row_padding;
     uint32_t bpp;
@@ -3094,8 +3093,9 @@ static int determine_image_format(const uint8_t *data, size_t length)
     return IMAGE_UNKNOWN;
 }
 
-int parse_image_header(struct img_info *info, const uint8_t *data,
-                       size_t length, char *err_msg, size_t err_msg_length)
+int pdf_parse_image_header(struct pdf_img_info *info, const uint8_t *data,
+                           size_t length, char *err_msg,
+                           size_t err_msg_length)
 
 {
     const int image_format = determine_image_format(data, length);
@@ -3121,20 +3121,16 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
                        const uint8_t *data, size_t len)
 {
-    struct img_info info = {
+    struct pdf_img_info info = {
         .width = 0,
         .height = 0,
         .image_format = IMAGE_UNKNOWN,
     };
-    char err_msg[sizeof(pdf->errstr)];
-    memset(err_msg, '\0', sizeof(pdf->errstr));
 
-    const int ret =
-        parse_image_header(&info, data, len, err_msg, sizeof(pdf->errstr));
-    if (ret) {
-        pdf_set_err(pdf, ret, err_msg);
+    int ret = pdf_parse_image_header(&info, data, len, pdf->errstr,
+                                     sizeof(pdf->errstr));
+    if (ret)
         return ret;
-    }
 
     // Try and determine which image format it is based on the content
     switch (info.image_format) {

@@ -144,24 +144,20 @@ enum /* PPM color spaces */ {
 struct ppm_header {
     uint64_t size;         // Indicate the size of the image data
     size_t data_begin_pos; // position in the data where the image starts
-    int color_space;        // PPM color space
+    int color_space;       // PPM color space
 };
 
-union format_specific_img_info {
-    struct png_header png;
-    struct bmp_header bmp;
-    struct jpeg_header jpeg;
-    struct ppm_header ppm;
-};
-
-struct img_info {
+struct pdf_img_info {
     int image_format; // Indicates the image format (IMAGE_PNG, IMAGE_JPG,
                       // ...)
     uint32_t width;
     uint32_t height;
-
-    union format_specific_img_info
-        specific_info; // Information specific to the used file format
+    union { // Information specific to the used file format
+        struct png_header png;
+        struct bmp_header bmp;
+        struct jpeg_header jpeg;
+        struct ppm_header ppm;
+    };
 };
 
 /**
@@ -696,8 +692,9 @@ int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
                        const char *image_filename);
 
-int parse_image_header(struct img_info *info, const uint8_t *data,
-                       size_t length, char *err_msg, size_t err_msg_length);
+int pdf_parse_image_header(struct pdf_img_info *info, const uint8_t *data,
+                           size_t length, char *err_msg,
+                           size_t err_msg_length);
 
 #ifdef __cplusplus
 }
