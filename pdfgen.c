@@ -2962,7 +2962,8 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "File is not correct BMP file");
         return -EINVAL;
     }
-    memcpy(&info->bmp, &data[sizeof(bmp_signature)], sizeof(struct bmp_header));
+    memcpy(&info->bmp, &data[sizeof(bmp_signature)],
+           sizeof(struct bmp_header));
     info->width = info->bmp.biWidth;
     // biHeight might be negative (positive indicates vertically mirrored
     // lines)
