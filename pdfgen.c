@@ -2690,12 +2690,13 @@ static int parse_png_header(struct pdf_img_info *info, const uint8_t *data,
     if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
         // header found, process width and height, check errors
         struct png_header *header = &info->png;
-        memcpy(header, &data[pos], sizeof(struct png_header));
 
         if (pos + sizeof(struct png_header) > length) {
             snprintf(err_msg, err_msg_length, "PNG file too short");
             return -EINVAL;
         }
+
+        memcpy(header, &data[pos], sizeof(struct png_header));
         if (header->deflate != 0) {
             snprintf(err_msg, err_msg_length, "Deflate wrong in PNG header");
             return -EINVAL;
