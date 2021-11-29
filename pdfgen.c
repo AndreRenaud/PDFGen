@@ -2916,7 +2916,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                 header->width, header->height, header->bitDepth, ncolours,
                 header->bitDepth, header->width, png_data_total_length);
 
-    memcpy(&final_data[written], png_data, png_data_total_length);
+    memcpy(&final_data[written], png_data_temp, png_data_total_length);
     written += png_data_total_length;
     written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
 
