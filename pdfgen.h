@@ -69,6 +69,120 @@ struct pdf_info {
 };
 
 /**
+ * Enum that declares the different image file formats we currently support.
+ * Each value has a corresponding header struct used within
+ * the format_specific_img_info union.
+ */
+enum {
+    IMAGE_PNG,
+    IMAGE_JPG,
+    IMAGE_PPM,
+    IMAGE_BMP,
+
+    IMAGE_UNKNOWN
+};
+
+/**
+ * Since we're casting random areas of memory to these, make sure
+ * they're packed properly to match the image format requirements
+ */
+#pragma pack(push, 1)
+
+/**
+ * Information about color type of PNG format
+ * As defined by https://www.w3.org/TR/2003/REC-PNG-20031110/#6Colour-values
+ */
+enum /* png colortype */ {
+    // Greyscale
+    PNG_COLOR_GREYSCALE = 0,
+    // Truecolour
+    PNG_COLOR_RGB = 2,
+    // Indexed-colour
+    PNG_COLOR_INDEXED = 3,
+    // Greyscale with alpha
+    PNG_COLOR_GREYSCALE_A = 4,
+    // Truecolour with alpha
+    PNG_COLOR_RGBA = 6,
+
+    PNG_COLOR_INVALID = 255
+};
+
+/**
+ * png_header describes the header information extracted from .PNG files
+ */
+struct png_header {
+    uint32_t width;    //!< Width in pixels
+    uint32_t height;   //!< Height in pixels
+    uint8_t bitDepth;  //!< Bit Depth
+    uint8_t colorType; //!< Color type - see PNG_COLOR_xx
+    uint8_t deflate;   //!< Deflate setting
+    uint8_t filtering; //!< Filtering
+    uint8_t interlace; //!< Interlacing
+};
+
+/**
+ * bmp_header describes the header information extracted from .BMP files
+ */
+struct bmp_header {
+    uint32_t bfSize;        //!< size of BMP in bytes
+    uint16_t bfReserved1;   //!< ignore!
+    uint16_t bfReserved2;   //!< ignore!
+    uint32_t bfOffBits;     //!< Offset to BMP data
+    uint32_t biSize;        //!< Size of this header (40)
+    int32_t biWidth;        //!< Width in pixels
+    int32_t biHeight;       //!< Height in pixels
+    uint16_t biPlanes;      //!< Number of colour planes - must be 1
+    uint16_t biBitCount;    //!< Bits Per Pixel
+    uint32_t biCompression; //!< Compression Method
+};
+#pragma pack(pop)
+
+/**
+ * jpeg_header describes the header information extracted from .JPG files
+ */
+struct jpeg_header {
+    int ncolours; //!< Number of colours
+};
+
+/**
+ * PPM color spaces
+ */
+enum {
+    PPM_BINARY_COLOR_RGB,  //!< binary ppm with RGB colors (magic number P5)
+    PPM_BINARY_COLOR_GRAY, //!< binary ppm with grayscale colors (magic number
+                           //!< P6)
+};
+
+/**
+ * ppm_header describes the header information extracted from .PPM files
+ */
+struct ppm_header {
+    uint64_t size;         //!< Indicate the size of the image data
+    size_t data_begin_pos; //!< position in the data where the image starts
+    int color_space;       //!< PPM color space
+};
+
+/**
+ * pdf_img_info describes the metadata for an arbitrary image
+ */
+struct pdf_img_info {
+    int image_format; //!< Indicates the image format (IMAGE_PNG, ...)
+    uint32_t width;   //!< Width in pixels
+    uint32_t height;  //!< Height in pixels
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+    // Doxygen doesn't like anonymous unions
+    //!< Image specific details
+    union {
+        struct bmp_header bmp;   //!< BMP header info
+        struct jpeg_header jpeg; //!< JPEG header info
+        struct png_header png;   //!< PNG header info
+        struct ppm_header ppm;   //!< PPM header info
+    };
+#endif
+};
+
+/**
  * pdf_path_operation holds information about a path
  * drawing operation.
  * See PDF reference for detailed usage.
@@ -599,6 +713,19 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
 int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
                        float y, float display_width, float display_height,
                        const char *image_filename);
+
+/**
+ * Parse image data to determine the image type & metadata
+ * @param info structure to hold the parsed metadata
+ * @param data image data to parse
+ * @param length number of bytes in data
+ * @param err_msg area to put any failure details
+ * @param err_msg_length maximum number of bytes to store in err_msg
+ * @return < 0 on failure, >= 0 on success
+ */
+int pdf_parse_image_header(struct pdf_img_info *info, const uint8_t *data,
+                           size_t length, char *err_msg,
+                           size_t err_msg_length);
 
 #ifdef __cplusplus
 }
