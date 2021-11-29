@@ -2965,6 +2965,10 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
     }
     memcpy(&info->bmp, &data[sizeof(bmp_signature)],
            sizeof(struct bmp_header));
+    if (info->bmp.biWidth < 0) {
+        snprintf(err_msg, err_msg_length, "BMP has negative width");
+        return -EINVAL;
+    }
     info->width = info->bmp.biWidth;
     // biHeight might be negative (positive indicates vertically mirrored
     // lines)
