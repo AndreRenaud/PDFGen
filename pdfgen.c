@@ -185,6 +185,11 @@ static inline uint32_t bswap32(uint32_t x)
 #define ntoh32(x) (x)
 #endif
 
+// Limits on image sizes for sanity checking & to avoid plausible overflow
+// issues
+#define MAX_IMAGE_WIDTH (16 * 1024)
+#define MAX_IMAGE_HEIGHT (16 * 1024)
+
 // Signatures for various image formats
 static const uint8_t bmp_signature[] = {'B', 'M'};
 static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
@@ -2538,7 +2543,12 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "Unable to find PPM size");
         return -EINVAL;
     }
-    info->ppm.size = (uint64_t)info->width * info->height * ncolors;
+    if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
+        snprintf(err_msg, err_msg_length, "Invalid width/height: %dx%d",
+                 info->width, info->height);
+        return -EINVAL;
+    }
+    info->ppm.size = (size_t)(info->width * info->height * ncolors);
     info->ppm.data_begin_pos = pos;
 
     return 0;
@@ -2560,7 +2570,7 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "No byte-size line in PPM file");
 
     /* Try and limit the memory usage to sane images */
-    if (info->width > 4096 || info->height > 4096) {
+    if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
         return pdf_set_err(pdf, -EINVAL,
                            "Invalid width/height in PPM file: %ux%u",
                            info->width, info->height);
@@ -2999,12 +3009,13 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->biCompression != 0)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP compression value: %d",
                            header->biCompression);
-    if (header->biWidth > 10 * 1024 || header->biWidth <= 0 ||
-        width > 10 * 1024 || width == 0)
+    if (header->biWidth > MAX_IMAGE_WIDTH || header->biWidth <= 0 ||
+        width > MAX_IMAGE_WIDTH || width == 0)
         return pdf_set_err(pdf, -EINVAL, "BMP has invalid width: %d",
                            header->biWidth);
-    if (header->biHeight > 10 * 1024 || header->biHeight < -10 * 1024 ||
-        header->biHeight == 0 || height > 10 * 1024 || height == 0)
+    if (header->biHeight > MAX_IMAGE_HEIGHT ||
+        header->biHeight < -MAX_IMAGE_HEIGHT || header->biHeight == 0 ||
+        height > MAX_IMAGE_HEIGHT || height == 0)
         return pdf_set_err(pdf, -EINVAL, "BMP has invalid height: %d",
                            header->biHeight);
     if (header->biBitCount != 24 && header->biBitCount != 32)
