@@ -157,7 +157,7 @@ enum {
  * ppm_header describes the header information extracted from .PPM files
  */
 struct ppm_header {
-    uint64_t size;         //!< Indicate the size of the image data
+    size_t size;           //!< Indicate the size of the image data
     size_t data_begin_pos; //!< position in the data where the image starts
     int color_space;       //!< PPM color space
 };
