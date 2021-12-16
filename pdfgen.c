@@ -476,8 +476,6 @@ static void force_locale(char *buf, int len)
     strncpy(buf, saved_locale, len);
     buf[len - 1] = '\0';
 
-    // Locales can replace the decimal character with a ','.
-    // This breaks the PDF output, so we force a 'safe' locale.
     setlocale(LC_NUMERIC, "POSIX");
 }
 
