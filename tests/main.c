@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <locale.h>
 
 #include "pdfgen.h"
 
@@ -20,6 +21,8 @@ int main(int argc, char *argv[])
     float height, width;
     int bm;
     int err;
+
+    setlocale(LC_ALL, "");
 
     /* Unused */
     (void)argc;
