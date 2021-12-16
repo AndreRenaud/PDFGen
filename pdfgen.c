@@ -113,6 +113,7 @@ typedef SSIZE_T ssize_t;
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -1067,6 +1068,9 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     uint64_t id1, id2;
     time_t now = time(NULL);
 
+    char *init_locale = setlocale(LC_NUMERIC, NULL);
+    setlocale(LC_NUMERIC, "C");
+
     fprintf(fp, "%%PDF-1.3\r\n");
     /* Hibit bytes */
     fprintf(fp, "%c%c%c%c%c\r\n", 0x25, 0xc7, 0xec, 0x8f, 0xa2);
@@ -1105,6 +1109,8 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
                 "startxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
+
+    setlocale(LC_NUMERIC, init_locale);
 
     return 0;
 }
