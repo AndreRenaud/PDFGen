@@ -1067,8 +1067,12 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     int xref_count = 0;
     uint64_t id1, id2;
     time_t now = time(NULL);
+    char saved_locale[32];
 
-    char *init_locale = setlocale(LC_NUMERIC, NULL);
+    // Locale's can replace the decimal character with a ','.
+    // This breaks the PDF output
+    strncpy(saved_locale, setlocale(LC_NUMERIC, NULL), sizeof(saved_locale));
+    saved_locale[sizeof(saved_locale) - 1] = '\0';
     setlocale(LC_NUMERIC, "C");
 
     fprintf(fp, "%%PDF-1.3\r\n");
@@ -1110,7 +1114,7 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
 
-    setlocale(LC_NUMERIC, init_locale);
+    setlocale(LC_NUMERIC, saved_locale);
 
     return 0;
 }
