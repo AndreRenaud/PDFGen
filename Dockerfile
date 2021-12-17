@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	graphviz \
 	libtinfo5 \
 	llvm-10 \
+	locales-all \
 	make \
 	mxe-i686-w64-mingw32.static-gcc \
 	pdftk-java \
