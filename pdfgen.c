@@ -471,10 +471,10 @@ static void force_locale(char *buf, int len)
 
     if (!saved_locale) {
         *buf = '\0';
+    } else {
+        strncpy(buf, saved_locale, len);
+        buf[len - 1] = '\0';
     }
-
-    strncpy(buf, saved_locale, len);
-    buf[len - 1] = '\0';
 
     setlocale(LC_NUMERIC, "POSIX");
 }
