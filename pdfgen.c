@@ -113,6 +113,7 @@ typedef SSIZE_T ssize_t;
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -462,6 +463,27 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
     return 0;
 }
 
+// Locales can replace the decimal character with a ','.
+// This breaks the PDF output, so we force a 'safe' locale.
+static void force_locale(char *buf, int len)
+{
+    char *saved_locale = setlocale(LC_ALL, NULL);
+
+    if (!saved_locale) {
+        *buf = '\0';
+    } else {
+        strncpy(buf, saved_locale, len);
+        buf[len - 1] = '\0';
+    }
+
+    setlocale(LC_NUMERIC, "POSIX");
+}
+
+static void restore_locale(char *buf)
+{
+    setlocale(LC_ALL, buf);
+}
+
 #ifndef SKIP_ATTRIBUTE
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
@@ -470,6 +492,9 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
 {
     va_list ap, aq;
     int len;
+    char saved_locale[32];
+
+    force_locale(saved_locale, sizeof(saved_locale));
 
     va_start(ap, fmt);
     va_copy(aq, ap);
@@ -477,12 +502,14 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     if (dstr_ensure(str, str->used_len + len + 1) < 0) {
         va_end(ap);
         va_end(aq);
+        restore_locale(saved_locale);
         return -ENOMEM;
     }
     vsprintf(dstr_data(str) + str->used_len, fmt, aq);
     str->used_len += len;
     va_end(ap);
     va_end(aq);
+    restore_locale(saved_locale);
 
     return len;
 }
@@ -1066,6 +1093,9 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     int xref_count = 0;
     uint64_t id1, id2;
     time_t now = time(NULL);
+    char saved_locale[32];
+
+    force_locale(saved_locale, sizeof(saved_locale));
 
     fprintf(fp, "%%PDF-1.3\r\n");
     /* Hibit bytes */
@@ -1105,6 +1135,8 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
                 "startxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
+
+    restore_locale(saved_locale);
 
     return 0;
 }

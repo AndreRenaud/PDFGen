@@ -1,3 +1,4 @@
+#include <locale.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -20,6 +21,8 @@ int main(int argc, char *argv[])
     float height, width;
     int bm;
     int err;
+
+    setlocale(LC_ALL, "");
 
     /* Unused */
     (void)argc;
