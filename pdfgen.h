@@ -560,12 +560,14 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * @param width Width of rectangle
  * @param height Height of rectangle
  * @param border_width Width of rectangle border
- * @param colour Colour to draw the rectangle
+ * @param colour_fill Colour to fill the rectangle
+ * @param colour_border Colour to draw the rectangle
  * @return 0 on success, < 0 on failure
  */
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              float x, float y, float width, float height,
-                             float border_width, uint32_t colour);
+                             float border_width, uint32_t colour_fill,
+                             uint32_t colour_border);
 
 /**
  * Add an outline polygon to the document
