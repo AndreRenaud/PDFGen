@@ -1,5 +1,8 @@
 PDFGen
 ======
+<img src="/pdfgen_logo.png" alt="PDFGen Logo" width="200" align="right"/>
+
+<a href="https://www.buymeacoffee.com/EstIgnavus" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
 Simple C PDF Creation/Generation library.
 All contained a single C-file with header and no external library dependencies.
@@ -8,11 +11,20 @@ Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
 * Text of various fonts/sizes/colours
-* Lines/Rectangles/Filled Rectangles/Polygons/Filled Polygons
+* Primitive drawing elements
+    * Lines
+    * Rectangles
+    * Filled Rectangles
+    * Polygons
+    * Filled Polygons
+    * Bezier curves
 * Bookmarks
 * Barcodes (Code-128 & Code-39)
-* PPM Images
-* JPEG Images
+* Embedded images
+    * PPM/PGM (binary format only)
+    * JPEG
+    * PNG (Alpha Channels are not supported)
+    * BMP
 
 Example usage
 =============
@@ -48,12 +60,13 @@ If you find it useful, please drop me a line at andre@ignavus.net.
 
 Builds
 ======
-
-CircleCI Build status: [![Build Status](https://circleci.com/gh/AndreRenaud/PDFGen.svg)](https://circleci.com/gh/AndreRenaud/PDFGen)
+Build status: [![GitHub Actions](https://github.com/AndreRenaud/PDFGen/workflows/Build%20and%20Test/badge.svg)](https://github.com/AndreRenaud/PDFGen/actions)
 
 Appveyor status: [![Build status](https://ci.appveyor.com/api/projects/status/3qpsmr06xg5gx74j/branch/master?svg=true)](https://ci.appveyor.com/project/AndreRenaud/pdfgen/branch/master)
 
 Code Coverage: [![Coverage Status](https://coveralls.io/repos/github/AndreRenaud/PDFGen/badge.svg?branch=master)](https://coveralls.io/github/AndreRenaud/PDFGen?branch=master)
+
+Coverity scan: [![Coverity scan](https://scan.coverity.com/projects/11942/badge.svg)](https://scan.coverity.com/projects/andrerenaud-pdfgen)
 
 Static Analysis
 ===============

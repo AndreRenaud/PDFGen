@@ -15,7 +15,7 @@ int LLVMFuzzerTestOneInput(char *data, int size)
     text[size] = '\0';
     pdf_add_text(pdf, NULL, text, 10, 20, 30, PDF_RGB(0xff, 0, 0));
     pdf_add_text_wrap(pdf, NULL, text, 10, 20, 30, PDF_RGB(0xff, 0, 0), 200,
-                      PDF_ALIGN_LEFT);
+                      PDF_ALIGN_LEFT, NULL);
     free(text);
     pdf_save(pdf, "fuzz.pdf");
     pdf_destroy(pdf);

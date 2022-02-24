@@ -8,6 +8,8 @@
 
 /**
  * PDF HINTS & TIPS
+ * The specification can be found at
+ * https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
  * The following sites have various bits & pieces about PDF document
  * generation
  * http://www.mactech.com/articles/mactech/Vol.15/15.09/PDFIntro/index.html
@@ -96,16 +98,25 @@
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #else
-#define _POSIX_SOURCE     /* For localtime_r */
+
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE /* For localtime_r */
+#endif
+
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600 /* for M_SQRT2 */
-#include <sys/types.h>    /* for ssize_t */
+#endif
+
+#include <sys/types.h> /* for ssize_t */
 #endif
 
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -135,6 +146,64 @@ typedef SSIZE_T ssize_t;
 #else
 #include <strings.h> // strcasecmp
 #endif
+
+/**
+ * Try and support big & little endian machines
+ */
+static inline uint32_t bswap32(uint32_t x)
+{
+    return (((x & 0xff000000u) >> 24) | ((x & 0x00ff0000u) >> 8) |
+            ((x & 0x0000ff00u) << 8) | ((x & 0x000000ffu) << 24));
+}
+
+#ifdef __has_include // C++17, supported as extension to C++11 in clang, GCC
+                     // 5+, vs2015
+#if __has_include(<endian.h>)
+#include <endian.h> // gnu libc normally provides, linux
+#elif __has_include(<machine/endian.h>)
+#include <machine/endian.h> //open bsd, macos
+#elif __has_include(<sys/param.h>)
+#include <sys/param.h> // mingw, some bsd (not open/macos)
+#elif __has_include(<sys/isadefs.h>)
+#include <sys/isadefs.h> // solaris
+#endif
+#endif
+
+#if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
+#ifndef __BYTE_ORDER__
+/* Fall back to little endian by default */
+#define __LITTLE_ENDIAN__
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ || __BYTE_ORDER == __BIG_ENDIAN
+#define __BIG_ENDIAN__
+#else
+#define __LITTLE_ENDIAN__
+#endif
+#endif
+
+#if defined(__LITTLE_ENDIAN__)
+#define ntoh32(x) bswap32((x))
+#elif defined(__BIG_ENDIAN__)
+#define ntoh32(x) (x)
+#endif
+
+// Limits on image sizes for sanity checking & to avoid plausible overflow
+// issues
+#define MAX_IMAGE_WIDTH (16 * 1024)
+#define MAX_IMAGE_HEIGHT (16 * 1024)
+
+// Signatures for various image formats
+static const uint8_t bmp_signature[] = {'B', 'M'};
+static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
+                                        0x0D, 0x0A, 0x1A, 0x0A};
+static const uint8_t jpeg_signature[] = {0xff, 0xd8};
+static const uint8_t ppm_signature[] = {'P', '6'};
+static const uint8_t pgm_signature[] = {'P', '5'};
+
+// Special signatures for PNG chunks
+static const char png_chunk_header[] = "IHDR";
+static const char png_chunk_palette[] = "PLTE";
+static const char png_chunk_data[] = "IDAT";
+static const char png_chunk_end[] = "IEND";
 
 typedef struct pdf_object pdf_object;
 
@@ -185,8 +254,8 @@ struct pdf_object {
         } bookmark;
         struct dstr stream;
         struct {
-            int width;
-            int height;
+            float width;
+            float height;
             struct flexarray children;
         } page;
         struct pdf_info *info;
@@ -202,13 +271,34 @@ struct pdf_doc {
     int errval;
     struct flexarray objects;
 
-    int width;
-    int height;
+    float width;
+    float height;
 
     struct pdf_object *current_font;
 
     struct pdf_object *last_objects[OBJ_count];
     struct pdf_object *first_objects[OBJ_count];
+};
+
+/**
+ * Since we're casting random areas of memory to these, make sure
+ * they're packed properly to match the image format requirements
+ */
+#pragma pack(push, 1)
+struct png_chunk {
+    uint32_t length;
+    // chunk type, see png_chunk_header, png_chunk_data, png_chunk_end
+    char type[4];
+};
+
+#pragma pack(pop)
+
+// Simple data container to store a single 24 Bit RGB value, used for
+// processing PNG images
+struct rgb_value {
+    uint8_t red;
+    uint8_t blue;
+    uint8_t green;
 };
 
 /**
@@ -244,7 +334,7 @@ static int bin_offset[] = {
 static inline int flexarray_get_bin(const struct flexarray *flex, int index)
 {
     (void)flex;
-    for (int i = 0; i < ARRAY_SIZE(bin_offset); i++)
+    for (size_t i = 0; i < ARRAY_SIZE(bin_offset); i++)
         if (index < bin_offset[i])
             return i - 1;
     return -1;
@@ -254,7 +344,7 @@ static inline int flexarray_get_bin_size(const struct flexarray *flex,
                                          int bin)
 {
     (void)flex;
-    if (bin >= ARRAY_SIZE(bin_offset))
+    if (bin >= (int)ARRAY_SIZE(bin_offset) - 1)
         return -1;
     int next = bin_offset[bin + 1];
     return next - bin_offset[bin];
@@ -287,15 +377,15 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
     if (bin < 0)
         return -EINVAL;
     if (bin >= flex->bin_count) {
-        void *bins =
-            realloc(flex->bins, (flex->bin_count + 1) * sizeof(flex->bins));
+        void ***bins = (void ***)realloc(flex->bins, (flex->bin_count + 1) *
+                                                         sizeof(*flex->bins));
         if (!bins)
             return -ENOMEM;
         flex->bin_count++;
         flex->bins = bins;
         flex->bins[flex->bin_count - 1] =
-            calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
-                   sizeof(void *));
+            (void **)calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
+                            sizeof(void *));
         if (!flex->bins[flex->bin_count - 1]) {
             flex->bin_count--;
             return -ENOMEM;
@@ -334,9 +424,9 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
         .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
     }
 
-static char *dstr_data(const struct dstr *str)
+static char *dstr_data(struct dstr *str)
 {
-    return str->data ? str->data : (char *)str->static_data;
+    return str->data ? str->data : str->static_data;
 }
 
 static size_t dstr_len(const struct dstr *str)
@@ -351,30 +441,60 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
     if (!str->data && len <= sizeof(str->static_data))
         str->alloc_len = len;
     else if (str->alloc_len < len) {
-        char *new_data;
         size_t new_len;
 
         new_len = len + 4096;
-        new_data = realloc(str->data, new_len);
-        if (!new_data)
-            return -ENOMEM;
-        // If we move beyond the on-stack buffer, copy the old data out
-        if (!str->data && str->used_len > 0)
-            memcpy(new_data, str->static_data, str->used_len + 1);
-        str->data = new_data;
+
+        if (str->data) {
+            char *new_data = (char *)realloc((void *)str->data, new_len);
+            if (!new_data)
+                return -ENOMEM;
+            str->data = new_data;
+        } else {
+            str->data = (char *)malloc(new_len);
+            if (!str->data)
+                return -ENOMEM;
+            if (str->used_len)
+                memcpy(str->data, str->static_data, str->used_len + 1);
+        }
+
         str->alloc_len = new_len;
     }
     return 0;
 }
 
+// Locales can replace the decimal character with a ','.
+// This breaks the PDF output, so we force a 'safe' locale.
+static void force_locale(char *buf, int len)
+{
+    char *saved_locale = setlocale(LC_ALL, NULL);
+
+    if (!saved_locale) {
+        *buf = '\0';
+    } else {
+        strncpy(buf, saved_locale, len);
+        buf[len - 1] = '\0';
+    }
+
+    setlocale(LC_NUMERIC, "POSIX");
+}
+
+static void restore_locale(char *buf)
+{
+    setlocale(LC_ALL, buf);
+}
+
 #ifndef SKIP_ATTRIBUTE
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
-    __attribute__((format(gnu_printf, 2, 3)));
+    __attribute__((format(printf, 2, 3)));
 #endif
 static int dstr_printf(struct dstr *str, const char *fmt, ...)
 {
     va_list ap, aq;
     int len;
+    char saved_locale[32];
+
+    force_locale(saved_locale, sizeof(saved_locale));
 
     va_start(ap, fmt);
     va_copy(aq, ap);
@@ -382,12 +502,14 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     if (dstr_ensure(str, str->used_len + len + 1) < 0) {
         va_end(ap);
         va_end(aq);
+        restore_locale(saved_locale);
         return -ENOMEM;
     }
     vsprintf(dstr_data(str) + str->used_len, fmt, aq);
     str->used_len += len;
     va_end(ap);
     va_end(aq);
+    restore_locale(saved_locale);
 
     return len;
 }
@@ -421,7 +543,7 @@ static void dstr_free(struct dstr *str)
 
 #ifndef SKIP_ATTRIBUTE
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
-                       ...) __attribute__((format(gnu_printf, 3, 4)));
+                       ...) __attribute__((format(printf, 3, 4)));
 #endif
 static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
                        ...)
@@ -438,12 +560,9 @@ static int pdf_set_err(struct pdf_doc *doc, int errval, const char *buffer,
         return errval;
     }
 
-    if (len >= sizeof(doc->errstr) - 1)
-        len = sizeof(doc->errstr) - 1;
+    if (len >= (int)(sizeof(doc->errstr) - 1))
+        len = (int)(sizeof(doc->errstr) - 1);
 
-    /* Make sure we're properly terminated */
-    if (len > 0 && doc->errstr[len - 1] != '\n')
-        doc->errstr[len - 1] = '\n';
     doc->errstr[len] = '\0';
     doc->errval = errval;
 
@@ -469,9 +588,16 @@ void pdf_clear_err(struct pdf_doc *pdf)
     pdf->errval = 0;
 }
 
+static int pdf_get_errval(struct pdf_doc *pdf)
+{
+    if (!pdf)
+        return 0;
+    return pdf->errval;
+}
+
 static struct pdf_object *pdf_get_object(const struct pdf_doc *pdf, int index)
 {
-    return flexarray_get(&pdf->objects, index);
+    return (struct pdf_object *)flexarray_get(&pdf->objects, index);
 }
 
 static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
@@ -518,7 +644,10 @@ static struct pdf_object *pdf_add_object(struct pdf_doc *pdf, int type)
 {
     struct pdf_object *obj;
 
-    obj = calloc(1, sizeof(*obj));
+    if (!pdf)
+        return NULL;
+
+    obj = (struct pdf_object *)calloc(1, sizeof(*obj));
     if (!obj) {
         pdf_set_err(pdf, -errno,
                     "Unable to allocate object %d of type %d: %s",
@@ -563,12 +692,13 @@ static void pdf_del_object(struct pdf_doc *pdf, struct pdf_object *obj)
     pdf_object_destroy(obj);
 }
 
-struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
+struct pdf_doc *pdf_create(float width, float height,
+                           const struct pdf_info *info)
 {
     struct pdf_doc *pdf;
     struct pdf_object *obj;
 
-    pdf = calloc(1, sizeof(*pdf));
+    pdf = (struct pdf_doc *)calloc(1, sizeof(*pdf));
     if (!pdf)
         return NULL;
     pdf->width = width;
@@ -583,7 +713,7 @@ struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
         pdf_destroy(pdf);
         return NULL;
     }
-    obj->info = calloc(sizeof(*obj->info), 1);
+    obj->info = (struct pdf_info *)calloc(sizeof(*obj->info), 1);
     if (!obj->info) {
         pdf_destroy(pdf);
         return NULL;
@@ -611,16 +741,6 @@ struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
         strftime(obj->info->date, sizeof(obj->info->date), "%Y%m%d%H%M%SZ",
                  &tm);
     }
-    if (!obj->info->creator[0])
-        snprintf(obj->info->creator, sizeof(obj->info->creator), "pdfgen");
-    if (!obj->info->producer[0])
-        snprintf(obj->info->producer, sizeof(obj->info->producer), "pdfgen");
-    if (!obj->info->title[0])
-        snprintf(obj->info->title, sizeof(obj->info->title), "pdfgen");
-    if (!obj->info->author[0])
-        snprintf(obj->info->author, sizeof(obj->info->author), "pdfgen");
-    if (!obj->info->subject[0])
-        snprintf(obj->info->subject, sizeof(obj->info->subject), "pdfgen");
 
     if (!pdf_add_object(pdf, OBJ_pages)) {
         pdf_destroy(pdf);
@@ -639,12 +759,12 @@ struct pdf_doc *pdf_create(int width, int height, const struct pdf_info *info)
     return pdf;
 }
 
-int pdf_width(const struct pdf_doc *pdf)
+float pdf_width(const struct pdf_doc *pdf)
 {
     return pdf->width;
 }
 
-int pdf_height(const struct pdf_doc *pdf)
+float pdf_height(const struct pdf_doc *pdf)
 {
     return pdf->height;
 }
@@ -662,12 +782,16 @@ void pdf_destroy(struct pdf_doc *pdf)
 static struct pdf_object *pdf_find_first_object(const struct pdf_doc *pdf,
                                                 int type)
 {
+    if (!pdf)
+        return NULL;
     return pdf->first_objects[type];
 }
 
 static struct pdf_object *pdf_find_last_object(const struct pdf_doc *pdf,
                                                int type)
 {
+    if (!pdf)
+        return NULL;
     return pdf->last_objects[type];
 }
 
@@ -713,8 +837,8 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf)
     return page;
 }
 
-int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
-                      int height)
+int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page,
+                      float width, float height)
 {
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -724,6 +848,22 @@ int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page, int width,
     page->page.width = width;
     page->page.height = height;
     return 0;
+}
+
+// Recursively scan for the number of children
+static int pdf_get_bookmark_count(const struct pdf_object *obj)
+{
+    int count = 0;
+    if (obj->type == OBJ_bookmark) {
+        int nchildren = flexarray_size(&obj->bookmark.children);
+        count += nchildren;
+        for (int i = 0; i < nchildren; i++) {
+            count += pdf_get_bookmark_count(
+                (const struct pdf_object *)flexarray_get(
+                    &obj->bookmark.children, i));
+        }
+    }
+    return count;
 }
 
 static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
@@ -748,17 +888,20 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     case OBJ_info: {
         struct pdf_info *info = object->info;
 
-        fprintf(fp,
-                "<<\r\n"
-                "  /Creator (%s)\r\n"
-                "  /Producer (%s)\r\n"
-                "  /Title (%s)\r\n"
-                "  /Author (%s)\r\n"
-                "  /Subject (%s)\r\n"
-                "  /CreationDate (D:%s)\r\n"
-                ">>\r\n",
-                info->creator, info->producer, info->title, info->author,
-                info->subject, info->date);
+        fprintf(fp, "<<\r\n");
+        if (info->creator[0])
+            fprintf(fp, "  /Creator (%s)\r\n", info->creator);
+        if (info->producer[0])
+            fprintf(fp, "  /Producer (%s)\r\n", info->producer);
+        if (info->title[0])
+            fprintf(fp, "  /Title (%s)\r\n", info->title);
+        if (info->author[0])
+            fprintf(fp, "  /Author (%s)\r\n", info->author);
+        if (info->subject[0])
+            fprintf(fp, "  /Subject (%s)\r\n", info->subject);
+        if (info->date[0])
+            fprintf(fp, "  /CreationDate (D:%s)\r\n", info->date);
+        fprintf(fp, ">>\r\n");
         break;
     }
 
@@ -771,7 +914,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "/Type /Page\r\n"
                 "/Parent %d 0 R\r\n",
                 pages->index);
-        fprintf(fp, "/MediaBox [0 0 %d %d]\r\n", object->page.width,
+        fprintf(fp, "/MediaBox [0 0 %f %f]\r\n", object->page.width,
                 object->page.height);
         fprintf(fp, "/Resources <<\r\n");
         fprintf(fp, "  /Font <<\r\n");
@@ -797,9 +940,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, "/Contents [\r\n");
         for (int i = 0; i < flexarray_size(&object->page.children); i++) {
             struct pdf_object *child =
-                flexarray_get(&object->page.children, i);
+                (struct pdf_object *)flexarray_get(&object->page.children, i);
             fprintf(fp, "%d 0 R\r\n", child->index);
         }
+
         fprintf(fp, "]\r\n");
         fprintf(fp, ">>\r\n");
         break;
@@ -815,10 +959,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             break;
         fprintf(fp,
                 "<<\r\n"
-                "/A << /Type /Action\r\n"
-                "      /S /GoTo\r\n"
-                "      /D [%d 0 R /XYZ 0 %d null]\r\n"
-                "   >>\r\n"
+                "/Dest [%d 0 R /XYZ 0 %f null]\r\n"
                 "/Parent %d 0 R\r\n"
                 "/Title (%s)\r\n",
                 object->bookmark.page->index, pdf->height, parent->index,
@@ -826,10 +967,13 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
             struct pdf_object *f, *l;
-            f = flexarray_get(&object->bookmark.children, 0);
-            l = flexarray_get(&object->bookmark.children, nchildren - 1);
+            f = (struct pdf_object *)flexarray_get(&object->bookmark.children,
+                                                   0);
+            l = (struct pdf_object *)flexarray_get(&object->bookmark.children,
+                                                   nchildren - 1);
             fprintf(fp, "/First %d 0 R\r\n", f->index);
             fprintf(fp, "/Last %d 0 R\r\n", l->index);
+            fprintf(fp, "/Count %d\r\n", pdf_get_bookmark_count(object));
         }
         // Find the previous bookmark with the same parent
         for (other = object->prev;
@@ -859,7 +1003,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             cur = first;
             while (cur) {
                 if (!cur->bookmark.parent)
-                    count++;
+                    count += pdf_get_bookmark_count(cur) + 1;
                 cur = cur->next;
             }
 
@@ -936,8 +1080,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 static uint64_t hash(uint64_t hash, const void *data, size_t len)
 {
     const uint8_t *d8 = (const uint8_t *)data;
-    while (len--)
-        hash = ((hash << 5) + hash) + *d8++;
+    for (; len; len--) {
+        hash = (((hash & 0x07ffffffffffffff) << 5) + hash) + *d8++;
+    }
     return hash;
 }
 
@@ -948,8 +1093,11 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
     int xref_count = 0;
     uint64_t id1, id2;
     time_t now = time(NULL);
+    char saved_locale[32];
 
-    fprintf(fp, "%%PDF-1.2\r\n");
+    force_locale(saved_locale, sizeof(saved_locale));
+
+    fprintf(fp, "%%PDF-1.3\r\n");
     /* Hibit bytes */
     fprintf(fp, "%c%c%c%c%c\r\n", 0x25, 0xc7, 0xec, 0x8f, 0xa2);
 
@@ -987,6 +1135,8 @@ int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
                 "startxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
+
+    restore_locale(saved_locale);
 
     return 0;
 }
@@ -1033,7 +1183,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %zd >>stream\r\n", len);
+    dstr_printf(&obj->stream, "<< /Length %zu >>stream\r\n", len);
     dstr_append_data(&obj->stream, buffer, len);
     dstr_append(&obj->stream, "\r\nendstream\r\n");
 
@@ -1082,7 +1232,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
-    uint32_t ch = *utf8;
+    uint32_t ch = *(uint8_t *)utf8;
     uint8_t mask;
 
     if ((ch & 0x80) == 0) {
@@ -1114,9 +1264,69 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
     return len;
 }
 
+static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
+                               uint8_t *res)
+{
+    uint32_t code;
+    int code_len;
+
+    *res = 0;
+
+    code_len = utf8_to_utf32(utf8, len, &code);
+    if (code_len < 0) {
+        return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
+    }
+
+    if (code > 255) {
+        /* We support *some* minimal UTF-8 characters */
+        // See Appendix D of
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
+        // These are all in WinAnsiEncoding
+        switch (code) {
+        case 0x160: // Latin Capital Letter S with Caron
+            *res = 0212;
+            break;
+        case 0x161: // Latin Small Letter S with Caron
+            *res = 0232;
+            break;
+        case 0x17d: // Latin Capital Letter Z with Caron
+            *res = 0216;
+            break;
+        case 0x17e: // Latin Small Letter Z with Caron
+            *res = 0236;
+            break;
+        case 0x2014: // emdash
+            *res = 0227;
+            break;
+        case 0x2018: // left single quote
+            *res = 0221;
+            break;
+        case 0x2019: // right single quote
+            *res = '\222';
+            break;
+        case 0x201c: // left double quote
+            *res = '\223';
+            break;
+        case 0x201d: // right double quote
+            *res = '\224';
+            break;
+        case 0x20ac: // Euro
+            *res = '\200';
+            break;
+        default:
+            return pdf_set_err(pdf, -EINVAL,
+                               "Unsupported UTF-8 character: 0x%x 0o%o", code,
+                               code);
+        }
+    } else {
+        *res = code;
+    }
+    return code_len;
+}
+
 static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
-                                const char *text, int size, int xoff,
-                                int yoff, uint32_t colour, double spacing)
+                                const char *text, float size, float xoff,
+                                float yoff, uint32_t colour, float spacing)
 {
     int ret;
     size_t len = text ? strlen(text) : 0;
@@ -1129,8 +1339,8 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 
     dstr_append(&str, "BT ");
     dstr_printf(&str, "/GS%d gs ", alpha);
-    dstr_printf(&str, "%d %d TD ", xoff, yoff);
-    dstr_printf(&str, "/F%d %d Tf ", pdf->current_font->font.index, size);
+    dstr_printf(&str, "%f %f TD ", xoff, yoff);
+    dstr_printf(&str, "/F%d %f Tf ", pdf->current_font->font.index, size);
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f Tc ", spacing);
@@ -1138,55 +1348,26 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 
     /* Escape magic characters properly */
     for (size_t i = 0; i < len;) {
-        uint32_t code;
         int code_len;
-        code_len = utf8_to_utf32(&text[i], len - i, &code);
+        uint8_t pdf_char;
+        code_len = utf8_to_pdfencoding(pdf, &text[i], len - i, &pdf_char);
         if (code_len < 0) {
             dstr_free(&str);
-            return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
+            return code_len;
         }
 
-        if (code > 255) {
-            /* We support *some* minimal UTF-8 characters */
-            char buf[5] = {0};
-            switch (code) {
-            case 0x160:
-                buf[0] = '\x8a';
-                break;
-            case 0x161:
-                buf[0] = '\x9a';
-                break;
-            case 0x17d:
-                buf[0] = '\x8e';
-                break;
-            case 0x17e:
-                buf[0] = '\x9e';
-                break;
-            case 0x20ac:
-                strcpy(buf, "\\200");
-                break;
-            default:
-                dstr_free(&str);
-                return pdf_set_err(pdf, -EINVAL,
-                                   "Unsupported UTF-8 character: 0x%x 0o%o",
-                                   code, code);
-            }
-            dstr_append(&str, buf);
-        } else if (strchr("()\\", code)) {
+        if (strchr("()\\", pdf_char)) {
             char buf[3];
             /* Escape some characters */
             buf[0] = '\\';
-            buf[1] = code;
+            buf[1] = pdf_char;
             buf[2] = '\0';
             dstr_append(&str, buf);
-        } else if (strrchr("\n\r\t\b\f", code)) {
+        } else if (strrchr("\n\r\t\b\f", pdf_char)) {
             /* Skip over these characters */
             ;
         } else {
-            char buf[2];
-            buf[0] = code;
-            buf[1] = '\0';
-            dstr_append(&str, buf);
+            dstr_append_data(&str, &pdf_char, 1);
         }
 
         i += code_len;
@@ -1200,7 +1381,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
 }
 
 int pdf_add_text(struct pdf_doc *pdf, struct pdf_object *page,
-                 const char *text, int size, int xoff, int yoff,
+                 const char *text, float size, float xoff, float yoff,
                  uint32_t colour)
 {
     return pdf_add_text_spacing(pdf, page, text, size, xoff, yoff, colour, 0);
@@ -1451,34 +1632,34 @@ static const uint16_t courier_widths[256] = {
     604,
 };
 
-static int pdf_text_pixel_width(struct pdf_doc *pdf, const char *text,
-                                ptrdiff_t text_len, int size,
-                                const uint16_t *widths)
+static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
+                                ptrdiff_t text_len, float size,
+                                const uint16_t *widths, float *point_width)
 {
-    unsigned int len = 0;
+    uint32_t len = 0;
     if (text_len < 0)
         text_len = strlen(text);
+    *point_width = 0.0f;
 
     for (int i = 0; i < (int)text_len;) {
-        uint32_t code;
+        uint8_t pdf_char = 0;
         int code_len;
-        code_len = utf8_to_utf32(&text[i], text_len - i, &code);
+        code_len =
+            utf8_to_pdfencoding(pdf, &text[i], text_len - i, &pdf_char);
         if (code_len < 0)
             return pdf_set_err(pdf, code_len,
                                "Invalid unicode string at position %d in %s",
                                i, text);
-        if (code >= 255)
-            return pdf_set_err(
-                pdf, code_len,
-                "Unable to determine width of character code %d", code);
         i += code_len;
 
-        if (code != '\n' && code != '\r')
-            len += widths[(uint8_t)code];
+        if (pdf_char != '\n' && pdf_char != '\r')
+            len += widths[pdf_char];
     }
 
     /* Our widths arrays are for 14pt fonts */
-    return len * size / (14 * 72);
+    *point_width = len * size / (14.0f * 72.0f);
+
+    return 0;
 }
 
 static const uint16_t *find_font_widths(const char *font_name)
@@ -1513,7 +1694,7 @@ static const uint16_t *find_font_widths(const char *font_name)
 }
 
 int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
-                            const char *text, int size)
+                            const char *text, float size, float *text_width)
 {
     const uint16_t *widths = find_font_widths(font_name);
 
@@ -1521,7 +1702,7 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to determine width for font '%s'",
                            pdf->current_font->font.name);
-    return pdf_text_pixel_width(pdf, text, -1, size, widths);
+    return pdf_text_point_width(pdf, text, -1, size, widths, text_width);
 }
 
 static const char *find_word_break(const char *string)
@@ -1534,8 +1715,9 @@ static const char *find_word_break(const char *string)
 }
 
 int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
-                      const char *text, int size, int xoff, int yoff,
-                      uint32_t colour, int wrap_width, int align)
+                      const char *text, float size, float xoff, float yoff,
+                      uint32_t colour, float wrap_width, int align,
+                      float *height)
 {
     /* Move through the text string, stopping at word boundaries,
      * trying to find the longest text string we can fit in the given width
@@ -1545,7 +1727,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
     const char *end = text;
     char line[512];
     const uint16_t *widths;
-    int orig_yoff = yoff;
+    float orig_yoff = yoff;
 
     widths = find_font_widths(pdf->current_font->font.name);
     if (!widths)
@@ -1555,16 +1737,17 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
     while (start && *start) {
         const char *new_end = find_word_break(end + 1);
-        int line_width;
+        float line_width;
         int output = 0;
-        int xoff_align = xoff;
+        float xoff_align = xoff;
+        int e;
 
         end = new_end;
 
-        line_width =
-            pdf_text_pixel_width(pdf, start, end - start, size, widths);
-        if (line_width < 0)
-            return line_width;
+        e = pdf_text_point_width(pdf, start, end - start, size, widths,
+                                 &line_width);
+        if (e < 0)
+            return e;
 
         if (line_width >= wrap_width) {
             if (last_best == start) {
@@ -1572,12 +1755,23 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                 ptrdiff_t i;
                 /* Find the best character to chop it at */
                 for (i = end - start - 1; i > 0; i--) {
-                    int e = pdf_text_pixel_width(pdf, start, i, size, widths);
+                    float this_width;
+                    // Don't look at places that are in the middle of a utf-8
+                    // sequence
+                    if ((start[i - 1] & 0xc0) == 0xc0 ||
+                        ((start[i - 1] & 0xc0) == 0x80 &&
+                         (start[i] & 0xc0) == 0x80))
+                        continue;
+                    e = pdf_text_point_width(pdf, start, i, size, widths,
+                                             &this_width);
                     if (e < 0)
                         return e;
-                    if (e < wrap_width)
+                    if (this_width < wrap_width)
                         break;
                 }
+                if (i == 0)
+                    return pdf_set_err(pdf, -EINVAL,
+                                       "Unable to find suitable line break");
 
                 end = start + i;
             } else
@@ -1592,15 +1786,16 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         if (output) {
             int len = end - start;
-            double char_spacing = 0;
-            if (len >= sizeof(line))
-                len = sizeof(line) - 1;
+            float char_spacing = 0;
+            if (len >= (int)sizeof(line))
+                len = (int)sizeof(line) - 1;
             strncpy(line, start, len);
             line[len] = '\0';
 
-            line_width = pdf_text_pixel_width(pdf, start, len, size, widths);
-            if (line_width < 0)
-                return line_width;
+            e = pdf_text_point_width(pdf, start, len, size, widths,
+                                     &line_width);
+            if (e < 0)
+                return e;
 
             switch (align) {
             case PDF_ALIGN_RIGHT:
@@ -1612,13 +1807,11 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             case PDF_ALIGN_JUSTIFY:
                 if ((len - 1) > 0 && *end != '\r' && *end != '\n' &&
                     *end != '\0')
-                    char_spacing =
-                        ((double)(wrap_width - line_width)) / (len - 2);
+                    char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             case PDF_ALIGN_JUSTIFY_ALL:
                 if ((len - 1) > 0)
-                    char_spacing =
-                        ((double)(wrap_width - line_width)) / (len - 2);
+                    char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             }
 
@@ -1636,21 +1829,23 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             last_best = end;
     }
 
-    return orig_yoff - yoff;
+    if (height)
+        *height = orig_yoff - yoff;
+    return 0;
 }
 
-int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
-                 int x2, int y2, int width, uint32_t colour)
+int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
+                 float y1, float x2, float y2, float width, uint32_t colour)
 {
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_printf(&str, "%d w\r\n", width);
-    dstr_printf(&str, "%d %d m\r\n", x1, y1);
+    dstr_printf(&str, "%f w\r\n", width);
+    dstr_printf(&str, "%f %f m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
     dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
-    dstr_printf(&str, "%d %d l S\r\n", x2, y2);
+    dstr_printf(&str, "%f %f l S\r\n", x2, y2);
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1658,21 +1853,110 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, int x1, int y1,
     return ret;
 }
 
-int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
-                    int yr, int xradius, int yradius, int width,
-                    uint32_t colour, uint32_t fill_colour)
+int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
+                         float x1, float y1, float x2, float y2, float xq1,
+                         float yq1, float xq2, float yq2, float width,
+                         uint32_t colour)
 {
     int ret;
     struct dstr str = INIT_DSTR;
 
-    float rx = xradius * 1.0f;
-    float ry = yradius * 1.0f;
-    float lx, ly;
-    float x = xr * 1.0f;
-    float y = yr * 1.0f;
+    dstr_printf(&str, "%f w\r\n", width);
+    dstr_printf(&str, "%f %f m\r\n", x1, y1);
+    dstr_printf(&str, "/DeviceRGB CS\r\n");
+    dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
+                PDF_RGB_B(colour));
+    dstr_printf(&str, "%f %f %f %f %f %f c S\r\n", xq1, yq1, xq2, yq2, x2,
+                y2);
 
-    lx = (4.0f / 3.0f) * (M_SQRT2 - 1) * rx;
-    ly = (4.0f / 3.0f) * (M_SQRT2 - 1) * ry;
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    dstr_free(&str);
+
+    return ret;
+}
+
+int pdf_add_quadratic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
+                             float x1, float y1, float x2, float y2,
+                             float xq1, float yq1, float width,
+                             uint32_t colour)
+{
+    float xc1 = x1 + (xq1 - x1) * (2.0f / 3.0f);
+    float yc1 = y1 + (yq1 - y1) * (2.0f / 3.0f);
+    float xc2 = x2 + (xq1 - x2) * (2.0f / 3.0f);
+    float yc2 = y2 + (yq1 - y2) * (2.0f / 3.0f);
+    return pdf_add_cubic_bezier(pdf, page, x1, y1, x2, y2, xc1, yc1, xc2, yc2,
+                                width, colour);
+}
+
+int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page,
+                        struct pdf_path_operation *operations,
+                        int operation_count, float stroke_width,
+                        uint32_t stroke_colour, uint32_t fill_colour)
+{
+    int ret;
+    struct dstr str = INIT_DSTR;
+
+    if (!PDF_IS_TRANSPARENT(fill_colour)) {
+        dstr_printf(&str, "/DeviceRGB CS\r\n");
+        dstr_printf(&str, "%f %f %f rg\r\n", PDF_RGB_R(fill_colour),
+                    PDF_RGB_G(fill_colour), PDF_RGB_B(fill_colour));
+    }
+    dstr_printf(&str, "%f w\r\n", stroke_width);
+    dstr_printf(&str, "/DeviceRGB CS\r\n");
+    dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(stroke_colour),
+                PDF_RGB_G(stroke_colour), PDF_RGB_B(stroke_colour));
+
+    for (int i = 0; i < operation_count; i++) {
+        struct pdf_path_operation operation = operations[i];
+        switch (operation.op) {
+        case 'm':
+            dstr_printf(&str, "%f %f m\r\n", operation.x1, operation.y1);
+            break;
+        case 'l':
+            dstr_printf(&str, "%f %f l\r\n", operation.x1, operation.y1);
+            break;
+        case 'c':
+            dstr_printf(&str, "%f %f %f %f %f %f c\r\n", operation.x1,
+                        operation.y1, operation.x2, operation.y2,
+                        operation.x3, operation.y3);
+            break;
+        case 'v':
+            dstr_printf(&str, "%f %f %f %f v\r\n", operation.x1, operation.y1,
+                        operation.x2, operation.y2);
+            break;
+        case 'y':
+            dstr_printf(&str, "%f %f %f %f y\r\n", operation.x1, operation.y1,
+                        operation.x2, operation.y2);
+            break;
+        case 'h':
+            dstr_printf(&str, "h\r\n");
+            break;
+        default:
+            return pdf_set_err(pdf, -errno, "Invalid operation");
+            break;
+        }
+    }
+
+    if (PDF_IS_TRANSPARENT(fill_colour))
+        dstr_printf(&str, "%s", "S ");
+    else
+        dstr_printf(&str, "%s", "B ");
+    ret = pdf_add_stream(pdf, page, dstr_data(&str));
+    dstr_free(&str);
+
+    return ret;
+}
+
+int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                    float y, float xradius, float yradius, float width,
+                    uint32_t colour, uint32_t fill_colour)
+{
+    int ret;
+    struct dstr str = INIT_DSTR;
+    float lx, ly;
+
+    lx = (4.0f / 3.0f) * (M_SQRT2 - 1) * xradius;
+    ly = (4.0f / 3.0f) * (M_SQRT2 - 1) * yradius;
 
     if (!PDF_IS_TRANSPARENT(fill_colour)) {
         dstr_printf(&str, "/DeviceRGB CS\r\n");
@@ -1685,21 +1969,21 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
     dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
 
-    dstr_printf(&str, "%d w ", width);
+    dstr_printf(&str, "%f w ", width);
 
-    dstr_printf(&str, "%.2f %.2f m ", (x + rx), (y));
+    dstr_printf(&str, "%.2f %.2f m ", (x + xradius), (y));
 
-    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x + rx), (y - ly),
-                (x + lx), (y - ry), x, (y - ry));
+    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x + xradius),
+                (y - ly), (x + lx), (y - yradius), x, (y - yradius));
 
-    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x - lx), (y - ry),
-                (x - rx), (y - ly), (x - rx), y);
+    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x - lx),
+                (y - yradius), (x - xradius), (y - ly), (x - xradius), y);
 
-    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x - rx), (y + ly),
-                (x - lx), (y + ry), x, (y + ry));
+    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x - xradius),
+                (y + ly), (x - lx), (y + yradius), x, (y + yradius));
 
-    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x + lx), (y + ry),
-                (x + rx), (y + ly), (x + rx), y);
+    dstr_printf(&str, "%.2f %.2f %.2f %.2f %.2f %.2f c ", (x + lx),
+                (y + yradius), (x + xradius), (y + ly), (x + xradius), y);
 
     if (PDF_IS_TRANSPARENT(fill_colour))
         dstr_printf(&str, "%s", "S ");
@@ -1712,16 +1996,16 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, int xr,
     return ret;
 }
 
-int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, int xr,
-                   int yr, int radius, int width, uint32_t colour,
+int pdf_add_circle(struct pdf_doc *pdf, struct pdf_object *page, float xr,
+                   float yr, float radius, float width, uint32_t colour,
                    uint32_t fill_colour)
 {
     return pdf_add_ellipse(pdf, page, xr, yr, radius, radius, width, colour,
                            fill_colour);
 }
 
-int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
-                      int y, int width, int height, int border_width,
+int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                      float y, float width, float height, float border_width,
                       uint32_t colour)
 {
     int ret;
@@ -1729,8 +2013,8 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
 
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
-    dstr_printf(&str, "%d w ", border_width);
-    dstr_printf(&str, "%d %d %d %d re S ", x, y, width, height);
+    dstr_printf(&str, "%f w ", border_width);
+    dstr_printf(&str, "%f %f %f %f re S ", x, y, width, height);
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1739,16 +2023,16 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, int x,
 }
 
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
-                             int x, int y, int width, int height,
-                             int border_width, uint32_t colour)
+                             float x, float y, float width, float height,
+                             float border_width, uint32_t colour)
 {
     int ret;
     struct dstr str = INIT_DSTR;
 
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
-    dstr_printf(&str, "%d w ", border_width);
-    dstr_printf(&str, "%d %d %d %d re f ", x, y, width, height);
+    dstr_printf(&str, "%f w ", border_width);
+    dstr_printf(&str, "%f %f %f %f re f ", x, y, width, height);
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -1756,18 +2040,18 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
-int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
-                    int y[], int count, int border_width, uint32_t colour)
+int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
+                    float y[], int count, float border_width, uint32_t colour)
 {
     int ret;
     struct dstr str = INIT_DSTR;
 
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
-    dstr_printf(&str, "%d w ", border_width);
-    dstr_printf(&str, "%d %d m ", x[0], y[0]);
+    dstr_printf(&str, "%f w ", border_width);
+    dstr_printf(&str, "%f %f m ", x[0], y[0]);
     for (int i = 1; i < count; i++) {
-        dstr_printf(&str, "%d %d l ", x[i], y[i]);
+        dstr_printf(&str, "%f %f l ", x[i], y[i]);
     }
     dstr_printf(&str, "h S ");
 
@@ -1778,8 +2062,8 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, int x[],
 }
 
 int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
-                           int x[], int y[], int count, int border_width,
-                           uint32_t colour)
+                           float x[], float y[], int count,
+                           float border_width, uint32_t colour)
 {
     int ret;
     struct dstr str = INIT_DSTR;
@@ -1788,10 +2072,10 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
-    dstr_printf(&str, "%d w ", border_width);
-    dstr_printf(&str, "%d %d m ", x[0], y[0]);
+    dstr_printf(&str, "%f w ", border_width);
+    dstr_printf(&str, "%f %f m ", x[0], y[0]);
     for (int i = 1; i < count; i++) {
-        dstr_printf(&str, "%d %d l ", x[i], y[i]);
+        dstr_printf(&str, "%f %f l ", x[i], y[i]);
     }
     dstr_printf(&str, "h f ");
 
@@ -1836,19 +2120,19 @@ static const struct {
 
 static int find_128_encoding(char ch)
 {
-    for (int i = 0; i < ARRAY_SIZE(code_128a_encoding); i++) {
+    for (int i = 0; i < (int)ARRAY_SIZE(code_128a_encoding); i++) {
         if (code_128a_encoding[i].ch == ch)
             return i;
     }
     return -1;
 }
 
-static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
-                               int x, int y, int width, int height,
-                               uint32_t colour, int index, int code_len)
+static float pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
+                                 float x, float y, float width, float height,
+                                 uint32_t colour, int index, int code_len)
 {
     uint32_t code = code_128a_encoding[index].code;
-    int line_width = width / 11;
+    float line_width = width / 11.0f;
 
     for (int i = 0; i < code_len; i++) {
         uint8_t shift = (code_len - 1 - i) * 4;
@@ -1863,15 +2147,15 @@ static int pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
 }
 
 static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
-                                int x, int y, int width, int height,
+                                float x, float y, float width, float height,
                                 const char *string, uint32_t colour)
 {
     const char *s;
     size_t len = strlen(string) + 3;
-    int char_width = width / len;
+    float char_width = width / len;
     int checksum, i;
 
-    if (char_width / 11 <= 0)
+    if (char_width / 11.0f <= 0)
         return pdf_set_err(pdf, -EINVAL,
                            "Insufficient width to draw barcode");
 
@@ -1886,6 +2170,11 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (i = 1, s = string; *s; s++, i++) {
         int index = find_128_encoding(*s);
+        // This should be impossible, due to the checks above, but confirm
+        // here anyway to stop coverity complaining
+        if (index < 0)
+            return pdf_set_err(pdf, -EINVAL,
+                               "Invalid 128a barcode character 0x%x", *s);
         x = pdf_barcode_128a_ch(pdf, page, x, y, char_width, height, colour,
                                 index, 6);
         checksum += index * i;
@@ -1902,7 +2191,7 @@ static int pdf_add_barcode_128a(struct pdf_doc *pdf, struct pdf_object *page,
  * 2 => wide space
  */
 static const struct {
-    uint32_t code;
+    int code;
     char ch;
 } code_39_encoding[] = {
     {0x012110, '1'}, {0x102110, '2'}, {0x002111, '3'},
@@ -1921,30 +2210,30 @@ static const struct {
     {0x121001, '*'}, // 'stop' character
 };
 
-static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
-                             int x, int y, int char_width, int height,
-                             uint32_t colour, char ch)
+static int find_39_encoding(char ch)
 {
-    int nw = char_width / 12;
-    int ww = char_width / 4;
-    int i;
-    uint32_t code;
-
-    if (nw <= 1 || ww <= 1)
-        return pdf_set_err(pdf, -EINVAL,
-                           "Insufficient width for each character");
-
-    for (i = 0; i < ARRAY_SIZE(code_39_encoding); i++) {
+    for (int i = 0; i < (int)ARRAY_SIZE(code_39_encoding); i++) {
         if (code_39_encoding[i].ch == ch) {
-            code = code_39_encoding[i].code;
-            break;
+            return code_39_encoding[i].code;
         }
     }
-    if (i == ARRAY_SIZE(code_39_encoding))
+    return -1;
+}
+
+static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
+                             float x, float y, float char_width, float height,
+                             uint32_t colour, char ch, float *new_x)
+{
+    float nw = char_width / 12.0f;
+    float ww = char_width / 4.0f;
+    int code = 0;
+
+    code = find_39_encoding(ch);
+    if (code < 0)
         return pdf_set_err(pdf, -EINVAL, "Invalid Code 39 character %c 0x%x",
                            ch, ch);
 
-    for (i = 5; i >= 0; i--) {
+    for (int i = 5; i >= 0; i--) {
         int pattern = (code >> i * 4) & 0xf;
         if (pattern == 0) { // wide
             if (pdf_add_filled_rectangle(pdf, page, x, y, ww - 1, height, 0,
@@ -1962,38 +2251,43 @@ static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
             x += nw;
         }
     }
-    return x;
+    if (new_x)
+        *new_x = x;
+    return 0;
 }
 
 static int pdf_add_barcode_39(struct pdf_doc *pdf, struct pdf_object *page,
-                              int x, int y, int width, int height,
+                              float x, float y, float width, float height,
                               const char *string, uint32_t colour)
 {
     size_t len = strlen(string);
-    int char_width = width / (len + 2);
+    float char_width = width / (len + 2);
+    int e;
 
-    x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
-    if (x < 0)
-        return x;
+    e = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*',
+                          &x);
+    if (e < 0)
+        return e;
 
     while (string && *string) {
-        x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour,
-                              *string);
-        if (x < 0)
-            return x;
+        e = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour,
+                              *string, &x);
+        if (e < 0)
+            return e;
         string++;
     }
 
-    x = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*');
-    if (x < 0)
-        return x;
+    e = pdf_barcode_39_ch(pdf, page, x, y, char_width, height, colour, '*',
+                          NULL);
+    if (e < 0)
+        return e;
 
     return 0;
 }
 
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
-                    int x, int y, int width, int height, const char *string,
-                    uint32_t colour)
+                    float x, float y, float width, float height,
+                    const char *string, uint32_t colour)
 {
     if (!string || !*string)
         return 0;
@@ -2009,36 +2303,31 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     }
 }
 
-static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
-                                     unsigned width, unsigned height)
+static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
+                                          const uint8_t *data, uint32_t width,
+                                          uint32_t height)
 {
     struct pdf_object *obj;
     size_t len;
     const char *endstream = ">\r\nendstream\r\n";
     struct dstr str = INIT_DSTR;
+    size_t data_len = (size_t)width * (size_t)height;
 
     dstr_printf(
         &str,
         "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
-        "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
-        "/BitsPerComponent 8\r\n/Filter /ASCIIHexDecode\r\n"
-        "/Length %d\r\n>>stream\r\n",
-        flexarray_size(&pdf->objects), height, width,
-        width * height * 3 * 2 + 1);
+        "/ColorSpace /DeviceGray\r\n/Height %d\r\n/Width %d\r\n"
+        "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
+        flexarray_size(&pdf->objects), height, width, data_len + 1);
 
-    len = dstr_len(&str) + (size_t)width * (size_t)height * 3 * 2 +
-          strlen(endstream) + 1;
+    len = dstr_len(&str) + data_len + strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
         dstr_free(&str);
         pdf_set_err(pdf, -ENOMEM,
-                    "Unable to allocate %zd bytes memory for image", len);
+                    "Unable to allocate %zu bytes memory for image", len);
         return NULL;
     }
-    for (int i = 0; i < width * height * 3; i++) {
-        char buf[3] = {"0123456789ABCDEF"[(data[i] >> 4) & 0xf],
-                       "0123456789ABCDEF"[data[i] & 0xf], 0};
-        dstr_append(&str, buf);
-    }
+    dstr_append_data(&str, data, data_len);
     dstr_append(&str, endstream);
 
     obj = pdf_add_object(pdf, OBJ_image);
@@ -2051,59 +2340,104 @@ static pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf, const uint8_t *data,
     return obj;
 }
 
-/* See http://www.64lines.com/jpeg-width-height for details */
-static int jpeg_size(const unsigned char *data, size_t data_size, int *width,
-                     int *height)
-{
-    size_t i = 0;
-    if (i + 3 < data_size && data[i] == 0xFF && data[i + 1] == 0xD8 &&
-        data[i + 2] == 0xFF && data[i + 3] == 0xE0) {
-        i += 4;
-        if (i + 6 < data_size && data[i + 2] == 'J' && data[i + 3] == 'F' &&
-            data[i + 4] == 'I' && data[i + 5] == 'F' && data[i + 6] == 0x00) {
-            unsigned short block_length = data[i] * 256 + data[i + 1];
-            while (i < data_size) {
-                i += block_length;
-                if ((i + 8) >= data_size)
-                    return -1;
-                if (data[i] != 0xFF)
-                    return -1;
-                if (data[i + 1] == 0xC0) {
-                    *height = data[i + 5] * 256 + data[i + 6];
-                    *width = data[i + 7] * 256 + data[i + 8];
-                    return 0;
-                }
-                i += 2;
-                block_length = data[i] * 256 + data[i + 1];
-            }
-        }
-    }
-
-    return -1;
-}
-
-static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
-                                         const unsigned char *jpeg_data,
-                                         size_t len)
+static struct pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
+                                            const uint8_t *data,
+                                            uint32_t width, uint32_t height)
 {
     struct pdf_object *obj;
-    int width, height;
+    size_t len;
+    const char *endstream = ">\r\nendstream\r\n";
+    struct dstr str = INIT_DSTR;
+    size_t data_len = (size_t)width * (size_t)height * 3;
 
-    if (jpeg_size(jpeg_data, len, &width, &height) < 0) {
-        pdf_set_err(pdf, -EINVAL, "Unable to determine jpeg width/height");
+    dstr_printf(
+        &str,
+        "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
+        "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
+        "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
+        flexarray_size(&pdf->objects), height, width, data_len + 1);
+
+    len = dstr_len(&str) + data_len + strlen(endstream) + 1;
+    if (dstr_ensure(&str, len) < 0) {
+        dstr_free(&str);
+        pdf_set_err(pdf, -ENOMEM,
+                    "Unable to allocate %zu bytes memory for image", len);
+        return NULL;
+    }
+    dstr_append_data(&str, data, data_len);
+    dstr_append(&str, endstream);
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj) {
+        dstr_free(&str);
+        return NULL;
+    }
+    obj->stream = str;
+
+    return obj;
+}
+
+static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
+                         size_t *length)
+{
+    FILE *fp;
+    uint8_t *file_data;
+    struct stat buf;
+    off_t len;
+
+    if ((fp = fopen(file_name, "rb")) == NULL) {
+        pdf_set_err(pdf, -errno, "Unable to open %s: %s", file_name,
+                    strerror(errno));
         return NULL;
     }
 
-    obj = pdf_add_object(pdf, OBJ_image);
+    if (fstat(fileno(fp), &buf) < 0) {
+        pdf_set_err(pdf, -errno, "Unable to access %s: %s", file_name,
+                    strerror(errno));
+        fclose(fp);
+        return NULL;
+    }
+
+    len = buf.st_size;
+
+    file_data = (uint8_t *)malloc(len);
+    if (!file_data) {
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate: %d", (int)len);
+        fclose(fp);
+        return NULL;
+    }
+
+    if (fread(file_data, len, 1, fp) != 1) {
+        pdf_set_err(pdf, -errno, "Unable to read full data: %s", file_name);
+        free(file_data);
+        fclose(fp);
+        return NULL;
+    }
+
+    fclose(fp);
+
+    *length = len;
+
+    return file_data;
+}
+
+static struct pdf_object *
+pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
+                      const uint8_t *jpeg_data, size_t len)
+{
+    struct pdf_object *obj = pdf_add_object(pdf, OBJ_image);
     if (!obj)
         return NULL;
+
     dstr_printf(&obj->stream,
                 "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                "/Subtype /Image\r\n/ColorSpace /DeviceRGB\r\n"
+                "/Subtype /Image\r\n/ColorSpace %s\r\n"
                 "/Width %d\r\n/Height %d\r\n"
                 "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
-                "/Length %d\r\n>>stream\r\n",
-                flexarray_size(&pdf->objects), width, height, (int)len);
+                "/Length %zu\r\n>>stream\r\n",
+                flexarray_size(&pdf->objects),
+                (info->jpeg.ncolours == 1) ? "/DeviceGray" : "/DeviceRGB",
+                info->width, info->height, len);
     dstr_append_data(&obj->stream, jpeg_data, len);
 
     dstr_printf(&obj->stream, "\r\nendstream\r\n");
@@ -2111,66 +2445,55 @@ static pdf_object *pdf_add_raw_jpeg_data(struct pdf_doc *pdf,
     return obj;
 }
 
-static pdf_object *pdf_add_raw_jpeg(struct pdf_doc *pdf,
-                                    const char *jpeg_file)
+/**
+ * Get the display dimensions of an image, respecting the images aspect ratio
+ * if only one desired display dimension is defined.
+ * The pdf parameter is only used for setting the error value.
+ */
+static int get_img_display_dimensions(struct pdf_doc *pdf, uint32_t img_width,
+                                      uint32_t img_height,
+                                      float *display_width,
+                                      float *display_height)
 {
-    struct stat buf;
-    size_t len;
-    uint8_t *jpeg_data;
-    FILE *fp;
-    struct pdf_object *obj;
-
-    if (stat(jpeg_file, &buf) < 0) {
-        pdf_set_err(pdf, -errno, "Unable to access %s: %s", jpeg_file,
-                    strerror(errno));
-        return NULL;
+    if (!display_height || !display_width) {
+        return pdf_set_err(
+            pdf, -EINVAL,
+            "display_width and display_height may not be null pointers");
     }
 
-    len = buf.st_size;
+    const float display_width_in = *display_width;
+    const float display_height_in = *display_height;
 
-    if ((fp = fopen(jpeg_file, "rb")) == NULL) {
-        pdf_set_err(pdf, -errno, "Unable to open %s: %s", jpeg_file,
-                    strerror(errno));
-        return NULL;
+    if (display_width_in < 0 && display_height_in < 0) {
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to determine image display dimensions, "
+                           "display_width and display_height are both < 0");
+    }
+    if (img_width == 0 || img_height == 0) {
+        return pdf_set_err(pdf, -EINVAL,
+                           "Invalid image dimensions received, the loaded "
+                           "image appears to be empty.");
     }
 
-    jpeg_data = malloc(len);
-    if (!jpeg_data) {
-        pdf_set_err(pdf, -errno, "Unable to allocate: %zd", len);
-        fclose(fp);
-        return NULL;
+    if (display_width_in < 0) {
+        // Set width, keeping aspect ratio
+        *display_width = display_height_in * ((float)img_width / img_height);
+    } else if (display_height_in < 0) {
+        // Set height, keeping aspect ratio
+        *display_height = display_width_in * ((float)img_height / img_width);
     }
-
-    if (fread(jpeg_data, len, 1, fp) != 1) {
-        pdf_set_err(pdf, -errno, "Unable to read full jpeg data");
-        free(jpeg_data);
-        fclose(fp);
-        return NULL;
-    }
-    fclose(fp);
-
-    obj = pdf_add_raw_jpeg_data(pdf, jpeg_data, len);
-    if (obj == NULL) {
-        free(jpeg_data);
-        pdf_set_err(pdf, -EINVAL, "Unable to add jpeg data from %s",
-                    jpeg_file);
-        return NULL;
-    }
-
-    free(jpeg_data);
-
-    return obj;
+    return 0;
 }
 
 static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
-                         struct pdf_object *image, int x, int y, int width,
-                         int height)
+                         struct pdf_object *image, float x, float y,
+                         float width, float height)
 {
     int ret;
     struct dstr str = INIT_DSTR;
 
     dstr_append(&str, "q ");
-    dstr_printf(&str, "%d 0 0 %d %d %d cm ", width, height, x, y);
+    dstr_printf(&str, "%f 0 0 %f %f %f cm ", width, height, x, y);
     dstr_printf(&str, "/Image%d Do ", image->index);
     dstr_append(&str, "Q");
 
@@ -2179,101 +2502,724 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
-int pdf_add_ppm(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                int display_width, int display_height, const char *ppm_file)
+// Works like fgets, except it's for a fixed in-memory buffer of data
+static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
+                    size_t line_len)
 {
-    struct pdf_object *obj;
-    uint8_t *data;
-    FILE *fp;
-    char line[1024];
-    unsigned width, height, size;
+    size_t line_pos = 0;
 
-    /* Load the PPM file */
-    fp = fopen(ppm_file, "rb");
-    if (!fp)
-        return pdf_set_err(pdf, -errno, "Unable to open '%s'", ppm_file);
-    if (!fgets(line, sizeof(line) - 1, fp)) {
-        fclose(fp);
-        return pdf_set_err(pdf, -EINVAL, "Invalid PPM file");
-    }
+    if (*pos >= len)
+        return 0;
 
-    /* We only support binary ppms */
-    if (strncmp(line, "P6", 2) != 0) {
-        fclose(fp);
-        return pdf_set_err(pdf, -EINVAL, "Only binary PPM files supported");
-    }
-
-    /* Skip the header comments until we get to the dimensions info */
-    do {
-        if (!fgets(line, sizeof(line) - 1, fp)) {
-            fclose(fp);
-            return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
+    while ((*pos) < len) {
+        if (line_pos < line_len) {
+            // Reject non-ascii data
+            if (data[*pos] & 0x80) {
+                return 0;
+            }
+            line[line_pos] = data[*pos];
+            line_pos++;
         }
-        if (line[0] != '#')
+        if (data[*pos] == '\n') {
+            (*pos)++;
             break;
-    } while (1);
-
-    if (sscanf(line, "%u %u\n", &width, &height) != 2) {
-        fclose(fp);
-        return pdf_set_err(pdf, -EINVAL, "Unable to find PPM size");
+        }
+        (*pos)++;
     }
+
+    if (line_pos < line_len) {
+        line[line_pos] = '\0';
+    }
+
+    return *pos;
+}
+
+static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
+                            size_t length, char *err_msg,
+                            size_t err_msg_length)
+{
+    char line[1024];
+    memset(line, '\0', sizeof(line));
+    size_t pos = 0;
+
+    // Load the PPM file
+    if (!dgets(data, &pos, length, line, sizeof(line) - 1)) {
+        snprintf(err_msg, err_msg_length, "Invalid PPM file");
+        return -EINVAL;
+    }
+
+    // Determine number of color channels (Also, we only support binary ppms)
+    int ncolors;
+    if (strncmp(line, "P6", 2) == 0) {
+        info->ppm.color_space = PPM_BINARY_COLOR_RGB;
+        ncolors = 3;
+    } else if (strncmp(line, "P5", 2) == 0) {
+        info->ppm.color_space = PPM_BINARY_COLOR_GRAY;
+        ncolors = 1;
+    } else {
+        snprintf(err_msg, err_msg_length,
+                 "Only binary PPM files (grayscale, RGB) supported");
+        return -EINVAL;
+    }
+
+    // Skip comments before header
+    do {
+        if (!dgets(data, &pos, length, line, sizeof(line) - 1)) {
+            snprintf(err_msg, err_msg_length, "Unable to find PPM header");
+            return -EINVAL;
+        }
+    } while (line[0] == '#');
+
+    // Read image dimensions
+    if (sscanf(line, "%u %u\n", &(info->width), &(info->height)) != 2) {
+        snprintf(err_msg, err_msg_length, "Unable to find PPM size");
+        return -EINVAL;
+    }
+    if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
+        snprintf(err_msg, err_msg_length, "Invalid width/height: %dx%d",
+                 info->width, info->height);
+        return -EINVAL;
+    }
+    info->ppm.size = (size_t)(info->width * info->height * ncolors);
+    info->ppm.data_begin_pos = pos;
+
+    return 0;
+}
+
+static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
+                            float x, float y, float display_width,
+                            float display_height,
+                            const struct pdf_img_info *info,
+                            const uint8_t *ppm_data, size_t len)
+{
+    char line[1024];
+    // We start reading at the position delivered by parse_ppm_header,
+    // since we already parsed the header of the file there.
+    size_t pos = info->ppm.data_begin_pos;
 
     /* Skip over the byte-size line */
-    if (!fgets(line, sizeof(line) - 1, fp)) {
-        fclose(fp);
+    if (!dgets(ppm_data, &pos, len, line, sizeof(line) - 1))
         return pdf_set_err(pdf, -EINVAL, "No byte-size line in PPM file");
-    }
 
     /* Try and limit the memory usage to sane images */
-    if (width > 4096 || height > 4096) {
-        fclose(fp);
+    if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
         return pdf_set_err(pdf, -EINVAL,
-                           "Invalid width/height in PPM file: %ux%u", width,
-                           height);
+                           "Invalid width/height in PPM file: %ux%u",
+                           info->width, info->height);
     }
 
-    size = width * height * 3;
-    data = malloc(size);
-    if (!data) {
-        fclose(fp);
-        return pdf_set_err(pdf, -ENOMEM,
-                           "Unable to allocate memory for RGB data");
+    if (info->ppm.size > len - pos) {
+        return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
     }
-    if (fread(data, 1, size, fp) != size) {
-        free(data);
-        fclose(fp);
-        return pdf_set_err(pdf, -EINVAL, "Insufficient RGB data available");
+
+    switch (info->ppm.color_space) {
+    case PPM_BINARY_COLOR_GRAY:
+        return pdf_add_grayscale8(pdf, page, x, y, display_width,
+                                  display_height, &ppm_data[pos], info->width,
+                                  info->height);
+        break;
+
+    case PPM_BINARY_COLOR_RGB:
+        return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                             &ppm_data[pos], info->width, info->height);
+        break;
+
+    default:
+        return pdf_set_err(pdf, -EINVAL,
+                           "Invalid color space in ppm file: %i",
+                           info->ppm.color_space);
+        break;
     }
-    fclose(fp);
+}
+
+static int parse_jpeg_header(struct pdf_img_info *info, const uint8_t *data,
+                             size_t length, char *err_msg,
+                             size_t err_msg_length)
+{
+    // See http://www.videotechnology.com/jpeg/j1.html for details
+    if (length >= 4 && data[0] == 0xFF && data[1] == 0xD8) {
+        for (size_t i = 0; i < length - 3; i++) {
+            /* Search for SOFn marker and decode jpeg details */
+            if (data[i] == 0xff && (data[i + 1] & 0xf0) == 0xc0) {
+                int len = data[i + 2] * 256 + data[i + 3];
+                if (len >= 9 && i + len < length) {
+                    info->height = data[i + 5] * 256 + data[i + 6];
+                    info->width = data[i + 7] * 256 + data[i + 8];
+                    info->jpeg.ncolours = data[i + 9];
+                    return 0;
+                }
+            }
+        }
+    }
+    snprintf(err_msg, err_msg_length, "Error parsing JPEG header");
+    return -EINVAL;
+}
+
+static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
+                             float x, float y, float display_width,
+                             float display_height, struct pdf_img_info *info,
+                             const uint8_t *jpeg_data, size_t len)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_raw_jpeg_data(pdf, info, jpeg_data, len);
+    if (!obj)
+        return pdf->errval;
+
+    if (get_img_display_dimensions(pdf, info->width, info->height,
+                                   &display_width, &display_height)) {
+        return pdf->errval;
+    }
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
+int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                  float y, float display_width, float display_height,
+                  const uint8_t *data, uint32_t width, uint32_t height)
+{
+    struct pdf_object *obj;
+
     obj = pdf_add_raw_rgb24(pdf, data, width, height);
+    if (!obj)
+        return pdf->errval;
+
+    if (get_img_display_dimensions(pdf, width, height, &display_width,
+                                   &display_height)) {
+        return pdf->errval;
+    }
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
+int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const uint8_t *data, uint32_t width, uint32_t height)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_raw_grayscale8(pdf, data, width, height);
+    if (!obj)
+        return pdf->errval;
+
+    if (get_img_display_dimensions(pdf, width, height, &display_width,
+                                   &display_height)) {
+        return pdf->errval;
+    }
+    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+}
+
+static int parse_png_header(struct pdf_img_info *info, const uint8_t *data,
+                            size_t length, char *err_msg,
+                            size_t err_msg_length)
+{
+    if (length <= sizeof(png_signature)) {
+        snprintf(err_msg, err_msg_length, "PNG file too short");
+        return -EINVAL;
+    }
+
+    if (memcmp(data, png_signature, sizeof(png_signature))) {
+        snprintf(err_msg, err_msg_length, "File is not correct PNG file");
+        return -EINVAL;
+    }
+
+    // process first PNG chunk
+    uint32_t pos = sizeof(png_signature);
+    const struct png_chunk *chunk = (const struct png_chunk *)&data[pos];
+    pos += sizeof(struct png_chunk);
+    if (pos > length) {
+        snprintf(err_msg, err_msg_length, "PNG file too short");
+        return -EINVAL;
+    }
+    if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
+        // header found, process width and height, check errors
+        struct png_header *header = &info->png;
+
+        if (pos + sizeof(struct png_header) > length) {
+            snprintf(err_msg, err_msg_length, "PNG file too short");
+            return -EINVAL;
+        }
+
+        memcpy(header, &data[pos], sizeof(struct png_header));
+        if (header->deflate != 0) {
+            snprintf(err_msg, err_msg_length, "Deflate wrong in PNG header");
+            return -EINVAL;
+        }
+        if (header->bitDepth == 0) {
+            snprintf(err_msg, err_msg_length, "PNG file has zero bit depth");
+            return -EINVAL;
+        }
+        // ensure the width and height values have the proper byte order
+        // and copy them into the info struct.
+        header->width = ntoh32(header->width);
+        header->height = ntoh32(header->height);
+        info->width = header->width;
+        info->height = header->height;
+        return 0;
+    }
+    snprintf(err_msg, err_msg_length, "Failed to read PNG file header");
+    return -EINVAL;
+}
+
+static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
+                            float x, float y, float display_width,
+                            float display_height,
+                            const struct pdf_img_info *img_info,
+                            const uint8_t *png_data, size_t png_data_length)
+{
+    // indicates if we return an error or add the img at the
+    // end of the function
+    bool success = false;
+
+    // string stream used for writing color space (and palette) info
+    // into the pdf
+    struct dstr colour_space = INIT_DSTR;
+
+    struct pdf_object *obj = NULL;
+    uint8_t *final_data = NULL;
+    int written = 0;
+    uint32_t pos;
+    uint8_t *png_data_temp = NULL;
+    size_t png_data_total_length = 0;
+    uint8_t ncolours;
+
+    // Stores palette information for indexed PNGs
+    struct rgb_value *palette_buffer = NULL;
+    size_t palette_buffer_length = 0;
+
+    const struct png_header *header = &img_info->png;
+
+    // Father info from png header
+    switch (header->colorType) {
+    case PNG_COLOR_GREYSCALE:
+        ncolours = 1;
+        break;
+    case PNG_COLOR_RGB:
+        ncolours = 3;
+        break;
+    case PNG_COLOR_INDEXED:
+        ncolours = 1;
+        break;
+    // PNG_COLOR_RGBA and PNG_COLOR_GREYSCALE_A are unsupported
+    default:
+        pdf_set_err(pdf, -EINVAL, "PNG has unsupported color type: %d",
+                    header->colorType);
+        goto free_buffers;
+        break;
+    }
+
+    /* process PNG chunks */
+    pos = sizeof(png_signature);
+
+    while (1) {
+        const struct png_chunk *chunk;
+
+        chunk = (const struct png_chunk *)&png_data[pos];
+        pos += sizeof(struct png_chunk);
+        if (pos > png_data_length) {
+            pdf_set_err(pdf, -EINVAL, "PNG file too short");
+            goto free_buffers;
+        }
+        const uint32_t chunk_length = ntoh32(chunk->length);
+        if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
+            // Ignoring the header, since it was parsed
+            // before calling this function.
+        } else if (strncmp(chunk->type, png_chunk_palette, 4) == 0) {
+            // Palette chunk
+            if (header->colorType == PNG_COLOR_INDEXED) {
+                // palette chunk is needed for indexed images
+                if (palette_buffer) {
+                    pdf_set_err(pdf, -EINVAL,
+                                "PNG contains multiple palette chunks");
+                    goto free_buffers;
+                }
+                if (chunk_length % 3 != 0) {
+                    pdf_set_err(pdf, -EINVAL,
+                                "PNG format error: palette chunk length is "
+                                "not divisbly by 3!");
+                    goto free_buffers;
+                }
+                palette_buffer_length = (size_t)(chunk_length / 3);
+                palette_buffer = (struct rgb_value *)malloc(
+                    palette_buffer_length * sizeof(struct rgb_value));
+                if (!palette_buffer) {
+                    pdf_set_err(pdf, -ENOMEM,
+                                "Could not allocate memory for indexed color "
+                                "palette (%zu bytes)",
+                                palette_buffer_length *
+                                    sizeof(struct rgb_value));
+                    goto free_buffers;
+                }
+                for (size_t i = 0; i < palette_buffer_length; i++) {
+                    size_t offset = (i * 3) + pos;
+                    palette_buffer[i].red = png_data[offset];
+                    palette_buffer[i].green = png_data[offset + 1];
+                    palette_buffer[i].blue = png_data[offset + 2];
+                }
+            } else if (header->colorType == PNG_COLOR_RGB ||
+                       header->colorType == PNG_COLOR_RGBA) {
+                // palette chunk is optional for RGB(A) images
+                // but we do not process them
+            } else {
+                pdf_set_err(pdf, -EINVAL,
+                            "Unexpected palette chunk for color type %d",
+                            header->colorType);
+                goto free_buffers;
+            }
+        } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
+            if (chunk_length > 0 && chunk_length < png_data_length - pos) {
+                uint8_t *data = (uint8_t *)realloc(
+                    png_data_temp, png_data_total_length + chunk_length);
+                // (uint8_t *)realloc(info.data, info.length + chunk_length);
+                if (!data) {
+                    pdf_set_err(pdf, -ENOMEM, "No memory for PNG data");
+                    goto free_buffers;
+                }
+                png_data_temp = data;
+                memcpy(&png_data_temp[png_data_total_length], &png_data[pos],
+                       chunk_length);
+                png_data_total_length += chunk_length;
+            }
+        } else if (strncmp(chunk->type, png_chunk_end, 4) == 0) {
+            /* end of file, exit */
+            break;
+        }
+
+        if (chunk_length >= png_data_length) {
+            pdf_set_err(pdf, -EINVAL, "PNG chunk length larger than file");
+            goto free_buffers;
+        }
+
+        pos += chunk_length;     // add chunk length
+        pos += sizeof(uint32_t); // add CRC length
+        if (pos > png_data_length) {
+            pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
+            goto free_buffers;
+        }
+    }
+
+    /* if no length was found */
+    if (png_data_total_length == 0) {
+        pdf_set_err(pdf, -EINVAL, "PNG file has zero length");
+        goto free_buffers;
+    }
+
+    switch (header->colorType) {
+    case PNG_COLOR_GREYSCALE:
+        dstr_append(&colour_space, "/DeviceGray");
+        break;
+    case PNG_COLOR_RGB:
+        dstr_append(&colour_space, "/DeviceRGB");
+        break;
+    case PNG_COLOR_INDEXED:
+        // Write the color palette to the color_palette buffer
+        dstr_printf(&colour_space,
+                    "[ /Indexed\r\n"
+                    "  /DeviceRGB\r\n"
+                    "  %zu\r\n"
+                    "  <",
+                    palette_buffer_length - 1);
+        // write individual paletter values
+        // the index value for every RGB value is determined by its position
+        // (0, 1, 2, ...)
+        for (size_t i = 0; i < palette_buffer_length; i++) {
+            dstr_printf(&colour_space, "%02X%02X%02X ", palette_buffer[i].red,
+                        palette_buffer[i].green, palette_buffer[i].blue);
+        }
+        dstr_append(&colour_space, ">\r\n]");
+        break;
+
+    default:
+        pdf_set_err(pdf, -EINVAL,
+                    "Cannot map PNG color type %d to PDF color space",
+                    header->colorType);
+        goto free_buffers;
+        break;
+    }
+
+    final_data = (uint8_t *)malloc(png_data_total_length + 1024 +
+                                   dstr_len(&colour_space));
+    if (!final_data) {
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate PNG data %zu",
+                    png_data_total_length + 1024 + dstr_len(&colour_space));
+        goto free_buffers;
+    }
+
+    // Write image information to PDF
+    written =
+        sprintf((char *)final_data,
+                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
+                "/Subtype /Image\r\n"
+                "/ColorSpace %s\r\n"
+                "/Width %u\r\n/Height %u\r\n"
+                "/Interpolate true\r\n"
+                "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
+                "/DecodeParms << /Predictor 15 /Colors %d "
+                "/BitsPerComponent %u /Columns %u >>\r\n"
+                "/Length %zu\r\n>>stream\r\n",
+                flexarray_size(&pdf->objects), dstr_data(&colour_space),
+                header->width, header->height, header->bitDepth, ncolours,
+                header->bitDepth, header->width, png_data_total_length);
+
+    memcpy(&final_data[written], png_data_temp, png_data_total_length);
+    written += png_data_total_length;
+    written += sprintf((char *)&final_data[written], "\r\nendstream\r\n");
+
+    obj = pdf_add_object(pdf, OBJ_image);
+    if (!obj) {
+        goto free_buffers;
+    }
+
+    dstr_append_data(&obj->stream, final_data, written);
+
+    if (get_img_display_dimensions(pdf, header->width, header->height,
+                                   &display_width, &display_height)) {
+        goto free_buffers;
+    }
+    success = true;
+
+free_buffers:
+    if (final_data)
+        free(final_data);
+    if (palette_buffer)
+        free(palette_buffer);
+    if (png_data_temp)
+        free(png_data_temp);
+    dstr_free(&colour_space);
+
+    if (success)
+        return pdf_add_image(pdf, page, obj, x, y, display_width,
+                             display_height);
+    else
+        return pdf->errval;
+}
+
+static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
+                            size_t data_length, char *err_msg,
+                            size_t err_msg_length)
+{
+    if (data_length < sizeof(bmp_signature) + sizeof(struct bmp_header)) {
+        snprintf(err_msg, err_msg_length, "File is too short");
+        return -EINVAL;
+    }
+
+    if (memcmp(data, bmp_signature, sizeof(bmp_signature))) {
+        snprintf(err_msg, err_msg_length, "File is not correct BMP file");
+        return -EINVAL;
+    }
+    memcpy(&info->bmp, &data[sizeof(bmp_signature)],
+           sizeof(struct bmp_header));
+    if (info->bmp.biWidth < 0) {
+        snprintf(err_msg, err_msg_length, "BMP has negative width");
+        return -EINVAL;
+    }
+    info->width = info->bmp.biWidth;
+    // biHeight might be negative (positive indicates vertically mirrored
+    // lines)
+    info->height = abs(info->bmp.biHeight);
+    return 0;
+}
+
+static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
+                            float x, float y, float display_width,
+                            float display_height,
+                            const struct pdf_img_info *info,
+                            const uint8_t *data, const size_t len)
+{
+    const struct bmp_header *header = &info->bmp;
+    uint8_t *bmp_data = NULL;
+    uint8_t row_padding;
+    uint32_t bpp;
+    size_t data_len;
+    int retval;
+    const uint32_t width = info->width;
+    const uint32_t height = info->height;
+
+    if (header->bfSize != len)
+        return pdf_set_err(pdf, -EINVAL,
+                           "BMP file seems to have wrong length");
+    if (header->biSize != 40)
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP header: biSize");
+    if (header->biCompression != 0)
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP compression value: %d",
+                           header->biCompression);
+    if (header->biWidth > MAX_IMAGE_WIDTH || header->biWidth <= 0 ||
+        width > MAX_IMAGE_WIDTH || width == 0)
+        return pdf_set_err(pdf, -EINVAL, "BMP has invalid width: %d",
+                           header->biWidth);
+    if (header->biHeight > MAX_IMAGE_HEIGHT ||
+        header->biHeight < -MAX_IMAGE_HEIGHT || header->biHeight == 0 ||
+        height > MAX_IMAGE_HEIGHT || height == 0)
+        return pdf_set_err(pdf, -EINVAL, "BMP has invalid height: %d",
+                           header->biHeight);
+    if (header->biBitCount != 24 && header->biBitCount != 32)
+        return pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
+                           header->biBitCount);
+    bpp = header->biBitCount / 8;
+    /* BMP rows are 4-bytes padded! */
+    row_padding = (width * bpp) & 3;
+    data_len = (size_t)width * (size_t)height * 3;
+
+    if (header->bfOffBits >= len)
+        return pdf_set_err(pdf, -EINVAL, "Invalid BMP image offset");
+
+    if (len - header->bfOffBits <
+        (size_t)height * (width + row_padding) * bpp)
+        return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
+
+    if (bpp == 3) {
+        /* 24 bits: change R and B colors */
+        bmp_data = (uint8_t *)malloc(data_len);
+        if (!bmp_data)
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Insufficient memory for bitmap");
+        for (uint32_t pos = 0; pos < width * height; pos++) {
+            uint32_t src_pos =
+                header->bfOffBits + 3 * (pos + (pos / width) * row_padding);
+
+            bmp_data[pos * 3] = data[src_pos + 2];
+            bmp_data[pos * 3 + 1] = data[src_pos + 1];
+            bmp_data[pos * 3 + 2] = data[src_pos];
+        }
+    } else if (bpp == 4) {
+        /* 32 bits: change R and B colors, remove key color */
+        int offs = 0;
+        bmp_data = (uint8_t *)malloc(data_len);
+        if (!bmp_data)
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Insufficient memory for bitmap");
+
+        for (uint32_t pos = 0; pos < width * height * 4; pos += 4) {
+            bmp_data[offs] = data[header->bfOffBits + pos + 2];
+            bmp_data[offs + 1] = data[header->bfOffBits + pos + 1];
+            bmp_data[offs + 2] = data[header->bfOffBits + pos];
+            offs += 3;
+        }
+    } else {
+        return pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
+                           header->biBitCount);
+    }
+    if (header->biHeight >= 0) {
+        // BMP has vertically mirrored representation of lines, so swap them
+        uint8_t *line = (uint8_t *)malloc(width * 3);
+        if (!line) {
+            free(bmp_data);
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Unable to allocate memory for bitmap mirror");
+        }
+        for (uint32_t pos = 0; pos < (height / 2); pos++) {
+            memcpy(line, &bmp_data[pos * width * 3], width * 3);
+            memcpy(&bmp_data[pos * width * 3],
+                   &bmp_data[(height - pos - 1) * width * 3], width * 3);
+            memcpy(&bmp_data[(height - pos - 1) * width * 3], line,
+                   width * 3);
+        }
+        free(line);
+    }
+
+    retval = pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                           bmp_data, width, height);
+    free(bmp_data);
+
+    return retval;
+}
+
+static int determine_image_format(const uint8_t *data, size_t length)
+{
+    if (length >= sizeof(png_signature) &&
+        memcmp(data, png_signature, sizeof(png_signature)) == 0)
+        return IMAGE_PNG;
+    if (length >= sizeof(bmp_signature) &&
+        memcmp(data, bmp_signature, sizeof(bmp_signature)) == 0)
+        return IMAGE_BMP;
+    if (length >= sizeof(jpeg_signature) &&
+        memcmp(data, jpeg_signature, sizeof(jpeg_signature)) == 0)
+        return IMAGE_JPG;
+    if (length >= sizeof(ppm_signature) &&
+        memcmp(data, ppm_signature, sizeof(ppm_signature)) == 0)
+        return IMAGE_PPM;
+    if (length >= sizeof(pgm_signature) &&
+        memcmp(data, pgm_signature, sizeof(pgm_signature)) == 0)
+        return IMAGE_PPM;
+
+    return IMAGE_UNKNOWN;
+}
+
+int pdf_parse_image_header(struct pdf_img_info *info, const uint8_t *data,
+                           size_t length, char *err_msg,
+                           size_t err_msg_length)
+
+{
+    const int image_format = determine_image_format(data, length);
+    info->image_format = image_format;
+    switch (image_format) {
+    case IMAGE_PNG:
+        return parse_png_header(info, data, length, err_msg, err_msg_length);
+    case IMAGE_BMP:
+        return parse_bmp_header(info, data, length, err_msg, err_msg_length);
+    case IMAGE_JPG:
+        return parse_jpeg_header(info, data, length, err_msg, err_msg_length);
+    case IMAGE_PPM:
+        return parse_ppm_header(info, data, length, err_msg, err_msg_length);
+
+    case IMAGE_UNKNOWN:
+    default:
+        snprintf(err_msg, err_msg_length, "Unknown file format");
+        return -EINVAL;
+    }
+}
+
+int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const uint8_t *data, size_t len)
+{
+    struct pdf_img_info info = {
+        .image_format = IMAGE_UNKNOWN,
+        .width = 0,
+        .height = 0,
+        .jpeg = {0},
+    };
+
+    int ret = pdf_parse_image_header(&info, data, len, pdf->errstr,
+                                     sizeof(pdf->errstr));
+    if (ret)
+        return ret;
+
+    // Try and determine which image format it is based on the content
+    switch (info.image_format) {
+    case IMAGE_PNG:
+        return pdf_add_png_data(pdf, page, x, y, display_width,
+                                display_height, &info, data, len);
+    case IMAGE_BMP:
+        return pdf_add_bmp_data(pdf, page, x, y, display_width,
+                                display_height, &info, data, len);
+    case IMAGE_JPG:
+        return pdf_add_jpeg_data(pdf, page, x, y, display_width,
+                                 display_height, &info, data, len);
+    case IMAGE_PPM:
+        return pdf_add_ppm_data(pdf, page, x, y, display_width,
+                                display_height, &info, data, len);
+
+    // This case should be caught in parse_image_header, but is checked
+    // here again for safety
+    case IMAGE_UNKNOWN:
+    default:
+        return pdf_set_err(pdf, -EINVAL, "Unable to determine image format");
+    }
+}
+
+int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float display_width, float display_height,
+                       const char *image_filename)
+{
+    size_t len;
+    uint8_t *data;
+    int ret = 0;
+
+    data = get_file(pdf, image_filename, &len);
+    if (data == NULL)
+        return pdf_get_errval(pdf);
+
+    ret = pdf_add_image_data(pdf, page, x, y, display_width, display_height,
+                             data, len);
     free(data);
-    if (!obj)
-        return pdf->errval;
-
-    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
-}
-
-int pdf_add_jpeg(struct pdf_doc *pdf, struct pdf_object *page, int x, int y,
-                 int display_width, int display_height, const char *jpeg_file)
-{
-    struct pdf_object *obj;
-
-    obj = pdf_add_raw_jpeg(pdf, jpeg_file);
-    if (!obj)
-        return pdf->errval;
-
-    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
-}
-
-int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page, int x,
-                      int y, int display_width, int display_height,
-                      const unsigned char *jpeg_data, size_t len)
-{
-    struct pdf_object *obj;
-
-    obj = pdf_add_raw_jpeg_data(pdf, jpeg_data, len);
-    if (!obj)
-        return pdf->errval;
-
-    return pdf_add_image(pdf, page, obj, x, y, display_width, display_height);
+    return ret;
 }
