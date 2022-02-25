@@ -2024,15 +2024,22 @@ int pdf_add_rectangle(struct pdf_doc *pdf, struct pdf_object *page, float x,
 
 int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
                              float x, float y, float width, float height,
-                             float border_width, uint32_t colour)
+                             float border_width, uint32_t colour_fill,
+                             uint32_t colour_border)
 {
     int ret;
     struct dstr str = INIT_DSTR;
 
-    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
-    dstr_printf(&str, "%f w ", border_width);
-    dstr_printf(&str, "%f %f %f %f re f ", x, y, width, height);
+    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour_fill),
+                PDF_RGB_G(colour_fill), PDF_RGB_B(colour_fill));
+    if (border_width > 0) {
+        dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour_border),
+                    PDF_RGB_G(colour_border), PDF_RGB_B(colour_border));
+        dstr_printf(&str, "%f w ", border_width);
+        dstr_printf(&str, "%f %f %f %f re B ", x, y, width, height);
+    } else {
+        dstr_printf(&str, "%f %f %f %f re f ", x, y, width, height);
+    }
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -2140,7 +2147,7 @@ static float pdf_barcode_128a_ch(struct pdf_doc *pdf, struct pdf_object *page,
 
         if (!(i % 2))
             pdf_add_filled_rectangle(pdf, page, x, y, line_width * mask,
-                                     height, 0, colour);
+                                     height, 0, colour, PDF_TRANSPARENT);
         x += line_width * mask;
     }
     return x;
@@ -2237,13 +2244,13 @@ static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
         int pattern = (code >> i * 4) & 0xf;
         if (pattern == 0) { // wide
             if (pdf_add_filled_rectangle(pdf, page, x, y, ww - 1, height, 0,
-                                         colour) < 0)
+                                         colour, PDF_TRANSPARENT) < 0)
                 return pdf->errval;
             x += ww;
         }
         if (pattern == 1) { // narrow
             if (pdf_add_filled_rectangle(pdf, page, x, y, nw - 1, height, 0,
-                                         colour) < 0)
+                                         colour, PDF_TRANSPARENT) < 0)
                 return pdf->errval;
             x += nw;
         }

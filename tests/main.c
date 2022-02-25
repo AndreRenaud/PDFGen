@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
                     PDF_RGB(0, 0, 0));
     pdf_add_rectangle(pdf, NULL, 150, 150, 100, 100, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4,
-                             PDF_RGB(0, 0xff, 0));
+                             PDF_RGB(0, 0xff, 0), PDF_TRANSPARENT);
     pdf_add_text(pdf, NULL, "This should be transparent", 20, 160, 500,
                  PDF_ARGB(0x80, 0, 0, 0));
     float p1X[] = {200, 200, 300, 300};
