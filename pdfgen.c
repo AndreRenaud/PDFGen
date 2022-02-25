@@ -2032,14 +2032,14 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
 
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour_fill),
                 PDF_RGB_G(colour_fill), PDF_RGB_B(colour_fill));
-	if(border_width > 0) {
-	    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour_border),
+    if (border_width > 0) {
+        dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour_border),
                     PDF_RGB_G(colour_border), PDF_RGB_B(colour_border));
-	    dstr_printf(&str, "%f w ", border_width);
-	    dstr_printf(&str, "%f %f %f %f re B ", x, y, width, height);
-	} else {
-	    dstr_printf(&str, "%f %f %f %f re f ", x, y, width, height);
-	}
+        dstr_printf(&str, "%f w ", border_width);
+        dstr_printf(&str, "%f %f %f %f re B ", x, y, width, height);
+    } else {
+        dstr_printf(&str, "%f %f %f %f re f ", x, y, width, height);
+    }
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
