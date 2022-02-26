@@ -2645,17 +2645,27 @@ static int parse_jpeg_header(struct pdf_img_info *info, const uint8_t *data,
 {
     // See http://www.videotechnology.com/jpeg/j1.html for details
     if (length >= 4 && data[0] == 0xFF && data[1] == 0xD8) {
-        for (size_t i = 0; i < length - 3; i++) {
+        for (size_t i = 2; i < length; i++) {
+            if (data[i] != 0xff) {
+                break;
+            }
+            while (++i < length && data[i] == 0xff)
+                ;
+            if (i + 2 >= length) {
+                break;
+            }
+            int len = data[i + 1] * 256 + data[i + 2];
             /* Search for SOFn marker and decode jpeg details */
-            if (data[i] == 0xff && (data[i + 1] & 0xf0) == 0xc0) {
-                int len = data[i + 2] * 256 + data[i + 3];
-                if (len >= 9 && i + len < length) {
-                    info->height = data[i + 5] * 256 + data[i + 6];
-                    info->width = data[i + 7] * 256 + data[i + 8];
-                    info->jpeg.ncolours = data[i + 9];
+            if ((data[i] & 0xf4) == 0xc0) {
+                if (len >= 9 && i + len + 1 < length) {
+                    info->height = data[i + 4] * 256 + data[i + 5];
+                    info->width = data[i + 6] * 256 + data[i + 7];
+                    info->jpeg.ncolours = data[i + 8];
                     return 0;
                 }
+                break;
             }
+            i += len;
         }
     }
     snprintf(err_msg, err_msg_length, "Error parsing JPEG header");
