@@ -769,6 +769,16 @@ float pdf_height(const struct pdf_doc *pdf)
     return pdf->height;
 }
 
+float pdf_page_width(const struct pdf_object *page)
+{
+    return page->page.width;
+}
+
+float pdf_page_height(const struct pdf_object *page)
+{
+    return page->page.height;
+}
+
 void pdf_destroy(struct pdf_doc *pdf)
 {
     if (pdf) {
@@ -1302,16 +1312,16 @@ static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
             *res = 0221;
             break;
         case 0x2019: // right single quote
-            *res = '\222';
+            *res = 0222;
             break;
         case 0x201c: // left double quote
-            *res = '\223';
+            *res = 0223;
             break;
         case 0x201d: // right double quote
-            *res = '\224';
+            *res = 0224;
             break;
         case 0x20ac: // Euro
-            *res = '\200';
+            *res = 0200;
             break;
         default:
             return pdf_set_err(pdf, -EINVAL,
