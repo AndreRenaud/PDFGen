@@ -363,6 +363,20 @@ float pdf_height(const struct pdf_doc *pdf);
 float pdf_width(const struct pdf_doc *pdf);
 
 /**
+ * Retrieves page height
+ * @param page Page object to get height of
+ * @return height of page (in points)
+ */
+float pdf_page_height(const struct pdf_object *page);
+
+/**
+ * Retrieves page width
+ * @param page Page object to get width of
+ * @return width of page (in points)
+ */
+float pdf_page_width(const struct pdf_object *page);
+
+/**
  * Add a new page to the given pdf
  * @param pdf PDF document to append page to
  * @return new page object
