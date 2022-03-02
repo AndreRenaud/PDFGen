@@ -1718,7 +1718,7 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
 static const char *find_word_break(const char *string)
 {
     /* Skip over the actual word */
-    while (string && *string && !isspace((unsigned char)*string))
+    while (string && *string && (*string < 0 || !isspace(*string)))
         string++;
 
     return string;
