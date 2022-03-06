@@ -213,6 +213,45 @@ int main(int argc, char *argv[])
                  PDF_RGB(0xff, 0, 0));
 
     pdf_append_page(pdf);
+    pdf_add_text_wrap(pdf, NULL, "EAN13 Barcode", 10, PDF_MM_TO_POINT(20),
+                      PDF_MM_TO_POINT(155), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
+    pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(20), PDF_MM_TO_POINT(160),
+                      PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(40), 1,
+                      PDF_RGB(0xff, 0, 0xff));
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_EAN13, PDF_MM_TO_POINT(20),
+                    PDF_MM_TO_POINT(160), PDF_MM_TO_POINT(60),
+                    PDF_MM_TO_POINT(40), "4003994155486", PDF_BLACK);
+    pdf_add_text_wrap(pdf, NULL, "UPCA Barcode", 10, PDF_MM_TO_POINT(100),
+                      PDF_MM_TO_POINT(155), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
+    pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(100), PDF_MM_TO_POINT(160),
+                      PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(80), 1,
+                      PDF_RGB(0, 0, 0xff));
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_UPCA, PDF_MM_TO_POINT(100),
+                    PDF_MM_TO_POINT(160), PDF_MM_TO_POINT(60),
+                    PDF_MM_TO_POINT(80), "003994155486", PDF_BLACK);
+
+    pdf_add_text_wrap(pdf, NULL, "EAN8 Barcode", 10, PDF_MM_TO_POINT(20),
+                      PDF_MM_TO_POINT(55), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
+    pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(20), PDF_MM_TO_POINT(60),
+                      PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(40), 1,
+                      PDF_RGB(0, 0xff, 0xff));
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_EAN8, PDF_MM_TO_POINT(20),
+                    PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(60),
+                    PDF_MM_TO_POINT(40), "95012346", PDF_BLACK);
+    pdf_add_text_wrap(pdf, NULL, "UPCE Barcode", 10, PDF_MM_TO_POINT(100),
+                      PDF_MM_TO_POINT(55), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
+    pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(100), PDF_MM_TO_POINT(60),
+                      PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(80), 1,
+                      PDF_RGB(0, 0xff, 0));
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_UPCE, PDF_MM_TO_POINT(100),
+                    PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(60),
+                    PDF_MM_TO_POINT(80), "012345000058", PDF_BLACK);
+
+    pdf_append_page(pdf);
     pdf_page_set_size(pdf, NULL, PDF_A3_HEIGHT, PDF_A3_WIDTH);
     pdf_add_bookmark(pdf, NULL, -1, "Last Page");
 

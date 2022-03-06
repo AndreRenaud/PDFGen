@@ -630,8 +630,12 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
  * List of different barcode encodings that are supported
  */
 enum {
-    PDF_BARCODE_128A, //!< Produce code-128A style barcodes
-    PDF_BARCODE_39,   //!< Produce code-39 style barcodes
+    PDF_BARCODE_128A,  //!< Produce code-128A style barcodes
+    PDF_BARCODE_39,    //!< Produce code-39 style barcodes
+    PDF_BARCODE_EAN13, //!< Produce EAN-13 style barcodes
+    PDF_BARCODE_UPCA,  //!< Produce UPC-A style barcodes
+    PDF_BARCODE_EAN8,  //!< Produce EAN-8 style barcodes
+    PDF_BARCODE_UPCE,  //!< Produce UPC-E style barcodes
 };
 
 /**
