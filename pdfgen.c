@@ -2373,10 +2373,10 @@ static const struct {
     unsigned quiet_left;
     unsigned quiet_right;
 } eanupc_dimensions[] = {
-    {113, PDF_MM_TO_POINT(22.85), PDF_MM_TO_POINT(25.93), 11, 7},
-    {113, PDF_MM_TO_POINT(22.85), PDF_MM_TO_POINT(25.93), 9, 9},
-    {81, PDF_MM_TO_POINT(18.23), PDF_MM_TO_POINT(21.31), 7, 7},
-    {67, PDF_MM_TO_POINT(22.85), PDF_MM_TO_POINT(25.93), 9, 7},
+    {113, PDF_MM_TO_POINT(22.85), PDF_MM_TO_POINT(25.93), 11, 7}, // EAN-13
+    {113, PDF_MM_TO_POINT(22.85), PDF_MM_TO_POINT(25.93), 9, 9},  // UPC-A
+    {81, PDF_MM_TO_POINT(18.23), PDF_MM_TO_POINT(21.31), 7, 7},   // EAN-8
+    {67, PDF_MM_TO_POINT(22.85), PDF_MM_TO_POINT(25.93), 9, 7},   // UPC-E
 };
 
 static void pdf_barcode_eanupc_calc_dims(int type, float width, float height,
@@ -2515,7 +2515,7 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
                                  &y_off, &new_width, &new_height, &x_width,
                                  &bar_height, &bar_ext, &font);
 
-    x += x_off + eanupc_dimensions[0].quiet_left * x_width;
+    x += x_off;
     y += y_off;
     float bar_y = y + new_height - bar_height;
 
@@ -2528,13 +2528,13 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
     char text[2];
     text[1] = 0;
     text[0] = lead + '0';
-    e = pdf_add_text(pdf, page, text, font,
-                     x - 5 * x_width - 604.0 * font / 14.0 / 72.0, y, colour);
+    e = pdf_add_text(pdf, page, text, font, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
     }
 
+    x += eanupc_dimensions[0].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
@@ -2545,7 +2545,8 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
-        e = pdf_add_text(pdf, page, text, font, x, y, colour);
+        e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                              7 * x_width, PDF_ALIGN_CENTER, NULL);
         if (e < 0) {
             pdf_set_font(pdf, save_font);
             return e;
@@ -2571,7 +2572,8 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
-        e = pdf_add_text(pdf, page, text, font, x, y, colour);
+        e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                              7 * x_width, PDF_ALIGN_CENTER, NULL);
         if (e < 0) {
             pdf_set_font(pdf, save_font);
             return e;
@@ -2595,7 +2597,9 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
     }
 
     text[0] = '>';
-    e = pdf_add_text(pdf, page, text, font, x + 5 * x_width, y, colour);
+    x += eanupc_dimensions[0].quiet_right * x_width -
+         604.0f * font / (14.0f * 72.0f);
+    e = pdf_add_text(pdf, page, text, font, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -2624,7 +2628,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
                                  &y_off, &new_width, &new_height, &x_width,
                                  &bar_height, &bar_ext, &font);
 
-    x += x_off + eanupc_dimensions[1].quiet_left * x_width;
+    x += x_off;
     y += y_off;
     float bar_y = y + new_height - bar_height;
 
@@ -2637,14 +2641,13 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     char text[2];
     text[1] = 0;
     text[0] = *string;
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0,
-                     x - 5 * x_width - 604.0 * font / 14.0 / 72.0 * 4.0 / 7.0,
-                     y, colour);
+    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
     }
 
+    x += eanupc_dimensions[1].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
@@ -2656,7 +2659,8 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
         if (i) {
-            e = pdf_add_text(pdf, page, text, font, x, y, colour);
+            e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                                  7 * x_width, PDF_ALIGN_CENTER, NULL);
             if (e < 0) {
                 pdf_set_font(pdf, save_font);
                 return e;
@@ -2684,7 +2688,8 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
         if (i != 5) {
-            e = pdf_add_text(pdf, page, text, font, x, y, colour);
+            e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                                  7 * x_width, PDF_ALIGN_CENTER, NULL);
             if (e < 0) {
                 pdf_set_font(pdf, save_font);
                 return e;
@@ -2702,8 +2707,9 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     }
 
     text[0] = *--string;
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x + 5 * x_width, y,
-                     colour);
+    x += eanupc_dimensions[0].quiet_right * x_width -
+         604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
+    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -2732,7 +2738,7 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
                                  &y_off, &new_width, &new_height, &x_width,
                                  &bar_height, &bar_ext, &font);
 
-    x += x_off + eanupc_dimensions[2].quiet_left * x_width;
+    x += x_off;
     y += y_off;
     float bar_y = y + new_height - bar_height;
 
@@ -2745,13 +2751,13 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
     char text[2];
     text[1] = 0;
     text[0] = '<';
-    e = pdf_add_text(pdf, page, text, font,
-                     x - 5 * x_width - 604.0 * font / 14.0 / 72.0, y, colour);
+    e = pdf_add_text(pdf, page, text, font, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
     }
 
+    x += eanupc_dimensions[2].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
@@ -2762,7 +2768,8 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (int i = 0; i != 4; i++) {
         text[0] = *string;
-        e = pdf_add_text(pdf, page, text, font, x, y, colour);
+        e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                              7 * x_width, PDF_ALIGN_CENTER, NULL);
         if (e < 0) {
             pdf_set_font(pdf, save_font);
             return e;
@@ -2787,7 +2794,8 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (int i = 0; i != 4; i++) {
         text[0] = *string;
-        e = pdf_add_text(pdf, page, text, font, x, y, colour);
+        e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                              7 * x_width, PDF_ALIGN_CENTER, NULL);
         if (e < 0) {
             pdf_set_font(pdf, save_font);
             return e;
@@ -2811,7 +2819,9 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
     }
 
     text[0] = '>';
-    e = pdf_add_text(pdf, page, text, font, x + 5 * x_width, y, colour);
+    x += eanupc_dimensions[0].quiet_right * x_width -
+         604.0f * font / (14.0f * 72.0f);
+    e = pdf_add_text(pdf, page, text, font, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -2844,12 +2854,12 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
                                  &y_off, &new_width, &new_height, &x_width,
                                  &bar_height, &bar_ext, &font);
 
-    x += x_off + eanupc_dimensions[3].quiet_left * x_width;
+    x += x_off;
     y += y_off;
     float bar_y = y + new_height - bar_height;
 
     int e;
-
+    const char *save_font = pdf->current_font->font.name;
     e = pdf_set_font(pdf, "Courier");
     if (e < 0)
         return e;
@@ -2857,16 +2867,19 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     char text[2];
     text[1] = 0;
     text[0] = string[0];
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0,
-                     x - 5 * x_width - 604.0 * font / 14.0 / 72.0 * 4.0 / 7.0,
-                     y, colour);
-    if (e < 0)
+    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
+    if (e < 0) {
+        pdf_set_font(pdf, save_font);
         return e;
+    }
 
+    x += eanupc_dimensions[2].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y, x_width, bar_height,
                                colour, GUARD_NORMAL, &x);
-    if (e < 0)
+    if (e < 0) {
+        pdf_set_font(pdf, save_font);
         return e;
+    }
 
     char X[6];
     if (string[5] && memcmp(string + 6, "0000", 4) == 0 &&
@@ -2895,28 +2908,39 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
 
     for (int i = 0; i != 6; i++) {
         text[0] = X[i];
-        e = pdf_add_text(pdf, page, text, font, x, y, colour);
-        if (e < 0)
+        e = pdf_add_text_wrap(pdf, page, text, font, x, y, colour,
+                              7 * x_width, PDF_ALIGN_CENTER, NULL);
+        if (e < 0) {
+            pdf_set_font(pdf, save_font);
             return e;
+        }
 
         int set = set_upce_encoding[string[11] - '0'] & 1 << i ? 1 : 0;
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, X[i], set, &x);
-        if (e < 0)
+        if (e < 0) {
+            pdf_set_font(pdf, save_font);
             return e;
+        }
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y, x_width, bar_height,
                                colour, GUARD_SPECIAL, &x);
-    if (e < 0)
+    if (e < 0) {
+        pdf_set_font(pdf, save_font);
         return e;
+    }
 
     text[0] = string[11];
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x + 5 * x_width, y,
-                     colour);
-    if (e < 0)
+    x += eanupc_dimensions[0].quiet_right * x_width -
+         604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
+    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
+    if (e < 0) {
+        pdf_set_font(pdf, save_font);
         return e;
+    }
 
+    pdf_set_font(pdf, save_font);
     return 0;
 }
 
