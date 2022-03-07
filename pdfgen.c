@@ -3251,7 +3251,7 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
         return -EINVAL;
     }
     if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
-        snprintf(err_msg, err_msg_length, "Invalid width/height: %dx%d",
+        snprintf(err_msg, err_msg_length, "Invalid width/height: %ux%u",
                  info->width, info->height);
         return -EINVAL;
     }
