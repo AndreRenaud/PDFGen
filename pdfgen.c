@@ -2422,7 +2422,8 @@ static int pdf_barcode_eanupc_ch(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "Invalid EAN/UPC character %c 0x%x",
                            ch, ch);
 
-    int code = code_eanupc_encoding[ch - '0'];
+    int code;
+    code = code_eanupc_encoding[ch - '0'];
 
     for (int i = 3; i >= 0; i--) {
         int shift = (set == 1 ? 3 - i : i) * 4;
@@ -2552,7 +2553,7 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
             return e;
         }
 
-        int set = set_ean13_encoding[lead] & 1 << i ? 1 : 0;
+        int set = (set_ean13_encoding[lead] & 1 << i) ? 1 : 0;
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, *string, set, &x);
         if (e < 0) {
@@ -2904,6 +2905,9 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
         X[3] = string[9];
         X[4] = string[10];
         X[5] = 3;
+    } else {
+        pdf_set_font(pdf, save_font);
+        return pdf_set_err(pdf, -EINVAL, "Invalid UPCE string format");
     }
 
     for (int i = 0; i != 6; i++) {
@@ -2915,7 +2919,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
             return e;
         }
 
-        int set = set_upce_encoding[string[11] - '0'] & 1 << i ? 1 : 0;
+        int set = (set_upce_encoding[string[11] - '0'] & 1 << i) ? 1 : 0;
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, X[i], set, &x);
         if (e < 0) {
