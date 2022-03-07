@@ -212,7 +212,15 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "", 10, (i / 100) * 100, (i % 100) * 12,
                  PDF_RGB(0xff, 0, 0));
 
-    pdf_append_page(pdf);
+    struct pdf_object *page = pdf_append_page(pdf);
+
+    if (pdf_page_width(page) != PDF_A4_WIDTH ||
+        pdf_page_height(page) != PDF_A4_HEIGHT) {
+        fprintf(stderr, "PDF Size mismatch: %fx%f\n", pdf_page_width(page),
+                pdf_page_height(page));
+        return -1;
+    }
+
     pdf_add_text_wrap(pdf, NULL, "EAN13 Barcode", 10, PDF_MM_TO_POINT(20),
                       PDF_MM_TO_POINT(155), PDF_RGB(0, 0, 0),
                       PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
