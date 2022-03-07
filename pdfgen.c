@@ -2505,7 +2505,7 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
         lead = ch - '0';
         ++string;
     } else if (len != 12)
-        return pdf_set_err(pdf, -EINVAL, "Invalid EAN13 string length %lu",
+        return pdf_set_err(pdf, -EINVAL, "Invalid EAN13 string length %u",
                            len);
 
     /* Scale and calculate dimensions */
@@ -2618,7 +2618,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
 
     size_t len = strlen(string);
     if (len != 12)
-        return pdf_set_err(pdf, -EINVAL, "Invalid UPCA string length %lu",
+        return pdf_set_err(pdf, -EINVAL, "Invalid UPCA string length %u",
                            len);
 
     /* Scale and calculate dimensions */
@@ -2728,7 +2728,7 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
 
     size_t len = strlen(string);
     if (len != 8)
-        return pdf_set_err(pdf, -EINVAL, "Invalid EAN8 string length %lu",
+        return pdf_set_err(pdf, -EINVAL, "Invalid EAN8 string length %u",
                            len);
 
     /* Scale and calculate dimensions */
@@ -2840,7 +2840,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
 
     size_t len = strlen(string);
     if (len != 12)
-        return pdf_set_err(pdf, -EINVAL, "Invalid UPCE string length %lu",
+        return pdf_set_err(pdf, -EINVAL, "Invalid UPCE string length %u",
                            len);
 
     if (*string != '0')
