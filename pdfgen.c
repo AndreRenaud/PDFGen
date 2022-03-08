@@ -472,7 +472,7 @@ static void force_locale(char *buf, int len)
     if (!saved_locale) {
         *buf = '\0';
     } else {
-        strncpy(buf, saved_locale, len);
+        strncpy(buf, saved_locale, len - 1);
         buf[len - 1] = '\0';
     }
 
@@ -822,7 +822,7 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font)
         obj = pdf_add_object(pdf, OBJ_font);
         if (!obj)
             return pdf->errval;
-        strncpy(obj->font.name, font, sizeof(obj->font.name));
+        strncpy(obj->font.name, font, sizeof(obj->font.name) - 1);
         obj->font.name[sizeof(obj->font.name) - 1] = '\0';
         obj->font.index = last_index + 1;
     }
@@ -1225,7 +1225,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
         return pdf->errval;
     }
 
-    strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name));
+    strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name) - 1);
     obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
     obj->bookmark.page = page;
     if (parent >= 0) {
@@ -1242,9 +1242,13 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
-    uint32_t ch = *(uint8_t *)utf8;
+    uint32_t ch;
     uint8_t mask;
 
+    if (len <= 0 || !utf8 || !utf32)
+        return -EINVAL;
+
+    ch = *(uint8_t *)utf8;
     if ((ch & 0x80) == 0) {
         len = 1;
         mask = 0x7f;
