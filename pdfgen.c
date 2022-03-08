@@ -1232,10 +1232,14 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
-    uint32_t ch = *(uint8_t *)utf8;
+    uint32_t ch;
     uint8_t mask;
 
-    if ((ch & 0x80) == 0) {
+    if (len <= 0 || !utf8 || !utf32)
+        return -EINVAL;
+
+    ch = *(uint8_t *)utf8;
+    if ((ch & 0x80) == 0 && len >= 1) {
         len = 1;
         mask = 0x7f;
     } else if ((ch & 0xe0) == 0xc0 && len >= 2) {
