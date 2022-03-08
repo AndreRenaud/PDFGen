@@ -47,6 +47,12 @@ check: $(TESTPROG) pdfgen.c pdfgen.h example-check
 	$(CLANG_FORMAT) tests/main.c | colordiff -u tests/main.c -
 	gcov -r pdfgen.c
 
+coverage: $(TESTPROG)
+	./testprog
+	rm -rf coverage-html
+	mkdir coverage-html
+	gcovr -r . --html --html-details -o coverage-html/coverage.html
+
 example-check: FORCE
 	# Extract the code block from the README & make sure it compiles
 	sed -n '/^```/,/^```/ p' < README.md | sed '/^```/ d' > example-check.c
@@ -70,4 +76,4 @@ FORCE:
 
 clean:
 	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps
-	rm -rf docs fuzz-artifacts infer-out
+	rm -rf docs fuzz-artifacts infer-out coverage-html
