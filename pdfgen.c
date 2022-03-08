@@ -1239,7 +1239,7 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
         return -EINVAL;
 
     ch = *(uint8_t *)utf8;
-    if ((ch & 0x80) == 0 && len >= 1) {
+    if ((ch & 0x80) == 0) {
         len = 1;
         mask = 0x7f;
     } else if ((ch & 0xe0) == 0xc0 && len >= 2) {
