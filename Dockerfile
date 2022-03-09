@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	curl \
 	doxygen \
 	gcc \
+	gcovr \
 	g++ \
 	ghostscript \
 	git \
