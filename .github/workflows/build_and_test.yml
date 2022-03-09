@@ -34,6 +34,8 @@ jobs:
         run: make fuzz-check CLANG=clang-10 CLANG_FORMAT=clang-format-10 -j8
       - name: Docs
         run: make docs
+      - name: Coverage
+        run: make clean && make coverage
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
@@ -45,6 +47,7 @@ jobs:
             doc/html/
             testprog
             testprog.exe
+            coverage-html/
 
   build-windows:
     runs-on: windows-latest

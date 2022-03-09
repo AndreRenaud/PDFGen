@@ -9,3 +9,4 @@ output.txt
 output.pdftk
 docs/
 tests/penguin.c
+coverage-html/
