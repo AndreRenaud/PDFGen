@@ -1263,6 +1263,8 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
     ch = 0;
     for (int i = 0; i < len; i++) {
         int shift = (len - i - 1) * 6;
+        if (!*utf8)
+            return -EINVAL;
         if (i == 0)
             ch |= ((uint32_t)(*utf8++) & mask) << shift;
         else
