@@ -2482,7 +2482,7 @@ static int pdf_barcode_eanupc_aux(struct pdf_doc *pdf,
                                              PDF_TRANSPARENT) < 0)
                     return pdf->errval;
             }
-            x += x_width;
+            x += x_width * value;
         }
     }
     if (new_x)
