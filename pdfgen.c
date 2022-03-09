@@ -2709,8 +2709,17 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
         string++;
     }
 
+    e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
+                               bar_height + bar_ext, colour, GUARD_NORMAL,
+                               &x);
+    if (e < 0) {
+        pdf_set_font(pdf, save_font);
+        return e;
+    }
+
     text[0] = *--string;
-    x += eanupc_dimensions[0].quiet_right * x_width -
+
+    x += eanupc_dimensions[1].quiet_right * x_width -
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
     if (e < 0) {
