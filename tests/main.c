@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
                       PDF_RGB(0, 0, 0xff));
     pdf_add_barcode(pdf, NULL, PDF_BARCODE_UPCA, PDF_MM_TO_POINT(100),
                     PDF_MM_TO_POINT(160), PDF_MM_TO_POINT(60),
-                    PDF_MM_TO_POINT(80), "003994155486", PDF_BLACK);
+                    PDF_MM_TO_POINT(80), "003994155480", PDF_BLACK);
 
     pdf_add_text_wrap(pdf, NULL, "EAN8 Barcode", 10, PDF_MM_TO_POINT(20),
                       PDF_MM_TO_POINT(55), PDF_RGB(0, 0, 0),
