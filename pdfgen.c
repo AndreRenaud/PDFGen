@@ -3591,6 +3591,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
         chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
+
         if (pos > png_data_length - 4) {
             pdf_set_err(pdf, -EINVAL, "PNG file too short");
             goto free_buffers;
@@ -3621,8 +3622,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                     goto free_buffers;
                 }
                 palette_buffer_length = (size_t)(chunk_length / 3);
-                if (palette_buffer_length > 256) {
-                    pdf_set_err(pdf, -EINVAL, "PNG palette too large: %zd",
+                if (palette_buffer_length > 256 ||
+                    palette_buffer_length == 0) {
+                    pdf_set_err(pdf, -EINVAL,
+                                "PNG palette length invalid: %zd",
                                 palette_buffer_length);
                     goto free_buffers;
                 }
