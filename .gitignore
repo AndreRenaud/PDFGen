@@ -7,6 +7,8 @@ testprog
 output.pdf
 output.txt
 output.pdftk
-docs/
 tests/penguin.c
 coverage-html/
+docs/html
+docs/latex
+doxygen.log
