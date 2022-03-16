@@ -1130,7 +1130,9 @@ static uint64_t hash(uint64_t hash, const void *data, size_t len)
 {
     const uint8_t *d8 = (const uint8_t *)data;
     for (; len; len--) {
-        hash = (((hash & 0x07ffffffffffffff) << 5) + hash) + *d8++;
+        hash = (((hash & 0x03ffffffffffffff) << 5) +
+                (hash & 0x7fffffffffffffff)) +
+               *d8++;
     }
     return hash;
 }
@@ -3589,11 +3591,17 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
         chunk = (const struct png_chunk *)&png_data[pos];
         pos += sizeof(struct png_chunk);
-        if (pos > png_data_length) {
+        if (pos > png_data_length - 4) {
             pdf_set_err(pdf, -EINVAL, "PNG file too short");
             goto free_buffers;
         }
         const uint32_t chunk_length = ntoh32(chunk->length);
+        // chunk length + 4-bytes of CRC
+        if (chunk_length > png_data_length - pos - 4) {
+            pdf_set_err(pdf, -EINVAL, "PNG chunk exceeds file: %d vs %ld",
+                        chunk_length, png_data_length - pos - 4);
+            goto free_buffers;
+        }
         if (strncmp(chunk->type, png_chunk_header, 4) == 0) {
             // Ignoring the header, since it was parsed
             // before calling this function.
@@ -3613,6 +3621,11 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
                     goto free_buffers;
                 }
                 palette_buffer_length = (size_t)(chunk_length / 3);
+                if (palette_buffer_length > 256) {
+                    pdf_set_err(pdf, -EINVAL, "PNG palette too large: %zd",
+                                palette_buffer_length);
+                    goto free_buffers;
+                }
                 palette_buffer = (struct rgb_value *)malloc(
                     palette_buffer_length * sizeof(struct rgb_value));
                 if (!palette_buffer) {
@@ -3665,10 +3678,6 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
 
         pos += chunk_length;     // add chunk length
         pos += sizeof(uint32_t); // add CRC length
-        if (pos > png_data_length) {
-            pdf_set_err(pdf, -errno, "Wrong PNG format, chunks not found");
-            goto free_buffers;
-        }
     }
 
     /* if no length was found */
@@ -3784,6 +3793,10 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
            sizeof(struct bmp_header));
     if (info->bmp.biWidth < 0) {
         snprintf(err_msg, err_msg_length, "BMP has negative width");
+        return -EINVAL;
+    }
+    if (info->bmp.biHeight == -2147483648) { // 1 << 31
+        snprintf(err_msg, err_msg_length, "BMP height overflow");
         return -EINVAL;
     }
     info->width = info->bmp.biWidth;
