@@ -9,3 +9,6 @@ output.txt
 output.pdftk
 tests/penguin.c
 coverage-html/
+docs/html
+docs/latex
+doxygen.log
