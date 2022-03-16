@@ -2939,6 +2939,12 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "Invalid UPCE char %c at start",
                            *string);
 
+    for (size_t i = 0; i < len; i++) {
+        if (!isdigit(string[i]))
+            return pdf_set_err(pdf, -EINVAL, "Invalid UPCE char 0x%x at %zd",
+                               string[i], i);
+    }
+
     /* Scale and calculate dimensions */
     float x_off, y_off, new_width, new_height;
     float x_width, bar_height, bar_ext, font;
