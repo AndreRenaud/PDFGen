@@ -3697,6 +3697,10 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         dstr_append(&colour_space, "/DeviceRGB");
         break;
     case PNG_COLOR_INDEXED:
+        if (palette_buffer_length == 0) {
+            pdf_set_err(pdf, -EINVAL, "Indexed PNG contains no palette");
+            goto free_buffers;
+        }
         // Write the color palette to the color_palette buffer
         dstr_printf(&colour_space,
                     "[ /Indexed\r\n"
