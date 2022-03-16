@@ -272,7 +272,8 @@ struct pdf_object {
             float urx;
             float ury;
             struct pdf_object *target_page; /* Target page */
-            float target_y;                 /* Target location */
+            float target_x;                 /* Target location */
+            float target_y;
         } link;
     };
 };
@@ -1105,12 +1106,12 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "  /Type /Annot\r\n"
                 "  /Subtype /Link\r\n"
                 "  /Rect [%f %f %f %f]\r\n"
-                "  /Dest [%u 0 R /XYZ 0 %f null]\r\n"
+                "  /Dest [%u 0 R /XYZ %f %f null]\r\n"
                 "  /Border [0 0 0]\r\n"
                 ">>\r\n",
                 object->link.llx, object->link.lly, object->link.urx,
                 object->link.ury, object->link.target_page->index,
-                object->link.target_y);
+                object->link.target_x, object->link.target_y);
         break;
     }
 
@@ -1280,7 +1281,8 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
 
 int pdf_add_link(struct pdf_doc *pdf, struct pdf_object *page, float x,
                  float y, float width, float height,
-                 struct pdf_object *target_page, float target_y)
+                 struct pdf_object *target_page, float target_x,
+                 float target_y)
 {
     struct pdf_object *obj;
 
@@ -1300,6 +1302,7 @@ int pdf_add_link(struct pdf_doc *pdf, struct pdf_object *page, float x,
     }
 
     obj->link.target_page = target_page;
+    obj->link.target_x = target_x;
     obj->link.target_y = target_y;
     obj->link.llx = x;
     obj->link.lly = y;
