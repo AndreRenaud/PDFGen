@@ -76,4 +76,4 @@ FORCE:
 
 clean:
 	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps output.ppm output-barcodes.txt
-	rm -rf docs fuzz-artifacts infer-out coverage-html
+	rm -rf docs/html docs/latex fuzz-artifacts infer-out coverage-html
