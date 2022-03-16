@@ -1,6 +1,6 @@
 PDFGen
 ======
-<img src="/pdfgen_logo.png" alt="PDFGen Logo" width="200" align="right"/>
+<img src="/docs/pdfgen_logo.png" alt="PDFGen Logo" width="200" align="right"/>
 
 <a href="https://www.buymeacoffee.com/EstIgnavus" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
