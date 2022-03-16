@@ -37,7 +37,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	tzdata \
 	valgrind \
 	vim \
-	xz-utils
+	xz-utils \
+	zbar-tools
 
 RUN python3 -m pip install cpp-coveralls
 
