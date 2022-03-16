@@ -63,7 +63,7 @@ check-fuzz-%: tests/fuzz-% FORCE
 	mkdir -p fuzz-artifacts
 	./$< -verbosity=0 -max_total_time=240 -max_len=8192 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
-fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr
+fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr check-fuzz-barcode
 
 format: FORCE
 	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c
@@ -75,5 +75,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps output.ppm output-barcodes.txt
 	rm -rf docs fuzz-artifacts infer-out coverage-html
