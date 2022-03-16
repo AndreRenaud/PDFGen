@@ -627,6 +627,25 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
                      const char *name);
 
 /**
+ * Add a link annotation to the document
+ * @param pdf PDF document to add link to
+ * @param page Page that holds the clickable rectangle
+               (or NULL for the most recently added page)
+ * @param x X coordinate of bottom LHS corner of clickable rectangle
+ * @param y Y coordinate of bottom LHS corner of clickable rectangle
+ * @param width width of clickable rectangle
+ * @param height height of clickable rectangle
+ * @param target_page Page to jump to for link
+ * @param target_x X coordinate to position at the left of the view
+ * @param target_y Y coordinate to position at the top of the view
+ * @return < 0 on failure, new bookmark id on success
+ */
+int pdf_add_link(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                 float y, float width, float height,
+                 struct pdf_object *target_page, float target_x,
+                 float target_y);
+
+/**
  * List of different barcode encodings that are supported
  */
 enum {

@@ -218,6 +218,7 @@ enum {
     OBJ_catalog,
     OBJ_pages,
     OBJ_image,
+    OBJ_link,
 
     OBJ_count,
 };
@@ -257,12 +258,23 @@ struct pdf_object {
             float width;
             float height;
             struct flexarray children;
+            struct flexarray annotations;
         } page;
         struct pdf_info *info;
         struct {
             char name[64];
             int index;
         } font;
+        struct {
+            struct pdf_object *page; /* Page containing link */
+            float llx;               /* Clickable rectangle */
+            float lly;
+            float urx;
+            float ury;
+            struct pdf_object *target_page; /* Target page */
+            float target_x;                 /* Target location */
+            float target_y;
+        } link;
     };
 };
 
@@ -629,6 +641,7 @@ static void pdf_object_destroy(struct pdf_object *object)
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
+        flexarray_clear(&object->page.annotations);
         break;
     case OBJ_info:
         free(object->info);
@@ -945,16 +958,27 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 fprintf(fp, "/Image%d %d 0 R ", image->index, image->index);
             fprintf(fp, ">>\r\n");
         }
-
         fprintf(fp, ">>\r\n");
+
         fprintf(fp, "/Contents [\r\n");
         for (int i = 0; i < flexarray_size(&object->page.children); i++) {
             struct pdf_object *child =
                 (struct pdf_object *)flexarray_get(&object->page.children, i);
             fprintf(fp, "%d 0 R\r\n", child->index);
         }
-
         fprintf(fp, "]\r\n");
+
+        if (flexarray_size(&object->page.annotations)) {
+            fprintf(fp, "/Annots [\r\n");
+            for (int i = 0; i < flexarray_size(&object->page.annotations);
+                 i++) {
+                struct pdf_object *child = (struct pdf_object *)flexarray_get(
+                    &object->page.annotations, i);
+                fprintf(fp, "%d 0 R\r\n", child->index);
+            }
+            fprintf(fp, "]\r\n");
+        }
+
         fprintf(fp, ">>\r\n");
         break;
     }
@@ -1073,6 +1097,21 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "/Pages %d 0 R\r\n"
                 ">>\r\n",
                 pages->index);
+        break;
+    }
+
+    case OBJ_link: {
+        fprintf(fp,
+                "<<\r\n"
+                "  /Type /Annot\r\n"
+                "  /Subtype /Link\r\n"
+                "  /Rect [%f %f %f %f]\r\n"
+                "  /Dest [%u 0 R /XYZ %f %f null]\r\n"
+                "  /Border [0 0 0]\r\n"
+                ">>\r\n",
+                object->link.llx, object->link.lly, object->link.urx,
+                object->link.ury, object->link.target_page->index,
+                object->link.target_x, object->link.target_y);
         break;
     }
 
@@ -1236,6 +1275,40 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
         obj->bookmark.parent = parent_obj;
         flexarray_append(&parent_obj->bookmark.children, obj);
     }
+
+    return obj->index;
+}
+
+int pdf_add_link(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                 float y, float width, float height,
+                 struct pdf_object *target_page, float target_x,
+                 float target_y)
+{
+    struct pdf_object *obj;
+
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to add link, no pages available");
+
+    if (!target_page)
+        return pdf_set_err(pdf, -EINVAL, "Unable to link, no target page");
+
+    obj = pdf_add_object(pdf, OBJ_link);
+    if (!obj) {
+        return pdf->errval;
+    }
+
+    obj->link.target_page = target_page;
+    obj->link.target_x = target_x;
+    obj->link.target_y = target_y;
+    obj->link.llx = x;
+    obj->link.lly = y;
+    obj->link.urx = x + width;
+    obj->link.ury = y + height;
+    flexarray_append(&page->page.annotations, obj);
 
     return obj->index;
 }
@@ -1712,6 +1785,8 @@ static const uint16_t *find_font_widths(const char *font_name)
 int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
                             const char *text, float size, float *text_width)
 {
+    if (!font_name)
+        font_name = pdf->current_font->font.name;
     const uint16_t *widths = find_font_widths(font_name);
 
     if (!widths)

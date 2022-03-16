@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
                             .author = "My name",
                             .subject = "My subject"};
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
+    struct pdf_object *first_page;
     int i;
     float height, width;
     int bm;
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
     /* From now on, we shouldn't see any errors */
 
     pdf_set_font(pdf, "Times-BoldItalic");
-    pdf_append_page(pdf);
+    first_page = pdf_append_page(pdf);
 
     pdf_add_text_wrap(
         pdf, NULL,
@@ -265,6 +266,11 @@ int main(int argc, char *argv[])
 
     pdf_add_text(pdf, NULL, "This is an A3 landscape page", 10, 20, 30,
                  PDF_RGB(0xff, 0, 0));
+    if (pdf_get_font_text_width(pdf, NULL, "This is an A3 landscape page", 10,
+                                &width) == 0) {
+        pdf_add_link(pdf, NULL, 20, 30, width, 10, first_page, 0,
+                     pdf_page_height(first_page) / 2);
+    }
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
     pdf_save(pdf, "output.pdf");
