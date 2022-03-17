@@ -934,33 +934,36 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
         fprintf(fp,
                 "<<\r\n"
-                "/Type /Page\r\n"
-                "/Parent %d 0 R\r\n",
+                "  /Type /Page\r\n"
+                "  /Parent %d 0 R\r\n",
                 pages->index);
-        fprintf(fp, "/MediaBox [0 0 %f %f]\r\n", object->page.width,
+        fprintf(fp, "  /MediaBox [0 0 %f %f]\r\n", object->page.width,
                 object->page.height);
-        fprintf(fp, "/Resources <<\r\n");
-        fprintf(fp, "  /Font <<\r\n");
+        fprintf(fp, "  /Resources <<\r\n");
+        fprintf(fp, "    /Font <<\r\n");
         for (struct pdf_object *font = pdf_find_first_object(pdf, OBJ_font);
              font; font = font->next)
-            fprintf(fp, "    /F%d %d 0 R\r\n", font->font.index, font->index);
-        fprintf(fp, "  >>\r\n");
+            fprintf(fp, "      /F%d %d 0 R\r\n", font->font.index,
+                    font->index);
+        fprintf(fp, "    >>\r\n");
         // We trim transparency to just 4-bits
-        fprintf(fp, "  /ExtGState <<\r\n");
+        fprintf(fp, "    /ExtGState <<\r\n");
         for (int i = 0; i < 16; i++) {
-            fprintf(fp, "  /GS%d <</ca %f>>\r\n", i, (float)(15 - i) / 15);
+            fprintf(fp, "      /GS%d <</ca %f>>\r\n", i,
+                    (float)(15 - i) / 15);
         }
-        fprintf(fp, "  >>\r\n");
+        fprintf(fp, "    >>\r\n");
 
         if (image) {
-            fprintf(fp, "  /XObject <<");
+            fprintf(fp, "    /XObject <<");
             for (; image; image = image->next)
-                fprintf(fp, "/Image%d %d 0 R ", image->index, image->index);
-            fprintf(fp, ">>\r\n");
+                fprintf(fp, "      /Image%d %d 0 R ", image->index,
+                        image->index);
+            fprintf(fp, "    >>\r\n");
         }
-        fprintf(fp, ">>\r\n");
+        fprintf(fp, "  >>\r\n");
 
-        fprintf(fp, "/Contents [\r\n");
+        fprintf(fp, "  /Contents [\r\n");
         for (int i = 0; i < flexarray_size(&object->page.children); i++) {
             struct pdf_object *child =
                 (struct pdf_object *)flexarray_get(&object->page.children, i);
@@ -969,7 +972,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, "]\r\n");
 
         if (flexarray_size(&object->page.annotations)) {
-            fprintf(fp, "/Annots [\r\n");
+            fprintf(fp, "  /Annots [\r\n");
             for (int i = 0; i < flexarray_size(&object->page.annotations);
                  i++) {
                 struct pdf_object *child = (struct pdf_object *)flexarray_get(
@@ -993,9 +996,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             break;
         fprintf(fp,
                 "<<\r\n"
-                "/Dest [%d 0 R /XYZ 0 %f null]\r\n"
-                "/Parent %d 0 R\r\n"
-                "/Title (%s)\r\n",
+                "  /Dest [%d 0 R /XYZ 0 %f null]\r\n"
+                "  /Parent %d 0 R\r\n"
+                "  /Title (%s)\r\n",
                 object->bookmark.page->index, pdf->height, parent->index,
                 object->bookmark.name);
         int nchildren = flexarray_size(&object->bookmark.children);
@@ -1005,9 +1008,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                                                    0);
             l = (struct pdf_object *)flexarray_get(&object->bookmark.children,
                                                    nchildren - 1);
-            fprintf(fp, "/First %d 0 R\r\n", f->index);
-            fprintf(fp, "/Last %d 0 R\r\n", l->index);
-            fprintf(fp, "/Count %d\r\n", pdf_get_bookmark_count(object));
+            fprintf(fp, "  /First %d 0 R\r\n", f->index);
+            fprintf(fp, "  /Last %d 0 R\r\n", l->index);
+            fprintf(fp, "  /Count %d\r\n", pdf_get_bookmark_count(object));
         }
         // Find the previous bookmark with the same parent
         for (other = object->prev;
@@ -1015,14 +1018,14 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
              other = other->prev)
             ;
         if (other)
-            fprintf(fp, "/Prev %d 0 R\r\n", other->index);
+            fprintf(fp, "  /Prev %d 0 R\r\n", other->index);
         // Find the next bookmark with the same parent
         for (other = object->next;
              other && other->bookmark.parent != object->bookmark.parent;
              other = other->next)
             ;
         if (other)
-            fprintf(fp, "/Next %d 0 R\r\n", other->index);
+            fprintf(fp, "  /Next %d 0 R\r\n", other->index);
         fprintf(fp, ">>\r\n");
         break;
     }
@@ -1044,10 +1047,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             /* Bookmark outline */
             fprintf(fp,
                     "<<\r\n"
-                    "/Count %d\r\n"
-                    "/Type /Outlines\r\n"
-                    "/First %d 0 R\r\n"
-                    "/Last %d 0 R\r\n"
+                    "  /Count %d\r\n"
+                    "  /Type /Outlines\r\n"
+                    "  /First %d 0 R\r\n"
+                    "  /Last %d 0 R\r\n"
                     ">>\r\n",
                     count, first->index, last->index);
         }
@@ -1069,15 +1072,15 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         int npages = 0;
 
         fprintf(fp, "<<\r\n"
-                    "/Type /Pages\r\n"
-                    "/Kids [ ");
+                    "  /Type /Pages\r\n"
+                    "  /Kids [ ");
         for (struct pdf_object *page = pdf_find_first_object(pdf, OBJ_page);
              page; page = page->next) {
             npages++;
             fprintf(fp, "%d 0 R ", page->index);
         }
         fprintf(fp, "]\r\n");
-        fprintf(fp, "/Count %d\r\n", npages);
+        fprintf(fp, "  /Count %d\r\n", npages);
         fprintf(fp, ">>\r\n");
         break;
     }
@@ -1087,14 +1090,14 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
 
         fprintf(fp, "<<\r\n"
-                    "/Type /Catalog\r\n");
+                    "  /Type /Catalog\r\n");
         if (outline)
             fprintf(fp,
-                    "/Outlines %d 0 R\r\n"
-                    "/PageMode /UseOutlines\r\n",
+                    "  /Outlines %d 0 R\r\n"
+                    "  /PageMode /UseOutlines\r\n",
                     outline->index);
         fprintf(fp,
-                "/Pages %d 0 R\r\n"
+                "  /Pages %d 0 R\r\n"
                 ">>\r\n",
                 pages->index);
         break;
@@ -3086,12 +3089,18 @@ static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
     struct dstr str = INIT_DSTR;
     size_t data_len = (size_t)width * (size_t)height;
 
-    dstr_printf(
-        &str,
-        "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
-        "/ColorSpace /DeviceGray\r\n/Height %d\r\n/Width %d\r\n"
-        "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
-        flexarray_size(&pdf->objects), height, width, data_len + 1);
+    dstr_printf(&str,
+                "<<\r\n"
+                "  /Type /XObject\r\n"
+                "  /Name /Image%d\r\n"
+                "  /Subtype /Image\r\n"
+                "  /ColorSpace /DeviceGray\r\n"
+                "  /Height %d\r\n"
+                "  /Width %d\r\n"
+                "  /BitsPerComponent 8\r\n"
+                "  /Length %zu\r\n"
+                ">>stream\r\n",
+                flexarray_size(&pdf->objects), height, width, data_len + 1);
 
     len = dstr_len(&str) + data_len + strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
@@ -3123,12 +3132,18 @@ static struct pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
     struct dstr str = INIT_DSTR;
     size_t data_len = (size_t)width * (size_t)height * 3;
 
-    dstr_printf(
-        &str,
-        "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n/Subtype /Image\r\n"
-        "/ColorSpace /DeviceRGB\r\n/Height %d\r\n/Width %d\r\n"
-        "/BitsPerComponent 8\r\n/Length %zu\r\n>>stream\r\n",
-        flexarray_size(&pdf->objects), height, width, data_len + 1);
+    dstr_printf(&str,
+                "<<\r\n"
+                "  /Type /XObject\r\n"
+                "  /Name /Image%d\r\n"
+                "  /Subtype /Image\r\n"
+                "  /ColorSpace /DeviceRGB\r\n"
+                "  /Height %d\r\n"
+                "  /Width %d\r\n"
+                "  /BitsPerComponent 8\r\n"
+                "  /Length %zu\r\n"
+                ">>stream\r\n",
+                flexarray_size(&pdf->objects), height, width, data_len + 1);
 
     len = dstr_len(&str) + data_len + strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
@@ -3203,11 +3218,17 @@ pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
         return NULL;
 
     dstr_printf(&obj->stream,
-                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                "/Subtype /Image\r\n/ColorSpace %s\r\n"
-                "/Width %d\r\n/Height %d\r\n"
-                "/BitsPerComponent 8\r\n/Filter /DCTDecode\r\n"
-                "/Length %zu\r\n>>stream\r\n",
+                "<<\r\n"
+                "  /Type /XObject\r\n"
+                "  /Name /Image%d\r\n"
+                "  /Subtype /Image\r\n"
+                "  /ColorSpace %s\r\n"
+                "  /Width %d\r\n"
+                "  /Height %d\r\n"
+                "  /BitsPerComponent 8\r\n"
+                "  /Filter /DCTDecode\r\n"
+                "  /Length %zu\r\n"
+                ">>stream\r\n",
                 flexarray_size(&pdf->objects),
                 (info->jpeg.ncolours == 1) ? "/DeviceGray" : "/DeviceRGB",
                 info->width, info->height, len);
@@ -3743,15 +3764,20 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
     // Write image information to PDF
     written =
         sprintf((char *)final_data,
-                "<<\r\n/Type /XObject\r\n/Name /Image%d\r\n"
-                "/Subtype /Image\r\n"
-                "/ColorSpace %s\r\n"
-                "/Width %u\r\n/Height %u\r\n"
-                "/Interpolate true\r\n"
-                "/BitsPerComponent %u\r\n/Filter /FlateDecode\r\n"
-                "/DecodeParms << /Predictor 15 /Colors %d "
+                "<<\r\n"
+                "  /Type /XObject\r\n"
+                "  /Name /Image%d\r\n"
+                "  /Subtype /Image\r\n"
+                "  /ColorSpace %s\r\n"
+                "  /Width %u\r\n"
+                "  /Height %u\r\n"
+                "  /Interpolate true\r\n"
+                "  /BitsPerComponent %u\r\n"
+                "  /Filter /FlateDecode\r\n"
+                "  /DecodeParms << /Predictor 15 /Colors %d "
                 "/BitsPerComponent %u /Columns %u >>\r\n"
-                "/Length %zu\r\n>>stream\r\n",
+                "  /Length %zu\r\n"
+                ">>stream\r\n",
                 flexarray_size(&pdf->objects), dstr_data(&colour_space),
                 header->width, header->height, header->bitDepth, ncolours,
                 header->bitDepth, header->width, png_data_total_length);
