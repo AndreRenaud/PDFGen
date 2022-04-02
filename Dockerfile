@@ -1,4 +1,5 @@
-FROM ubuntu:20.04
+
+FROM ubuntu:20.04 as builder
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -43,8 +44,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 RUN python3 -m pip install cpp-coveralls
 
 # Install Infer
-RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v1.0.0/infer-linux64-v1.0.0.tar.xz | tar -C /opt -x -J
-ENV PATH $PATH:/opt/infer-linux64-v1.0.0/bin/
+#RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v1.0.0/infer-linux64-v1.0.0.tar.xz | tar -C /opt -x -J
+#ENV PATH $PATH:/opt/infer-linux64-v1.0.0/bin/
 
 # Install acroread
 RUN apt-get install -y --no-install-recommends \
@@ -53,3 +54,19 @@ RUN apt-get install -y --no-install-recommends \
 RUN curl -L -O http://ardownload.adobe.com/pub/adobe/reader/unix/9.x/9.5.5/enu/AdbeRdr9.5.5-1_i486linux_enu.bin && chmod +x AdbeRdr9.5.5-1_i486linux_enu.bin && ./AdbeRdr9.5.5-1_i486linux_enu.bin --install_path=/opt
 
 RUN apt-get clean
+
+## DON'T CHANGE ABOVE
+
+ADD . /build
+
+WORKDIR /build
+
+RUN apt-get install -y clang && \
+    make && \
+    make tests/fuzz-dstr
+
+# Package Stage
+FROM ubuntu:20.04
+
+## +TODO+: Change <Path in Builder Stage>
+COPY --from=builder /build/tests/fuzz-dstr /fuzzme
