@@ -69,4 +69,4 @@ RUN apt-get install -y clang && \
 FROM ubuntu:20.04
 
 ## +TODO+: Change <Path in Builder Stage>
-COPY --from=builder /build/tests/fuzz-dstr /fuzzme
+COPY --from=builder /build/tests/fuzz-dstr /fuzz-dstr
