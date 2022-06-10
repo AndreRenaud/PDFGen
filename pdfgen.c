@@ -10,6 +10,7 @@
  * PDF HINTS & TIPS
  * The specification can be found at
  * https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/pdf_reference_archives/PDFReference.pdf
+ * https://opensource.adobe.com/dc-acrobat-sdk-docs/standards/pdfstandards/pdf/PDF32000_2008.pdf
  * The following sites have various bits & pieces about PDF document
  * generation
  * http://www.mactech.com/articles/mactech/Vol.15/15.09/PDFIntro/index.html
@@ -186,6 +187,9 @@ static inline uint32_t bswap32(uint32_t x)
 #define ntoh32(x) (x)
 #endif
 
+static uint8_t *get_file(struct pdf_doc *pdf, const char *file_name,
+                         size_t *length);
+
 // Limits on image sizes for sanity checking & to avoid plausible overflow
 // issues
 #define MAX_IMAGE_WIDTH (16 * 1024)
@@ -212,6 +216,7 @@ enum {
     OBJ_info,
     OBJ_stream,
     OBJ_font,
+    OBJ_font_descriptor,
     OBJ_page,
     OBJ_bookmark,
     OBJ_outline,
@@ -264,7 +269,23 @@ struct pdf_object {
         struct {
             char name[64];
             int index;
+            int descriptor_index;
         } font;
+        struct {
+            char name[64];
+            struct {
+                int x;
+                int y;
+                int w;
+                int h;
+            } bbox;
+            int ascent;
+            int descent;
+            int capheight;
+            int avgwidth;
+            int maxwidth;
+            int data_stream_index;
+        } font_descriptor;
         struct {
             struct pdf_object *page; /* Page containing link */
             float llx;               /* Clickable rectangle */
@@ -818,6 +839,21 @@ static struct pdf_object *pdf_find_last_object(const struct pdf_doc *pdf,
     return pdf->last_objects[type];
 }
 
+static bool is_standard_font(const char *font_name)
+{
+    const char *standard_fonts[] = {
+        "Helvetica", "Helvetica-Bold", "Helvetica-BoldOblique", 
+        "Helvetica-Oblique", "Courier", "Courier-Bold", "Courier-BoldOblique",
+        "Courier-Oblique", "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+        "Symbol", "ZapfDingbats",
+    };
+    for (int i = 0; i < ARRAY_SIZE(standard_fonts); i++) {
+        if (strcmp(font_name, standard_fonts[i]) == 0)
+            return true;
+    }
+    return false;
+}
+
 int pdf_set_font(struct pdf_doc *pdf, const char *font)
 {
     struct pdf_object *obj;
@@ -832,13 +868,78 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font)
 
     /* Create a new font object if we need it */
     if (!obj) {
+        // If it's a non-standard font, nothing we can do
+        if (!is_standard_font(font)) {
+            return pdf_set_err(pdf, -EINVAL, "no such font: %s", font);
+        }
+
         obj = pdf_add_object(pdf, OBJ_font);
         if (!obj)
             return pdf->errval;
         strncpy(obj->font.name, font, sizeof(obj->font.name) - 1);
         obj->font.name[sizeof(obj->font.name) - 1] = '\0';
         obj->font.index = last_index + 1;
+        obj->font.descriptor_index = -1;
     }
+
+    pdf->current_font = obj;
+
+    return 0;
+}
+
+static pdf_object *pdf_add_stream_raw(struct pdf_doc *pdf, const uint8_t *data, size_t len)
+{
+    struct pdf_object *obj;
+
+    obj = pdf_add_object(pdf, OBJ_stream);
+    if (!obj)
+        return NULL;
+
+    dstr_printf(&obj->stream, "<< /Length %zu >>stream\r\n", len);
+    dstr_append_data(&obj->stream, data, len);
+    dstr_append(&obj->stream, "\r\nendstream\r\n");
+
+    return obj;
+}
+
+int pdf_add_ttf_font(struct pdf_doc *pdf, const char *font_name, const char *ttf_font_file)
+{
+    struct pdf_object *obj;
+    int last_index = 0;
+    uint8_t *font_data;
+    size_t font_data_size;
+
+    /* See if we've used this font before */
+    for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_font); obj; obj = obj->next) {
+        if (strcmp(obj->font.name, font_name) == 0) {
+            return pdf_set_err(pdf, -EEXIST, "font already exists: %s", font_name);
+        }
+        last_index = obj->font.index;
+    }
+
+    font_data = get_file(pdf, ttf_font_file, &font_data_size);
+    if (!font_data)
+        return pdf->errval;
+
+    /* Create a new font object if we need it */
+    obj = pdf_add_object(pdf, OBJ_font);
+    if (!obj)
+        return pdf->errval;
+    strncpy(obj->font.name, font_name, sizeof(obj->font.name) - 1);
+    obj->font.name[sizeof(obj->font.name) - 1] = '\0';
+    obj->font.index = last_index + 1;
+
+    // Have to add two more nodes, the font descriptor (which is what the font should reference)
+    // then the font data as just a straight stream
+    struct pdf_object *descriptor = pdf_add_object(pdf, OBJ_font_descriptor);
+    if (!descriptor)
+    return pdf->errval;
+    obj->font.descriptor_index = descriptor->index;
+
+    struct pdf_object *font_stream = pdf_add_stream_raw(pdf, font_data, font_data_size);
+    if (!font_stream)
+        return pdf->errval;
+    descriptor->font_descriptor.data_stream_index = font_stream->index;
 
     pdf->current_font = obj;
 
@@ -1058,6 +1159,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_font:
+        if (object->font.descriptor_index == -1) {
         fprintf(fp,
                 "<<\r\n"
                 "  /Type /Font\r\n"
@@ -1066,6 +1168,29 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "  /Encoding /WinAnsiEncoding\r\n"
                 ">>\r\n",
                 object->font.name);
+        } else {
+            // Assume it's a true-type font
+            fprintf(fp, 
+            "<< /Type /Font /Subtype /TrueType /BaseFont /AAAAAB+.SFNS-Regular_wdth_opsz110000_GRAD_wght\r\n"
+"/FontDescriptor %d 0 R /Encoding /MacRomanEncoding /FirstChar 32 /LastChar\r\n"
+"121 /Widths [ 281 0 0 630 0 0 0 0 0 0 0 0 297 0 297 305 630 464 604 627 644\r\n"
+"618 637 569 0 637 297 0 0 630 0 0 0 0 0 0 0 0 0 0 0 268 0 0 0 874 0 771 635\r\n"
+"0 653 0 0 0 0 0 0 0 0 0 0 0 0 0 0 552 0 560 614 571 362 609 588 247 0 543\r\n"
+"0 870 583 591 610 0 381 523 363 0 0 774 0 543 ] >>\r\n",
+object->font.descriptor_index);
+        }
+        break;
+
+    case OBJ_font_descriptor:
+        fprintf(fp,
+                "<< /Type /FontDescriptor /FontName "
+                "/AAAAAB+.SFNS-Regular_wdth_opsz110000_GRAD_wght\r\n"
+                "/Flags 32 /FontBBox [-396 -275 2465 957] /ItalicAngle 0 "
+                "/Ascent 967 /Descent\r\n"
+                "-211 /CapHeight 705 /StemV 0 /XHeight 526 /AvgWidth 581 "
+                "/MaxWidth 2493 /FontFile2\r\n"
+                "%d 0 R >>\r\n",
+                object->font_descriptor.data_stream_index);
         break;
 
     case OBJ_pages: {
@@ -1233,6 +1358,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     while (len >= 1 && (buffer[len - 1] == '\r' || buffer[len - 1] == '\n'))
         len--;
 
+    
     obj = pdf_add_object(pdf, OBJ_stream);
     if (!obj)
         return pdf->errval;
@@ -1755,6 +1881,7 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
 
     return 0;
 }
+
 
 static const uint16_t *find_font_widths(const char *font_name)
 {

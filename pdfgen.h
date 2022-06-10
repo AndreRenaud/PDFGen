@@ -332,6 +332,16 @@ void pdf_clear_err(struct pdf_doc *pdf);
 int pdf_set_font(struct pdf_doc *pdf, const char *font);
 
 /**
+ * Embed a TTF font into the PDF document using a given name.
+ * 
+ * @param pdf PDF document to embed font into
+ * @param font_name Name to use for the font
+ * @param ttf_font_file Name of the True Type font file to embed
+ * @return < 0 on failure, 0 on success
+ */
+int pdf_add_ttf_font(struct pdf_doc *pdf, const char *font_name, const char *ttf_font_file);
+
+/**
  * Calculate the width of a given string in the current font
  * @param pdf PDF document
  * @param font_name Name of the font to get the width of.

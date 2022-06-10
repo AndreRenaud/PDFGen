@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+#if 0
     if (pdf_width(pdf) != PDF_A4_WIDTH || pdf_height(pdf) != PDF_A4_HEIGHT) {
         fprintf(stderr, "PDF Size mismatch: %fx%f\n", pdf_width(pdf),
                 pdf_height(pdf));
@@ -74,7 +75,17 @@ int main(int argc, char *argv[])
 
     pdf_clear_err(pdf);
     /* From now on, we shouldn't see any errors */
+#endif
+    pdf_append_page(pdf);
+    pdf_add_ttf_font(pdf, "myfont", "data/Blaec-DOKe1.ttf");
+    printf("add ttf font: %s\n", pdf_get_err(pdf, NULL));
+    pdf_set_font(pdf, "myfont");
+    printf("set font: %s\n", pdf_get_err(pdf, NULL));
+    pdf_add_text(pdf, NULL, "Hello World", 10, 20, 30, PDF_RGB(0, 0, 0));
+    pdf_set_font(pdf, "Times-BoldItalic");
+    pdf_add_text(pdf, NULL, "Hello World Times", 10, 120, 30, PDF_RGB(0, 0, 0));
 
+/*
     pdf_set_font(pdf, "Times-BoldItalic");
     first_page = pdf_append_page(pdf);
 
@@ -275,7 +286,7 @@ int main(int argc, char *argv[])
                      pdf_page_height(first_page) / 2);
     }
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
-
+*/
     pdf_save(pdf, "output.pdf");
 
     const char *err_str = pdf_get_err(pdf, &err);
