@@ -127,6 +127,8 @@ typedef SSIZE_T ssize_t;
 
 #include "pdfgen.h"
 
+#include "stb_truetype.h" // TODO: Copy the code in here
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 #define PDF_RGB_R(c) (float)((((c) >> 16) & 0xff) / 255.0)
@@ -274,16 +276,16 @@ struct pdf_object {
         struct {
             char name[64];
             struct {
-                int x;
-                int y;
-                int w;
-                int h;
+                int x0;
+                int y0;
+                int x1;
+                int y1;
             } bbox;
             int ascent;
             int descent;
-            int capheight;
-            int avgwidth;
-            int maxwidth;
+            //int capheight;
+            //int avgwidth;
+            //int maxwidth;
             int data_stream_index;
         } font_descriptor;
         struct {
@@ -908,6 +910,7 @@ int pdf_add_ttf_font(struct pdf_doc *pdf, const char *font_name, const char *ttf
     int last_index = 0;
     uint8_t *font_data;
     size_t font_data_size;
+    stbtt_fontinfo font;
 
     /* See if we've used this font before */
     for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_font); obj; obj = obj->next) {
@@ -920,6 +923,32 @@ int pdf_add_ttf_font(struct pdf_doc *pdf, const char *font_name, const char *ttf
     font_data = get_file(pdf, ttf_font_file, &font_data_size);
     if (!font_data)
         return pdf->errval;
+
+    stbtt_InitFont(&font, font_data,
+                   stbtt_GetFontOffsetForIndex(font_data, 0));
+#if 0
+    float scale = stbtt_ScaleForPixelHeight(&font, 12);
+    printf("scale: %f\n", scale);
+#endif
+#if 0
+    int x0, y0, x1, y1;
+    stbtt_GetFontBoundingBox(&font, &x0, &y0, &x1, &y1);
+    printf("bbox: %d,%d %d,%d\n", x0, y0, x1, y1);
+    printf("/2 %f,%f %f,%f\n", 0.5 * x0, 0.5 * y0, 0.5 * x1, 0.5 * y1);
+#endif
+#if 0
+    int ascent, descent, lineGap;
+    stbtt_GetFontVMetrics(&font, &ascent, &descent, &lineGap);
+    printf("ascent: %i descent: %i lineGap: %i\n", ascent, descent, lineGap);
+    printf("/2: %f %f %f\n", 0.5 * ascent, 0.5 * descent, 0.5 * lineGap);
+#endif
+#if 0
+    int advanceWidth, leftSideBearing;
+    stbtt_GetCodepointHMetrics(&font, codepoint, &advanceWidth,
+                               &leftSideBearing);
+    printf("codepoint '%c' advanceWidth: %i leftSideBearing: %i\n", codepoint, advanceWidth,
+           leftSideBearing);
+#endif
 
     /* Create a new font object if we need it */
     obj = pdf_add_object(pdf, OBJ_font);
@@ -940,6 +969,9 @@ int pdf_add_ttf_font(struct pdf_doc *pdf, const char *font_name, const char *ttf
     if (!font_stream)
         return pdf->errval;
     descriptor->font_descriptor.data_stream_index = font_stream->index;
+    stbtt_GetFontBoundingBox(&font, &descriptor->font_descriptor.bbox.x0, 
+    &descriptor->font_descriptor.bbox.y0, &descriptor->font_descriptor.bbox.x1, &descriptor->font_descriptor.bbox.y1);
+    stbtt_GetFontVMetrics(&font, &descriptor->font_descriptor.ascent, &descriptor->font_descriptor.descent, NULL);
 
     pdf->current_font = obj;
 
@@ -1171,25 +1203,45 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         } else {
             // Assume it's a true-type font
             fprintf(fp, 
-            "<< /Type /Font /Subtype /TrueType /BaseFont /AAAAAB+.SFNS-Regular_wdth_opsz110000_GRAD_wght\r\n"
-"/FontDescriptor %d 0 R /Encoding /MacRomanEncoding /FirstChar 32 /LastChar\r\n"
-"121 /Widths [ 281 0 0 630 0 0 0 0 0 0 0 0 297 0 297 305 630 464 604 627 644\r\n"
-"618 637 569 0 637 297 0 0 630 0 0 0 0 0 0 0 0 0 0 0 268 0 0 0 874 0 771 635\r\n"
-"0 653 0 0 0 0 0 0 0 0 0 0 0 0 0 0 552 0 560 614 571 362 609 588 247 0 543\r\n"
-"0 870 583 591 610 0 381 523 363 0 0 774 0 543 ] >>\r\n",
+            //"<< /Type /Font /Subtype /TrueType /BaseFont /AAAAAB+.SFNS-Regular_wdth_opsz110000_GRAD_wght\r\n"
+//"/FontDescriptor %d 0 R /Encoding /MacRomanEncoding /FirstChar 32 /LastChar 121\r\n"
+//"/W [0 13 732.42188 16 35 878.90625 50 [1025.39063]]\r\n"
+//">>\r\n",
+            "<< /Type /Font\r\n"
+            "/FontDescriptor %d 0 R\r\n"
+            "/BaseFont /AAAAAB+.SFNS-Regular_wdth_opsz110000_GRAD_wght\r\n"
+//"/Subtype /CIDFontType2\r\n"
+"/Subtype /TrueType\r\n"
+"/CIDToGIDMap /Identity\r\n"
+"/CIDSystemInfo <</Registry (Adobe)\r\n"
+"/Ordering (Identity)\r\n"
+"/Supplement 0>>\r\n"
+"/W [0 13 732.42188 16 35 878.90625 50 [1025.39063]]\r\n"
+">>\r\n",
+//"121 /Widths [ 281 0 0 630 0 0 0 0 0 0 0 0 297 0 297 305 630 464 604 627 644\r\n"
+//"618 637 569 0 637 297 0 0 630 0 0 0 0 0 0 0 0 0 0 0 268 0 0 0 874 0 771 635\r\n"
+//"0 653 0 0 0 0 0 0 0 0 0 0 0 0 0 0 552 0 560 614 571 362 609 588 247 0 543\r\n"
+//"0 870 583 591 610 0 381 523 363 0 0 774 0 543 ] >>\r\n",
 object->font.descriptor_index);
         }
         break;
 
     case OBJ_font_descriptor:
+
         fprintf(fp,
                 "<< /Type /FontDescriptor /FontName "
                 "/AAAAAB+.SFNS-Regular_wdth_opsz110000_GRAD_wght\r\n"
-                "/Flags 32 /FontBBox [-396 -275 2465 957] /ItalicAngle 0 "
-                "/Ascent 967 /Descent\r\n"
-                "-211 /CapHeight 705 /StemV 0 /XHeight 526 /AvgWidth 581 "
+                "/Flags 32 /FontBBox [%.2f %.2f %.2f %.2f] /ItalicAngle 0 "
+                "/Ascent %.2f /Descent %.2f\r\n"
+                "/CapHeight 705 /StemV 0 /XHeight 526 /AvgWidth 581 "
                 "/MaxWidth 2493 /FontFile2\r\n"
                 "%d 0 R >>\r\n",
+                object->font_descriptor.bbox.x0 * 0.5, // TODO: Why is this?
+                object->font_descriptor.bbox.y0 * 0.5,
+                object->font_descriptor.bbox.x1 * 0.5,
+                object->font_descriptor.bbox.y1 * 0.5,
+                object->font_descriptor.ascent * 0.5,
+                object->font_descriptor.descent * 0.5,
                 object->font_descriptor.data_stream_index);
         break;
 
@@ -1557,6 +1609,7 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     if (!len)
         return 0;
 
+    //dstr_append(&str, "\xef\xbb\xbf"); // Force this to be interpreted as UTF-8
     dstr_append(&str, "BT ");
     dstr_printf(&str, "/GS%d gs ", alpha);
     dstr_printf(&str, "%f %f TD ", xoff, yoff);
@@ -1564,11 +1617,28 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f Tc ", spacing);
+    //dstr_append(&str, "<FEFF");
     dstr_append(&str, "(");
+    //dstr_append(&str, text);
 
     /* Escape magic characters properly */
     for (size_t i = 0; i < len;) {
         int code_len;
+        #if 0
+        uint32_t code;
+        code_len = utf8_to_utf32(&text[i], len, &code);
+    if (code_len < 0) {
+        dstr_free(&str);
+        return pdf_set_err(pdf, -EINVAL, "Invalid UTF-8 encoding");
+    }
+    char buf[10];
+    //sprintf(buf, "%02x", code & 0xff);
+    sprintf(buf, "%02X%02X", code >> 8, code & 0xff);
+    printf("converted %s to %s (%d bytes code=0x%x)\n", &text[i], buf, code_len, code);
+    dstr_append(&str, buf);
+
+
+        #else
         uint8_t pdf_char;
         code_len = utf8_to_pdfencoding(pdf, &text[i], len - i, &pdf_char);
         if (code_len < 0) {
@@ -1589,10 +1659,10 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
         } else {
             dstr_append_data(&str, &pdf_char, 1);
         }
-
+#endif
         i += code_len;
     }
-    dstr_append(&str, ") Tj ");
+    dstr_append(&str, ")Tj ");
     dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));

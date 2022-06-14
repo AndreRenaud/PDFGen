@@ -77,14 +77,18 @@ int main(int argc, char *argv[])
     /* From now on, we shouldn't see any errors */
 #endif
     pdf_append_page(pdf);
-    pdf_add_ttf_font(pdf, "myfont", "data/Blaec-DOKe1.ttf");
+    #if 1
+    pdf_add_ttf_font(pdf, "myfont", "data/canada1500-rg.ttf");
     printf("add ttf font: %s\n", pdf_get_err(pdf, NULL));
     pdf_set_font(pdf, "myfont");
     printf("set font: %s\n", pdf_get_err(pdf, NULL));
-    pdf_add_text(pdf, NULL, "Hello World", 10, 20, 30, PDF_RGB(0, 0, 0));
+    //pdf_add_text(pdf, NULL, "Hello World ☀ ♡ ♻", 10, 20, 30, PDF_RGB(0, 0, 0));
+    pdf_add_text(pdf, NULL, "Hello World canada", 10, 10, PDF_A4_HEIGHT - 10, PDF_RGB(0, 0, 0));
+    #endif
+    #if 1
     pdf_set_font(pdf, "Times-BoldItalic");
-    pdf_add_text(pdf, NULL, "Hello World Times", 10, 120, 30, PDF_RGB(0, 0, 0));
-
+    pdf_add_text(pdf, NULL, "Hello World Times", 10, 10, PDF_A4_HEIGHT - 40, PDF_RGB(0, 0, 0));
+#endif
 /*
     pdf_set_font(pdf, "Times-BoldItalic");
     first_page = pdf_append_page(pdf);
