@@ -1,4 +1,4 @@
-LFLAGS=-fprofile-arcs -ftest-coverage
+LFLAGS=-fprofile-arcs -ftest-coverage -lm
 CLANG=clang
 CLANG_FORMAT=clang-format
 XXD=xxd
