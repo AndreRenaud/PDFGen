@@ -1,7 +1,7 @@
 #include <locale.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4,
                              PDF_RGB(0, 0xff, 0), PDF_TRANSPARENT);
     pdf_add_text_rotate(pdf, NULL, "This should be transparent", 20, 160, 500,
-                 M_PI / 4, PDF_ARGB(0x80, 0, 0, 0));
+                        M_PI / 4, PDF_ARGB(0x80, 0, 0, 0));
 
     float p1X[] = {200, 200, 300, 300};
     float p1Y[] = {200, 300, 200, 300};
