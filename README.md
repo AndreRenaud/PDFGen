@@ -10,7 +10,7 @@ All contained a single C-file with header and no external library dependencies.
 Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
-* Text of various fonts/sizes/colours
+* Text of various fonts/sizes/colours/rotation
 * Primitive drawing elements
     * Lines
     * Rectangles
