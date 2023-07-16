@@ -1,6 +1,11 @@
 #include <locale.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #include "pdfgen.h"
 
@@ -89,7 +94,7 @@ int main(int argc, char *argv[])
         "And special stuff €ÜŽžŠšÁ that áüöä should ÄÜÖß— “”‘’ break\n"
         "————————————————————————————————————————————————\n"
         "thisisanenourmouswordthatwillneverfitandwillhavetobecut",
-        16, 60, 800, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY, &height);
+        16, 60, 800, 0, PDF_RGB(0, 0, 0), 300, PDF_ALIGN_JUSTIFY, &height);
     pdf_add_rectangle(pdf, NULL, 58, 800 + 16, 304, -height, 2,
                       PDF_RGB(0, 0, 0));
     pdf_add_image_file(pdf, NULL, 10, 10, 20, 30, "data/teapot.ppm");
@@ -135,8 +140,9 @@ int main(int argc, char *argv[])
     pdf_add_rectangle(pdf, NULL, 150, 150, 100, 100, 4, PDF_RGB(0, 0, 0xff));
     pdf_add_filled_rectangle(pdf, NULL, 150, 450, 100, 100, 4,
                              PDF_RGB(0, 0xff, 0), PDF_TRANSPARENT);
-    pdf_add_text(pdf, NULL, "This should be transparent", 20, 160, 500,
-                 PDF_ARGB(0x80, 0, 0, 0));
+    pdf_add_text_rotate(pdf, NULL, "This should be transparent", 20, 160, 500,
+                        M_PI / 4, PDF_ARGB(0x80, 0, 0, 0));
+
     float p1X[] = {200, 200, 300, 300};
     float p1Y[] = {200, 300, 200, 300};
     pdf_add_polygon(pdf, NULL, p1X, p1Y, 4, 4, PDF_RGB(0xaa, 0xff, 0xee));
@@ -158,7 +164,7 @@ int main(int argc, char *argv[])
         pdf, NULL,
         "Control characters ( ) < > [ ] { } / % \n \r \t \b \f ending", 10,
         50, 45, PDF_RGB(0, 0, 0));
-    pdf_add_text(pdf, NULL, "Special characters: €ÜŽžŠšÁáüöäÄÜÖß—“”‘’", 10,
+    pdf_add_text(pdf, NULL, "Special characters: €ÜŽžŠšÁáüöäÄÜÖß—“”‘’Æ", 10,
                  50, 15, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "This one has a new line in it\nThere it was", 10,
                  50, 80, PDF_RGB(0, 0, 0));
@@ -226,7 +232,7 @@ int main(int argc, char *argv[])
                     PDF_MM_TO_POINT(20), "Code128", PDF_RGB(0, 0, 0));
 
     pdf_add_text_wrap(pdf, NULL, "EAN13 Barcode", 10, PDF_MM_TO_POINT(20),
-                      PDF_MM_TO_POINT(155), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(155), 0, PDF_RGB(0, 0, 0),
                       PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
     pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(20), PDF_MM_TO_POINT(160),
                       PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(40), 1,
@@ -235,7 +241,7 @@ int main(int argc, char *argv[])
                     PDF_MM_TO_POINT(160), PDF_MM_TO_POINT(60),
                     PDF_MM_TO_POINT(40), "4003994155486", PDF_BLACK);
     pdf_add_text_wrap(pdf, NULL, "UPCA Barcode", 10, PDF_MM_TO_POINT(100),
-                      PDF_MM_TO_POINT(155), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(155), 0, PDF_RGB(0, 0, 0),
                       PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
     pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(100), PDF_MM_TO_POINT(160),
                       PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(80), 1,
@@ -245,7 +251,7 @@ int main(int argc, char *argv[])
                     PDF_MM_TO_POINT(80), "003994155480", PDF_BLACK);
 
     pdf_add_text_wrap(pdf, NULL, "EAN8 Barcode", 10, PDF_MM_TO_POINT(20),
-                      PDF_MM_TO_POINT(55), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(55), 0, PDF_RGB(0, 0, 0),
                       PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
     pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(20), PDF_MM_TO_POINT(60),
                       PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(40), 1,
@@ -254,7 +260,7 @@ int main(int argc, char *argv[])
                     PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(60),
                     PDF_MM_TO_POINT(40), "95012346", PDF_BLACK);
     pdf_add_text_wrap(pdf, NULL, "UPCE Barcode", 10, PDF_MM_TO_POINT(100),
-                      PDF_MM_TO_POINT(55), PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(55), 0, PDF_RGB(0, 0, 0),
                       PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
     pdf_add_rectangle(pdf, NULL, PDF_MM_TO_POINT(100), PDF_MM_TO_POINT(60),
                       PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(80), 1,
