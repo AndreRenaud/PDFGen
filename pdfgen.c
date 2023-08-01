@@ -867,7 +867,6 @@ struct pdf_object *pdf_get_page(struct pdf_doc *pdf, int page_number)
         return NULL;
     }
 
-    /* See if we've used this font before */
     for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_page); obj;
          obj = obj->next, page_number--) {
         if (page_number == 1) {
