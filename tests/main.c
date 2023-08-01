@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
                             .author = "My name",
                             .subject = "My subject"};
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
-    struct pdf_object *first_page;
+    struct pdf_object *first_page, *second_page;
     int i;
     float height, width;
     int bm;
@@ -81,7 +81,8 @@ int main(int argc, char *argv[])
     /* From now on, we shouldn't see any errors */
 
     pdf_set_font(pdf, "Times-BoldItalic");
-    first_page = pdf_append_page(pdf);
+    pdf_append_page(pdf);
+    first_page = pdf_get_page(pdf, 1);
 
     pdf_add_text_wrap(
         pdf, NULL,
@@ -157,7 +158,9 @@ int main(int argc, char *argv[])
     pdf_add_bookmark(pdf, NULL, -1, "First page");
 
     pdf_append_page(pdf);
-    pdf_add_text(pdf, NULL, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
+    second_page = pdf_get_page(pdf, 2);
+
+    pdf_add_text(pdf, second_page, "Page Two", 10, 20, 30, PDF_RGB(0, 0, 0));
     pdf_add_text(pdf, NULL, "This is some weird text () \\ # : - Wi-Fi 27°C",
                  10, 50, 60, PDF_RGB(0, 0, 0));
     pdf_add_text(

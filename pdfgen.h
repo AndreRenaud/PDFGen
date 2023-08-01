@@ -384,6 +384,17 @@ float pdf_page_width(const struct pdf_object *page);
 struct pdf_object *pdf_append_page(struct pdf_doc *pdf);
 
 /**
+ * Retrieve a page by its number.
+ *
+ * Note: The page must have already been created via \ref pdf_append_page
+ *
+ * @param pdf PDF document to get page from
+ * @param page_number Page number to retrieve, starting from 1.
+ * @return Page object if the given page is found, NULL otherwise
+ */
+struct pdf_object *pdf_get_page(struct pdf_doc *pdf, int page_number);
+
+/**
  * Adjust the width/height of a specific page
  * @param pdf PDF document that the page belongs to
  * @param page object returned from @ref pdf_append_page
