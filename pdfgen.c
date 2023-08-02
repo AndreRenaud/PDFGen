@@ -860,6 +860,24 @@ struct pdf_object *pdf_append_page(struct pdf_doc *pdf)
     return page;
 }
 
+struct pdf_object *pdf_get_page(struct pdf_doc *pdf, int page_number)
+{
+    if (page_number <= 0) {
+        pdf_set_err(pdf, -EINVAL, "page number must be >= 1");
+        return NULL;
+    }
+
+    for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_page); obj;
+         obj = obj->next, page_number--) {
+        if (page_number == 1) {
+            return obj;
+        }
+    }
+
+    pdf_set_err(pdf, -EINVAL, "no such page");
+    return NULL;
+}
+
 int pdf_page_set_size(struct pdf_doc *pdf, struct pdf_object *page,
                       float width, float height)
 {
