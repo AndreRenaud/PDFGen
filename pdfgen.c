@@ -1395,35 +1395,86 @@ static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
         // https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf
         // These are all in WinAnsiEncoding
         switch (code) {
-        case 0x160: // Latin Capital Letter S with Caron
+        case 0x152: // Latin Capital Ligature OE
+            *res = 0214;
+            break;
+        case 0x153: // Latin Small Ligature oe
+            *res = 0234;
+            break;
+        case 0x160: // Latin Capital Letter S with caron
             *res = 0212;
             break;
-        case 0x161: // Latin Small Letter S with Caron
+        case 0x161: // Latin Small Letter S with caron
             *res = 0232;
             break;
-        case 0x17d: // Latin Capital Letter Z with Caron
+        case 0x178: // Latin Capital Letter y with diaeresis
+            *res = 0237;
+            break;
+        case 0x17d: // Latin Capital Letter Z with caron
             *res = 0216;
             break;
-        case 0x17e: // Latin Small Letter Z with Caron
+        case 0x17e: // Latin Small Letter Z with caron
             *res = 0236;
             break;
-        case 0x2014: // emdash
+        case 0x192: // Latin Small Letter F with hook 
+            *res = 0203;
+            break;
+        case 0x2c6: // Modifier Letter Circumflex Accent 
+            *res = 0210;
+            break;
+        case 0x2dc: // Small Tilde 
+            *res = 0230;
+            break;
+        case 0x2013: // Endash
+            *res = 0226;
+            break;
+        case 0x2014: // Emdash
             *res = 0227;
             break;
-        case 0x2018: // left single quote
+        case 0x2018: // Left Single Quote
             *res = 0221;
             break;
-        case 0x2019: // right single quote
+        case 0x2019: // Right Single Quote
             *res = 0222;
             break;
-        case 0x201c: // left double quote
+        case 0x201a: // Single low-9 Quotation Mark
+            *res = 0202;
+            break;
+        case 0x201c: // Left Double Quote
             *res = 0223;
             break;
-        case 0x201d: // right double quote
+        case 0x201d: // Right Double Quote
             *res = 0224;
+            break;
+        case 0x201e: // Double low-9 Quotation Mark
+            *res = 0204;
+            break;
+        case 0x2020: // Dagger
+            *res = 0206;
+            break;
+        case 0x2021: // Double Dagger
+            *res = 0207;
+            break;
+        case 0x2022: // Bullet
+            *res = 0225;
+            break;
+        case 0x2026: // Horizontal Ellipsis
+            *res = 0205;
+            break;
+        case 0x2030: // Per Mille Sign
+            *res = 0211;
+            break;
+        case 0x2039: // Single Left-pointing Angle Quotation Mark
+            *res = 0213;
+            break;
+        case 0x203a: // Single Right-pointing Angle Quotation Mark
+            *res = 0233;
             break;
         case 0x20ac: // Euro
             *res = 0200;
+            break;
+        case 0x2122: // Trade Mark Sign
+			*res = 0231;
             break;
         default:
             return pdf_set_err(pdf, -EINVAL,
