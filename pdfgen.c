@@ -1418,13 +1418,13 @@ static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
         case 0x17e: // Latin Small Letter Z with caron
             *res = 0236;
             break;
-        case 0x192: // Latin Small Letter F with hook 
+        case 0x192: // Latin Small Letter F with hook
             *res = 0203;
             break;
-        case 0x2c6: // Modifier Letter Circumflex Accent 
+        case 0x2c6: // Modifier Letter Circumflex Accent
             *res = 0210;
             break;
-        case 0x2dc: // Small Tilde 
+        case 0x2dc: // Small Tilde
             *res = 0230;
             break;
         case 0x2013: // Endash
@@ -1476,7 +1476,7 @@ static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
             *res = 0200;
             break;
         case 0x2122: // Trade Mark Sign
-			*res = 0231;
+            *res = 0231;
             break;
         default:
             return pdf_set_err(pdf, -EINVAL,
