@@ -118,6 +118,7 @@ typedef SSIZE_T ssize_t;
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -3922,7 +3923,7 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "BMP has negative width");
         return -EINVAL;
     }
-     if (info->bmp.biHeight == 0x80000000) { // 1 << 31
+     if (info->bmp.biHeight == INT_MIN) {
          snprintf(err_msg, err_msg_length, "BMP height overflow");
         return -EINVAL;
     }
