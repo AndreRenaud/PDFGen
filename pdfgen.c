@@ -138,6 +138,8 @@ typedef SSIZE_T ssize_t;
 #define snprintf _snprintf
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#define fileno _fileno
+#define fstat _fstat
 #ifdef stat
 #undef stat
 #endif
@@ -2137,8 +2139,8 @@ int pdf_add_ellipse(struct pdf_doc *pdf, struct pdf_object *page, float x,
     struct dstr str = INIT_DSTR;
     float lx, ly;
 
-    lx = (4.0f / 3.0f) * (M_SQRT2 - 1) * xradius;
-    ly = (4.0f / 3.0f) * (M_SQRT2 - 1) * yradius;
+    lx = (4.0f / 3.0f) * (float)(M_SQRT2 - 1) * xradius;
+    ly = (4.0f / 3.0f) * (float)(M_SQRT2 - 1) * yradius;
 
     if (!PDF_IS_TRANSPARENT(fill_colour)) {
         dstr_printf(&str, "/DeviceRGB CS\r\n");
@@ -2580,9 +2582,9 @@ static void pdf_barcode_eanupc_calc_dims(int type, float width, float height,
     *bar_ext = *x * 5;
     *bar_height =
         eanupc_dimensions[type - PDF_BARCODE_EAN13].height_bar * scale;
-    *font_size = 8.0 * scale;
-    *x_off = (width - *new_width) / 2.0;
-    *y_off = (height - *new_height) / 2.0;
+    *font_size = 8.0f * scale;
+    *x_off = (width - *new_width) / 2.0f;
+    *y_off = (height - *new_height) / 2.0f;
 }
 
 static int pdf_barcode_eanupc_ch(struct pdf_doc *pdf, struct pdf_object *page,
@@ -2600,24 +2602,24 @@ static int pdf_barcode_eanupc_ch(struct pdf_doc *pdf, struct pdf_object *page,
     for (int i = 3; i >= 0; i--) {
         int shift = (set == 1 ? 3 - i : i) * 4;
         int bar = (set == 2 && i & 0x1) || (set != 2 && (i & 0x1) == 0);
-        float width = (code >> shift) & 0xf;
+        float width = (float) ((code >> shift) & 0xf);
 
         switch (ch) {
         case '1':
         case '2':
             if ((set == 0 && bar) || (set != 0 && !bar)) {
-                width -= 1.0 / 13.0;
+                width -= 1.0f / 13.0f;
             } else {
-                width += 1.0 / 13.0;
+                width += 1.0f / 13.0f;
             }
             break;
 
         case '7':
         case '8':
             if ((set == 0 && bar) || (set != 0 && !bar)) {
-                width += 1.0 / 13.0;
+                width += 1.0f / 13.0f;
             } else {
-                width -= 1.0 / 13.0;
+                width -= 1.0f / 13.0f;
             }
             break;
         }
@@ -2814,7 +2816,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     char text[2];
     text[1] = 0;
     text[0] = *string;
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
+    e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -2891,7 +2893,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
 
     x += eanupc_dimensions[1].quiet_right * x_width -
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
+    e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -3055,7 +3057,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     char text[2];
     text[1] = 0;
     text[0] = string[0];
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
+    e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -3125,7 +3127,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     text[0] = string[11];
     x += eanupc_dimensions[0].quiet_right * x_width -
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
-    e = pdf_add_text(pdf, page, text, font * 4.0 / 7.0, x, y, colour);
+    e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
     if (e < 0) {
         pdf_set_font(pdf, save_font);
         return e;
@@ -3920,8 +3922,8 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "BMP has negative width");
         return -EINVAL;
     }
-    if (info->bmp.biHeight == -2147483648) { // 1 << 31
-        snprintf(err_msg, err_msg_length, "BMP height overflow");
+     if (info->bmp.biHeight == 0x80000000) { // 1 << 31
+         snprintf(err_msg, err_msg_length, "BMP height overflow");
         return -EINVAL;
     }
     info->width = info->bmp.biWidth;
