@@ -2603,7 +2603,7 @@ static int pdf_barcode_eanupc_ch(struct pdf_doc *pdf, struct pdf_object *page,
     for (int i = 3; i >= 0; i--) {
         int shift = (set == 1 ? 3 - i : i) * 4;
         int bar = (set == 2 && i & 0x1) || (set != 2 && (i & 0x1) == 0);
-        float width = (float) ((code >> shift) & 0xf);
+        float width = (float)((code >> shift) & 0xf);
 
         switch (ch) {
         case '1':
@@ -3923,8 +3923,8 @@ static int parse_bmp_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "BMP has negative width");
         return -EINVAL;
     }
-     if (info->bmp.biHeight == INT_MIN) {
-         snprintf(err_msg, err_msg_length, "BMP height overflow");
+    if (info->bmp.biHeight == INT_MIN) {
+        snprintf(err_msg, err_msg_length, "BMP height overflow");
         return -EINVAL;
     }
     info->width = info->bmp.biWidth;
