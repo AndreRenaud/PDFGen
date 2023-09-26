@@ -3384,6 +3384,13 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
 {
     int ret;
     struct dstr str = INIT_DSTR;
+
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
+
     if (image->stream.page != NULL) {
         return pdf_set_err(pdf, -EEXIST, "image already on a page");
     }
