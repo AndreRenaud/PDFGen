@@ -19,10 +19,13 @@ endif
 
 TESTPROG=testprog$(EXE_SUFFIX)
 
-default: $(TESTPROG)
+default: $(TESTPROG) tests/massive-file$(EXE_SUFFIX)
 
 $(TESTPROG): pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX)
 	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX) $(LFLAGS)
+
+tests/massive-file$(EXE_SUFFIX): tests/massive-file.c pdfgen.c
+	$(CLANG) -I. -g -o $@ tests/massive-file.c pdfgen.c
 
 tests/fuzz-dstr: tests/fuzz-dstr.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $< -fsanitize=fuzzer,address,undefined,integer
@@ -66,7 +69,7 @@ check-fuzz-%: tests/fuzz-% FORCE
 fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr check-fuzz-barcode
 
 format: FORCE
-	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c
+	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c tests/massive-file.c
 
 docs: FORCE
 	doxygen docs/pdfgen.dox 2>&1 | tee doxygen.log
@@ -75,5 +78,5 @@ docs: FORCE
 FORCE:
 
 clean:
-	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps output.ppm output-barcodes.txt
+	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file test/massive-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps output.ppm output-barcodes.txt
 	rm -rf docs/html docs/latex fuzz-artifacts infer-out coverage-html
