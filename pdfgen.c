@@ -3392,7 +3392,7 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
 
     if (image->type != OBJ_image)
-        return pdf_set_err(pdf, -EEXIST, "adding an image, but wrong object type %d", image->type);
+        return pdf_set_err(pdf, -EINVAL, "adding an image, but wrong object type %d", image->type);
 
     if (image->stream.page != NULL)
         return pdf_set_err(pdf, -EEXIST, "image already on a page");
