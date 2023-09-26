@@ -3316,7 +3316,7 @@ pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
     if (!obj)
         return NULL;
 
-    dstr_printf(&obj->stream,
+    dstr_printf(&obj->stream.stream,
                 "<<\r\n"
                 "  /Type /XObject\r\n"
                 "  /Name /Image%d\r\n"
@@ -3331,9 +3331,9 @@ pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
                 flexarray_size(&pdf->objects),
                 (info->jpeg.ncolours == 1) ? "/DeviceGray" : "/DeviceRGB",
                 info->width, info->height, len);
-    dstr_append_data(&obj->stream, jpeg_data, len);
+    dstr_append_data(&obj->stream.stream, jpeg_data, len);
 
-    dstr_printf(&obj->stream, "\r\nendstream\r\n");
+    dstr_printf(&obj->stream.stream, "\r\nendstream\r\n");
 
     return obj;
 }
@@ -3894,7 +3894,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto free_buffers;
     }
 
-    dstr_append_data(&obj->stream, final_data, written);
+    dstr_append_data(&obj->stream.stream, final_data, written);
 
     if (get_img_display_dimensions(pdf, header->width, header->height,
                                    &display_width, &display_height)) {
