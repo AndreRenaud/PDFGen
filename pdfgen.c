@@ -256,7 +256,10 @@ struct pdf_object {
             struct pdf_object *parent;
             struct flexarray children;
         } bookmark;
-        struct dstr stream;
+        struct {
+            struct pdf_object *page;
+            struct dstr stream;
+        } stream;
         struct {
             float width;
             float height;
@@ -640,7 +643,7 @@ static void pdf_object_destroy(struct pdf_object *object)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
-        dstr_free(&object->stream);
+        dstr_free(&object->stream.stream);
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
@@ -926,7 +929,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image: {
-        fwrite(dstr_data(&object->stream), dstr_len(&object->stream), 1, fp);
+        fwrite(dstr_data(&object->stream.stream),
+               dstr_len(&object->stream.stream), 1, fp);
         break;
     }
     case OBJ_info: {
@@ -951,7 +955,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     case OBJ_page: {
         struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
-        struct pdf_object *image = pdf_find_first_object(pdf, OBJ_image);
+        bool printed_xobjects = false;
 
         fprintf(fp,
                 "<<\r\n"
@@ -975,13 +979,19 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         }
         fprintf(fp, "    >>\r\n");
 
-        if (image) {
-            fprintf(fp, "    /XObject <<");
-            for (; image; image = image->next)
+        for (struct pdf_object *image = pdf_find_first_object(pdf, OBJ_image);
+             image; image = image->next) {
+            if (image->stream.page == object) {
+                if (!printed_xobjects) {
+                    fprintf(fp, "    /XObject <<");
+                    printed_xobjects = true;
+                }
                 fprintf(fp, "      /Image%d %d 0 R ", image->index,
                         image->index);
-            fprintf(fp, "    >>\r\n");
+            }
         }
+        if (printed_xobjects)
+            fprintf(fp, "    >>\r\n");
         fprintf(fp, "  >>\r\n");
 
         fprintf(fp, "  /Contents [\r\n");
@@ -1258,9 +1268,9 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
     if (!obj)
         return pdf->errval;
 
-    dstr_printf(&obj->stream, "<< /Length %zu >>stream\r\n", len);
-    dstr_append_data(&obj->stream, buffer, len);
-    dstr_append(&obj->stream, "\r\nendstream\r\n");
+    dstr_printf(&obj->stream.stream, "<< /Length %zu >>stream\r\n", len);
+    dstr_append_data(&obj->stream.stream, buffer, len);
+    dstr_append(&obj->stream.stream, "\r\nendstream\r\n");
 
     return flexarray_append(&page->page.children, obj);
 }
@@ -3206,7 +3216,7 @@ static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
         dstr_free(&str);
         return NULL;
     }
-    obj->stream = str;
+    obj->stream.stream = str;
 
     return obj;
 }
@@ -3249,7 +3259,7 @@ static struct pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
         dstr_free(&str);
         return NULL;
     }
-    obj->stream = str;
+    obj->stream.stream = str;
 
     return obj;
 }
@@ -3306,7 +3316,7 @@ pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
     if (!obj)
         return NULL;
 
-    dstr_printf(&obj->stream,
+    dstr_printf(&obj->stream.stream,
                 "<<\r\n"
                 "  /Type /XObject\r\n"
                 "  /Name /Image%d\r\n"
@@ -3321,9 +3331,9 @@ pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
                 flexarray_size(&pdf->objects),
                 (info->jpeg.ncolours == 1) ? "/DeviceGray" : "/DeviceRGB",
                 info->width, info->height, len);
-    dstr_append_data(&obj->stream, jpeg_data, len);
+    dstr_append_data(&obj->stream.stream, jpeg_data, len);
 
-    dstr_printf(&obj->stream, "\r\nendstream\r\n");
+    dstr_printf(&obj->stream.stream, "\r\nendstream\r\n");
 
     return obj;
 }
@@ -3374,6 +3384,22 @@ static int pdf_add_image(struct pdf_doc *pdf, struct pdf_object *page,
 {
     int ret;
     struct dstr str = INIT_DSTR;
+
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
+
+    if (image->type != OBJ_image)
+        return pdf_set_err(pdf, -EINVAL,
+                           "adding an image, but wrong object type %d",
+                           image->type);
+
+    if (image->stream.page != NULL)
+        return pdf_set_err(pdf, -EEXIST, "image already on a page");
+
+    image->stream.page = page;
 
     dstr_append(&str, "q ");
     dstr_printf(&str, "%f 0 0 %f %f %f cm ", width, height, x, y);
@@ -3880,7 +3906,7 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
         goto free_buffers;
     }
 
-    dstr_append_data(&obj->stream, final_data, written);
+    dstr_append_data(&obj->stream.stream, final_data, written);
 
     if (get_img_display_dimensions(pdf, header->width, header->height,
                                    &display_width, &display_height)) {
