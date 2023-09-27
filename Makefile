@@ -25,7 +25,7 @@ $(TESTPROG): pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) te
 	$(CC) $(CFLAGS_EXE) $@ pdfgen$(O_SUFFIX) tests/main$(O_SUFFIX) tests/penguin$(O_SUFFIX) tests/rgb$(O_SUFFIX) $(LFLAGS)
 
 tests/massive-file$(EXE_SUFFIX): tests/massive-file.c pdfgen.c
-	$(CC) -I. -g -o $@ tests/massive-file.c pdfgen.c
+	$(CC) -I. -g -o $@ tests/massive-file.c pdfgen.c $(LFLAGS)
 
 tests/fuzz-dstr: tests/fuzz-dstr.c pdfgen.c
 	$(CLANG) -I. -g -o $@ $< -fsanitize=fuzzer,address,undefined,integer
