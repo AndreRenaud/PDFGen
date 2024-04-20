@@ -71,3 +71,6 @@ Coverity scan: [![Coverity scan](https://scan.coverity.com/projects/11942/badge.
 Static Analysis
 ===============
 This is a code base that I use to test static analysis tools. As such the build system is quite a bit more complex than should be necessary for a project of this size.
+
+## Language Bindings
+- [RingPDFGen](https://github.com/ring-lang/ring/tree/master/extensions/ringpdfgen)
