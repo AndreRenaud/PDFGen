@@ -9,7 +9,7 @@ jobs:
       image: docker://andredesigna/pdfgen:latest
 
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v6
       - name: Build Win32
         run: |
           make clean
@@ -37,7 +37,7 @@ jobs:
       - name: Coverage
         run: make clean && make coverage
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: |
@@ -53,7 +53,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v6
     - name: make x64
       shell: cmd
       run: |
@@ -73,7 +73,7 @@ jobs:
         testprog-32
         cp output.pdf output-win32.pdf
     - name: Upload aritfacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: artifacts
         path: |
@@ -85,6 +85,6 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v6
     - name: make
       run: make
