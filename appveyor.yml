@@ -14,7 +14,7 @@ environment:
 configuration:
   - Release
 
-build: Script
+build: off
 
 platform:
   - x64    # 64-bit build
