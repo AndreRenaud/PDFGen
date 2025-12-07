@@ -43,7 +43,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: artifacts
+          name: main-artifacts
           path: |
             output.pdf
             pdfgen.h
@@ -79,7 +79,7 @@ jobs:
     - name: Upload aritfacts
       uses: actions/upload-artifact@v4
       with:
-        name: artifacts
+        name: win32-artifacts
         path: |
           output-win32.pdf
           output-win64.pdf
