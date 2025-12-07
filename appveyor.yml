@@ -14,6 +14,8 @@ environment:
 configuration:
   - Release
 
+build: Script
+
 platform:
   - x64    # 64-bit build
   # - win32  # 32-bit build
