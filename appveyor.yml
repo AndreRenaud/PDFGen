@@ -14,8 +14,6 @@ environment:
 configuration:
   - Release
 
-build: off
-
 platform:
   - x64    # 64-bit build
   # - win32  # 32-bit build
@@ -34,8 +32,9 @@ before_build:
   - if "%PLATFORM%"=="win32" SET PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;C:\MinGW\bin;%PATH%
 
 build_script:
-  - mingw32-make testprog.exe CC=cl
-  - testprog
+  - sh: |-
+      mingw32-make testprog.exe CC=cl
+      ./testprog
 
 artifacts:
   - path: '*.pdf'
