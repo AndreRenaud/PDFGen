@@ -1903,7 +1903,7 @@ static const char *find_word_break(const char *string)
     if (!string)
         return NULL;
     /* Skip over the actual word */
-    while (*string && !isspace(*string))
+    while (*string && !isspace((unsigned char)*string))
         string++;
 
     return string;
