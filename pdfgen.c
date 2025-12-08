@@ -352,7 +352,7 @@ static int bin_offset[] = {
 static inline int flexarray_get_bin(const struct flexarray *flex, int index)
 {
     (void)flex;
-    for (size_t i = 0; i < ARRAY_SIZE(bin_offset); i++)
+    for (int i = 0; i < (int)ARRAY_SIZE(bin_offset); i++)
         if (index < bin_offset[i])
             return i - 1;
     return -1;
