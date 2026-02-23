@@ -208,6 +208,15 @@ static const char png_chunk_palette[] = "PLTE";
 static const char png_chunk_data[] = "IDAT";
 static const char png_chunk_end[] = "IEND";
 
+// PDF standard fonts
+static const char *valid_fonts[] = {
+    "Times-Roman",       "Times-Bold",
+    "Times-Italic",      "Times-BoldItalic",
+    "Helvetica",         "Helvetica-Bold",
+    "Helvetica-Oblique", "Helvetica-BoldOblique",
+    "Courier",           "Courier-Bold",
+    "Courier-Oblique",   "Courier-BoldOblique"};
+
 typedef struct pdf_object pdf_object;
 
 enum {
@@ -828,6 +837,22 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font)
 {
     struct pdf_object *obj;
     int last_index = 0;
+    bool found = false;
+
+    // PDF requires one of the 14 standard fonts to be used, so check that
+    // the font name is valid and canonicalise it to the correct case if it is
+    for (size_t i = 0; i < sizeof(valid_fonts) / sizeof(valid_fonts[0]);
+         i++) {
+        if (strcasecmp(font, valid_fonts[i]) == 0) {
+            font = valid_fonts[i];
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        return pdf_set_err(pdf, -EINVAL, "Invalid font name '%s'", font);
+    }
 
     /* See if we've used this font before */
     for (obj = pdf_find_first_object(pdf, OBJ_font); obj; obj = obj->next) {
