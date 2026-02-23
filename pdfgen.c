@@ -1165,7 +1165,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "  /Type /Annot\r\n"
                 "  /Subtype /Link\r\n"
                 "  /Rect [%f %f %f %f]\r\n"
-                "  /Dest [%u 0 R /XYZ %f %f null]\r\n"
+                "  /Dest [%d 0 R /XYZ %f %f null]\r\n"
                 "  /Border [0 0 0]\r\n"
                 ">>\r\n",
                 object->link.llx, object->link.lly, object->link.urx,
