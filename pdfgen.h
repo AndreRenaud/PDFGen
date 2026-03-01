@@ -205,13 +205,13 @@ struct pdf_path_operation {
  * Convert a value in inches into a number of points.
  * @param inch inches value to convert to points
  */
-#define PDF_INCH_TO_POINT(inch) ((float)((inch) * 72.0f))
+#define PDF_INCH_TO_POINT(inch) ((float)((inch)*72.0f))
 
 /**
  * Convert a value in milli-meters into a number of points.
  * @param mm millimeter value to convert to points
  */
-#define PDF_MM_TO_POINT(mm) ((float)((mm) * 72.0f / 25.4f))
+#define PDF_MM_TO_POINT(mm) ((float)((mm)*72.0f / 25.4f))
 
 /*! Point width of a standard US-Letter page */
 #define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5f)
@@ -237,7 +237,7 @@ struct pdf_path_operation {
  * in PDFGen
  */
 #define PDF_RGB(r, g, b)                                                     \
-    (uint32_t)((((r) & 0xff) << 16) | (((g) & 0xff) << 8) | (((b) & 0xff)))
+    (uint32_t)((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
 
 /**
  * Convert four 8-bit ARGB values into a single packed 32-bit
@@ -246,8 +246,8 @@ struct pdf_path_operation {
  * (transparent)
  */
 #define PDF_ARGB(a, r, g, b)                                                 \
-    (uint32_t)(((uint32_t)((a) & 0xff) << 24) | (((r) & 0xff) << 16) |       \
-               (((g) & 0xff) << 8) | (((b) & 0xff)))
+    (uint32_t)(((uint32_t)((a)&0xff) << 24) | (((r)&0xff) << 16) |           \
+               (((g)&0xff) << 8) | (((b)&0xff)))
 
 /*! Utility macro to provide bright red */
 #define PDF_RED PDF_RGB(0xff, 0, 0)
