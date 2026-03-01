@@ -210,12 +210,21 @@ static const char png_chunk_end[] = "IEND";
 
 // PDF standard fonts
 static const char *valid_fonts[] = {
-    "Times-Roman",       "Times-Bold",
-    "Times-Italic",      "Times-BoldItalic",
-    "Helvetica",         "Helvetica-Bold",
-    "Helvetica-Oblique", "Helvetica-BoldOblique",
-    "Courier",           "Courier-Bold",
-    "Courier-Oblique",   "Courier-BoldOblique"};
+    "Times-Roman",
+    "Times-Bold",
+    "Times-Italic",
+    "Times-BoldItalic",
+    "Helvetica",
+    "Helvetica-Bold",
+    "Helvetica-Oblique",
+    "Helvetica-BoldOblique",
+    "Courier",
+    "Courier-Bold",
+    "Courier-Oblique",
+    "Courier-BoldOblique",
+    "Symbol",
+    "ZapfDingbats",
+};
 
 typedef struct pdf_object pdf_object;
 
@@ -446,10 +455,8 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
  */
 
 #define INIT_DSTR                                                            \
-    (struct dstr)                                                            \
-    {                                                                        \
-        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
-    }
+    (struct dstr){                                                           \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0}
 
 static char *dstr_data(struct dstr *str)
 {

@@ -1,4 +1,5 @@
 #include "pdfgen.h"
+#include <limits.h>
 #include <stdlib.h>
 
 int main(int argc, char **argv)
@@ -9,19 +10,22 @@ int main(int argc, char **argv)
 
     if (argc > 1) {
         pagecount = atoi(argv[1]);
-    }
-    pdf_set_font(pdf, "Times-Roman");
-    for (int i = 0; i < pagecount; i++) {
-        char str[64];
-        pdf_append_page(pdf);
-        sprintf(str, "page %d", i);
-        pdf_add_text(pdf, NULL, str, 12, 50, 20, PDF_BLACK);
+        if (pagecount < 1 || pagecount > INT_MAX) {
+            pagecount = 10;
+        }
+        pdf_set_font(pdf, "Times-Roman");
+        for (int i = 0; i < pagecount; i++) {
+            char str[64];
+            pdf_append_page(pdf);
+            sprintf(str, "page %d", i);
+            pdf_add_text(pdf, NULL, str, 12, 50, 20, PDF_BLACK);
 
-        pdf_add_image_file(pdf, NULL, 100, 500, 50, 150, "data/penguin.jpg");
-    }
+            pdf_add_image_file(pdf, NULL, 100, 500, 50, 150,
+                               "data/penguin.jpg");
+        }
 
-    sprintf(filename, "massive-%d.pdf", pagecount);
-    pdf_save(pdf, filename);
-    pdf_destroy(pdf);
-    return 0;
-}
+        sprintf(filename, "massive-%d.pdf", pagecount);
+        pdf_save(pdf, filename);
+        pdf_destroy(pdf);
+        return 0;
+    }
