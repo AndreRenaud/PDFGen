@@ -210,12 +210,21 @@ static const char png_chunk_end[] = "IEND";
 
 // PDF standard fonts
 static const char *valid_fonts[] = {
-    "Times-Roman",       "Times-Bold",
-    "Times-Italic",      "Times-BoldItalic",
-    "Helvetica",         "Helvetica-Bold",
-    "Helvetica-Oblique", "Helvetica-BoldOblique",
-    "Courier",           "Courier-Bold",
-    "Courier-Oblique",   "Courier-BoldOblique"};
+    "Times-Roman",
+    "Times-Bold",
+    "Times-Italic",
+    "Times-BoldItalic",
+    "Helvetica",
+    "Helvetica-Bold",
+    "Helvetica-Oblique",
+    "Helvetica-BoldOblique",
+    "Courier",
+    "Courier-Bold",
+    "Courier-Oblique",
+    "Courier-BoldOblique",
+    "Symbol",
+    "ZapfDingbats",
+};
 
 typedef struct pdf_object pdf_object;
 

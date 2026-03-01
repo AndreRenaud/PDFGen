@@ -1,4 +1,5 @@
 #include "pdfgen.h"
+#include <limits.h>
 #include <stdlib.h>
 
 int main(int argc, char **argv)
@@ -9,6 +10,10 @@ int main(int argc, char **argv)
 
     if (argc > 1) {
         pagecount = atoi(argv[1]);
+        if (pagecount < 1 || pagecount > INT_MAX) {
+            fprintf(stderr, "Invalid page count: %d\n", pagecount);
+            return 1;
+        }
     }
     pdf_set_font(pdf, "Times-Roman");
     for (int i = 0; i < pagecount; i++) {
