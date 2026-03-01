@@ -455,8 +455,10 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
  */
 
 #define INIT_DSTR                                                            \
-    (struct dstr){                                                           \
-        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0}
+    (struct dstr)                                                            \
+    {                                                                        \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
+    }
 
 static char *dstr_data(struct dstr *str)
 {
