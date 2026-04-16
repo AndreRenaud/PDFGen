@@ -240,6 +240,7 @@ enum {
     OBJ_pages,
     OBJ_image,
     OBJ_link,
+    OBJ_form_field,
 
     OBJ_count,
 };
@@ -299,6 +300,25 @@ struct pdf_object {
             float target_x;                 /* Target location */
             float target_y;
         } link;
+        struct {
+            int field_type; /* PDF_FIELD_TYPE_* */
+            struct pdf_object
+                *page; /* Page containing widget (NULL for radio group) */
+            float x, y, width, height; /* Widget rectangle */
+            char name[64]; /* /T field name or radio option value */
+            char
+                value[128]; /* /V default text value or selected radio name */
+            float font_size;      /* Font size for text field /DA string */
+            uint32_t font_colour; /* Font colour for text field /DA string */
+            int checked; /* Initial state for checkbox/radio button */
+            struct pdf_object
+                *parent;           /* For radio kids: parent group field */
+            struct flexarray kids; /* For radio groups: kid widget fields */
+            struct pdf_object
+                *on_appearance; /* Appearance XObject for on/yes state */
+            struct pdf_object
+                *off_appearance; /* Appearance XObject for off/no state */
+        } form_field;
     };
 };
 
@@ -311,6 +331,9 @@ struct pdf_doc {
     float height;
 
     struct pdf_object *current_font;
+
+    struct pdf_object
+        *form_font; /* Helvetica font for AcroForm /DR resources */
 
     struct pdf_object *last_objects[OBJ_count];
     struct pdf_object *first_objects[OBJ_count];
@@ -674,6 +697,9 @@ static void pdf_object_destroy(struct pdf_object *object)
         break;
     case OBJ_bookmark:
         flexarray_clear(&object->bookmark.children);
+        break;
+    case OBJ_form_field:
+        flexarray_clear(&object->form_field.kids);
         break;
     }
     free(object);
@@ -1184,6 +1210,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     case OBJ_catalog: {
         struct pdf_object *outline = pdf_find_first_object(pdf, OBJ_outline);
         struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
+        struct pdf_object *first_field =
+            pdf_find_first_object(pdf, OBJ_form_field);
 
         fprintf(fp, "<<\r\n"
                     "  /Type /Catalog\r\n");
@@ -1192,10 +1220,27 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                     "  /Outlines %d 0 R\r\n"
                     "  /PageMode /UseOutlines\r\n",
                     outline->index);
-        fprintf(fp,
-                "  /Pages %d 0 R\r\n"
-                ">>\r\n",
-                pages->index);
+        fprintf(fp, "  /Pages %d 0 R\r\n", pages->index);
+
+        if (first_field) {
+            fprintf(fp, "  /AcroForm <<\r\n"
+                        "    /Fields [");
+            for (struct pdf_object *f = first_field; f; f = f->next) {
+                /* Only top-level fields (not radio button kids) */
+                if (f->form_field.field_type != PDF_FIELD_TYPE_RADIO_BUTTON)
+                    fprintf(fp, "%d 0 R ", f->index);
+            }
+            fprintf(fp, "]\r\n");
+            if (pdf->form_font) {
+                fprintf(fp,
+                        "    /DR << /Font << /Helv %d 0 R >> >>\r\n"
+                        "    /DA (/Helv 12 Tf 0 g)\r\n",
+                        pdf->form_font->index);
+            }
+            fprintf(fp, "  >>\r\n");
+        }
+
+        fprintf(fp, ">>\r\n");
         break;
     }
 
@@ -1211,6 +1256,125 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 object->link.llx, object->link.lly, object->link.urx,
                 object->link.ury, object->link.target_page->index,
                 object->link.target_x, object->link.target_y);
+        break;
+    }
+
+    case OBJ_form_field: {
+        switch (object->form_field.field_type) {
+        case PDF_FIELD_TYPE_TEXT:
+            fprintf(fp, "<<\r\n"
+                        "  /Type /Annot\r\n"
+                        "  /Subtype /Widget\r\n"
+                        "  /FT /Tx\r\n"
+                        "  /T (");
+            pdf_print_escaped_string(fp, object->form_field.name);
+            fprintf(fp, ")\r\n");
+            if (object->form_field.value[0]) {
+                fprintf(fp, "  /V (");
+                pdf_print_escaped_string(fp, object->form_field.value);
+                fprintf(fp, ")\r\n");
+            }
+            fprintf(fp,
+                    "  /Rect [%f %f %f %f]\r\n"
+                    "  /DA (/Helv %f Tf %f %f %f rg)\r\n"
+                    "  /P %d 0 R\r\n"
+                    ">>\r\n",
+                    object->form_field.x, object->form_field.y,
+                    object->form_field.x + object->form_field.width,
+                    object->form_field.y + object->form_field.height,
+                    object->form_field.font_size,
+                    PDF_RGB_R(object->form_field.font_colour),
+                    PDF_RGB_G(object->form_field.font_colour),
+                    PDF_RGB_B(object->form_field.font_colour),
+                    object->form_field.page->index);
+            break;
+
+        case PDF_FIELD_TYPE_CHECKBOX:
+            fprintf(fp, "<<\r\n"
+                        "  /Type /Annot\r\n"
+                        "  /Subtype /Widget\r\n"
+                        "  /FT /Btn\r\n"
+                        "  /T (");
+            pdf_print_escaped_string(fp, object->form_field.name);
+            fprintf(fp,
+                    ")\r\n"
+                    "  /V /%s\r\n"
+                    "  /AS /%s\r\n"
+                    "  /Rect [%f %f %f %f]\r\n",
+                    object->form_field.checked ? "Yes" : "Off",
+                    object->form_field.checked ? "Yes" : "Off",
+                    object->form_field.x, object->form_field.y,
+                    object->form_field.x + object->form_field.width,
+                    object->form_field.y + object->form_field.height);
+            if (object->form_field.on_appearance &&
+                object->form_field.off_appearance) {
+                fprintf(fp,
+                        "  /AP << /N << /Yes %d 0 R /Off %d 0 R >> >>\r\n",
+                        object->form_field.on_appearance->index,
+                        object->form_field.off_appearance->index);
+            }
+            fprintf(fp,
+                    "  /P %d 0 R\r\n"
+                    ">>\r\n",
+                    object->form_field.page->index);
+            break;
+
+        case PDF_FIELD_TYPE_RADIO: {
+            /* Radio button group (parent field, not a widget annotation) */
+            fprintf(fp, "<<\r\n"
+                        "  /FT /Btn\r\n"
+                        "  /Ff 32768\r\n"
+                        "  /T (");
+            pdf_print_escaped_string(fp, object->form_field.name);
+            fprintf(fp, ")\r\n");
+            if (object->form_field.value[0])
+                fprintf(fp, "  /V /%s\r\n", object->form_field.value);
+            else
+                fprintf(fp, "  /V /Off\r\n");
+            fprintf(fp, "  /Kids [");
+            for (int i = 0; i < flexarray_size(&object->form_field.kids);
+                 i++) {
+                struct pdf_object *kid = (struct pdf_object *)flexarray_get(
+                    &object->form_field.kids, i);
+                fprintf(fp, "%d 0 R ", kid->index);
+            }
+            fprintf(fp, "]\r\n"
+                        ">>\r\n");
+            break;
+        }
+
+        case PDF_FIELD_TYPE_RADIO_BUTTON:
+            /* Radio button widget (kid of a radio group) */
+            fprintf(fp,
+                    "<<\r\n"
+                    "  /Type /Annot\r\n"
+                    "  /Subtype /Widget\r\n"
+                    "  /Parent %d 0 R\r\n"
+                    "  /Rect [%f %f %f %f]\r\n"
+                    "  /AS /%s\r\n",
+                    object->form_field.parent->index, object->form_field.x,
+                    object->form_field.y,
+                    object->form_field.x + object->form_field.width,
+                    object->form_field.y + object->form_field.height,
+                    object->form_field.checked ? object->form_field.name
+                                               : "Off");
+            if (object->form_field.on_appearance &&
+                object->form_field.off_appearance) {
+                fprintf(fp, "  /AP << /N << /%s %d 0 R /Off %d 0 R >> >>\r\n",
+                        object->form_field.name,
+                        object->form_field.on_appearance->index,
+                        object->form_field.off_appearance->index);
+            }
+            fprintf(fp,
+                    "  /P %d 0 R\r\n"
+                    ">>\r\n",
+                    object->form_field.page->index);
+            break;
+
+        default:
+            return pdf_set_err(pdf, -EINVAL, "Invalid form field type %d",
+                               object->form_field.field_type);
+        }
         break;
     }
 
@@ -4068,8 +4232,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->bfOffBits >= len)
         return pdf_set_err(pdf, -EINVAL, "Invalid BMP image offset");
 
-    if (len - header->bfOffBits <
-        (size_t)height * stride)
+    if (len - header->bfOffBits < (size_t)height * stride)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
 
     if (bpp == 3) {
@@ -4079,8 +4242,8 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
             return pdf_set_err(pdf, -ENOMEM,
                                "Insufficient memory for bitmap");
         for (uint32_t pos = 0; pos < width * height; pos++) {
-            uint32_t src_pos =
-                header->bfOffBits + (pos / width) * stride + (pos % width) * 3;
+            uint32_t src_pos = header->bfOffBits + (pos / width) * stride +
+                               (pos % width) * 3;
 
             bmp_data[pos * 3] = data[src_pos + 2];
             bmp_data[pos * 3 + 1] = data[src_pos + 1];
@@ -4229,4 +4392,267 @@ int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
                              data, len);
     free(data);
     return ret;
+}
+
+/**
+ * Create a Form XObject (appearance stream) for checkbox/radio button states.
+ * Returns the newly created stream object, or NULL on error.
+ * The caller must NOT add this object to any page's children – it is
+ * referenced only through the widget's /AP dictionary.
+ */
+static struct pdf_object *pdf_create_form_xobject(struct pdf_doc *pdf,
+                                                  float width, float height,
+                                                  const char *content)
+{
+    struct pdf_object *obj = pdf_add_object(pdf, OBJ_stream);
+    if (!obj)
+        return NULL;
+
+    size_t len = strlen(content);
+    dstr_printf(&obj->stream.stream,
+                "<< /Type /XObject /Subtype /Form"
+                " /BBox [0 0 %f %f] /Resources << >> /Length %zu >>\r\n"
+                "stream\r\n",
+                width, height, len);
+    dstr_append_data(&obj->stream.stream, content, len);
+    dstr_append(&obj->stream.stream, "\r\nendstream\r\n");
+    /* Leave stream.page as NULL – appearance XObjects are not page children
+     */
+    return obj;
+}
+
+/**
+ * Find or create the Helvetica font used as the AcroForm default font.
+ * Records the result in pdf->form_font for use when writing the catalog.
+ */
+static struct pdf_object *pdf_get_form_font(struct pdf_doc *pdf)
+{
+    if (pdf->form_font)
+        return pdf->form_font;
+
+    int last_index = 0;
+    for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_font); obj;
+         obj = obj->next) {
+        if (strcmp(obj->font.name, "Helvetica") == 0) {
+            pdf->form_font = obj;
+            return obj;
+        }
+        last_index = obj->font.index;
+    }
+
+    struct pdf_object *obj = pdf_add_object(pdf, OBJ_font);
+    if (!obj)
+        return NULL;
+    strncpy(obj->font.name, "Helvetica", sizeof(obj->font.name) - 1);
+    obj->font.name[sizeof(obj->font.name) - 1] = '\0';
+    obj->font.index = last_index + 1;
+    pdf->form_font = obj;
+    return obj;
+}
+
+int pdf_add_text_field(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float width, float height, const char *name,
+                       const char *value, float font_size, uint32_t colour)
+{
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to add text field, no pages available");
+    if (!name || !name[0])
+        return pdf_set_err(pdf, -EINVAL, "Text field name must not be empty");
+
+    if (!pdf_get_form_font(pdf))
+        return pdf->errval;
+
+    struct pdf_object *obj = pdf_add_object(pdf, OBJ_form_field);
+    if (!obj)
+        return pdf->errval;
+
+    obj->form_field.field_type = PDF_FIELD_TYPE_TEXT;
+    obj->form_field.page = page;
+    obj->form_field.x = x;
+    obj->form_field.y = y;
+    obj->form_field.width = width;
+    obj->form_field.height = height;
+    strncpy(obj->form_field.name, name, sizeof(obj->form_field.name) - 1);
+    obj->form_field.name[sizeof(obj->form_field.name) - 1] = '\0';
+    if (value) {
+        strncpy(obj->form_field.value, value,
+                sizeof(obj->form_field.value) - 1);
+        obj->form_field.value[sizeof(obj->form_field.value) - 1] = '\0';
+    }
+    obj->form_field.font_size = (font_size > 0) ? font_size : 12.0f;
+    obj->form_field.font_colour = colour;
+
+    if (flexarray_append(&page->page.annotations, obj) < 0)
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to add text field annotation");
+    return obj->index;
+}
+
+int pdf_add_checkbox(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                     float y, float width, float height, const char *name,
+                     int checked)
+{
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to add checkbox, no pages available");
+    if (!name || !name[0])
+        return pdf_set_err(pdf, -EINVAL, "Checkbox name must not be empty");
+
+    /* Checked appearance: draw a checkmark path */
+    char on_content[256];
+    snprintf(on_content, sizeof(on_content),
+             "q\n"
+             "0.5 w\n"
+             "%.4f %.4f m\n"
+             "%.4f %.4f l\n"
+             "%.4f %.4f l\n"
+             "S\n"
+             "Q\n",
+             width * 0.2f, height * 0.5f, width * 0.4f, height * 0.2f,
+             width * 0.8f, height * 0.8f);
+
+    /* Unchecked appearance: empty form XObject */
+    const char *off_content = "q Q\n";
+
+    struct pdf_object *on_ap =
+        pdf_create_form_xobject(pdf, width, height, on_content);
+    if (!on_ap)
+        return pdf->errval;
+
+    struct pdf_object *off_ap =
+        pdf_create_form_xobject(pdf, width, height, off_content);
+    if (!off_ap)
+        return pdf->errval;
+
+    struct pdf_object *obj = pdf_add_object(pdf, OBJ_form_field);
+    if (!obj)
+        return pdf->errval;
+
+    obj->form_field.field_type = PDF_FIELD_TYPE_CHECKBOX;
+    obj->form_field.page = page;
+    obj->form_field.x = x;
+    obj->form_field.y = y;
+    obj->form_field.width = width;
+    obj->form_field.height = height;
+    strncpy(obj->form_field.name, name, sizeof(obj->form_field.name) - 1);
+    obj->form_field.name[sizeof(obj->form_field.name) - 1] = '\0';
+    obj->form_field.checked = checked ? 1 : 0;
+    obj->form_field.on_appearance = on_ap;
+    obj->form_field.off_appearance = off_ap;
+
+    if (flexarray_append(&page->page.annotations, obj) < 0)
+        return pdf_set_err(pdf, -ENOMEM, "Unable to add checkbox annotation");
+    return obj->index;
+}
+
+int pdf_add_radio_button(struct pdf_doc *pdf, struct pdf_object *page,
+                         float x, float y, float width, float height,
+                         const char *radio_group_name,
+                         const char *option_name, int selected)
+{
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to add radio button, no pages available");
+    if (!radio_group_name || !radio_group_name[0])
+        return pdf_set_err(pdf, -EINVAL,
+                           "Radio button group name must not be empty");
+    if (!option_name || !option_name[0])
+        return pdf_set_err(pdf, -EINVAL,
+                           "Radio button option name must not be empty");
+
+    /* Find or create the parent radio group field */
+    struct pdf_object *group = NULL;
+    for (struct pdf_object *f = pdf_find_first_object(pdf, OBJ_form_field); f;
+         f = f->next) {
+        if (f->form_field.field_type == PDF_FIELD_TYPE_RADIO &&
+            strcmp(f->form_field.name, radio_group_name) == 0) {
+            group = f;
+            break;
+        }
+    }
+    if (!group) {
+        group = pdf_add_object(pdf, OBJ_form_field);
+        if (!group)
+            return pdf->errval;
+        group->form_field.field_type = PDF_FIELD_TYPE_RADIO;
+        strncpy(group->form_field.name, radio_group_name,
+                sizeof(group->form_field.name) - 1);
+        group->form_field.name[sizeof(group->form_field.name) - 1] = '\0';
+    }
+
+    /* Selected appearance: filled circle (approximated with Bezier curves) */
+    char on_content[512];
+    float cx = width / 2.0f;
+    float cy = height / 2.0f;
+    float r = (width < height ? width : height) * 0.3f;
+    float k = 0.5523f * r;
+    snprintf(on_content, sizeof(on_content),
+             "q\n"
+             "0 g\n"
+             "%.4f %.4f m\n"
+             "%.4f %.4f %.4f %.4f %.4f %.4f c\n"
+             "%.4f %.4f %.4f %.4f %.4f %.4f c\n"
+             "%.4f %.4f %.4f %.4f %.4f %.4f c\n"
+             "%.4f %.4f %.4f %.4f %.4f %.4f c\n"
+             "f\n"
+             "Q\n",
+             cx - r, cy, cx - r, cy + k, cx - k, cy + r, cx, cy + r, cx + k,
+             cy + r, cx + r, cy + k, cx + r, cy, cx + r, cy - k, cx + k,
+             cy - r, cx, cy - r, cx - k, cy - r, cx - r, cy - k, cx - r, cy);
+
+    /* Unselected appearance: empty */
+    const char *off_content = "q Q\n";
+
+    struct pdf_object *on_ap =
+        pdf_create_form_xobject(pdf, width, height, on_content);
+    if (!on_ap)
+        return pdf->errval;
+
+    struct pdf_object *off_ap =
+        pdf_create_form_xobject(pdf, width, height, off_content);
+    if (!off_ap)
+        return pdf->errval;
+
+    /* Create the kid widget */
+    struct pdf_object *kid = pdf_add_object(pdf, OBJ_form_field);
+    if (!kid)
+        return pdf->errval;
+
+    kid->form_field.field_type = PDF_FIELD_TYPE_RADIO_BUTTON;
+    kid->form_field.page = page;
+    kid->form_field.x = x;
+    kid->form_field.y = y;
+    kid->form_field.width = width;
+    kid->form_field.height = height;
+    strncpy(kid->form_field.name, option_name,
+            sizeof(kid->form_field.name) - 1);
+    kid->form_field.name[sizeof(kid->form_field.name) - 1] = '\0';
+    kid->form_field.checked = selected ? 1 : 0;
+    kid->form_field.parent = group;
+    kid->form_field.on_appearance = on_ap;
+    kid->form_field.off_appearance = off_ap;
+
+    /* If this button is selected, update the group's current value */
+    if (selected) {
+        strncpy(group->form_field.value, option_name,
+                sizeof(group->form_field.value) - 1);
+        group->form_field.value[sizeof(group->form_field.value) - 1] = '\0';
+    }
+
+    if (flexarray_append(&group->form_field.kids, kid) < 0)
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to add radio button to group");
+
+    if (flexarray_append(&page->page.annotations, kid) < 0)
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to add radio button annotation");
+
+    return kid->index;
 }

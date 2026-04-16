@@ -205,13 +205,13 @@ struct pdf_path_operation {
  * Convert a value in inches into a number of points.
  * @param inch inches value to convert to points
  */
-#define PDF_INCH_TO_POINT(inch) ((float)((inch)*72.0f))
+#define PDF_INCH_TO_POINT(inch) ((float)((inch) * 72.0f))
 
 /**
  * Convert a value in milli-meters into a number of points.
  * @param mm millimeter value to convert to points
  */
-#define PDF_MM_TO_POINT(mm) ((float)((mm)*72.0f / 25.4f))
+#define PDF_MM_TO_POINT(mm) ((float)((mm) * 72.0f / 25.4f))
 
 /*! Point width of a standard US-Letter page */
 #define PDF_LETTER_WIDTH PDF_INCH_TO_POINT(8.5f)
@@ -237,7 +237,7 @@ struct pdf_path_operation {
  * in PDFGen
  */
 #define PDF_RGB(r, g, b)                                                     \
-    (uint32_t)((((r)&0xff) << 16) | (((g)&0xff) << 8) | (((b)&0xff)))
+    (uint32_t)((((r) & 0xff) << 16) | (((g) & 0xff) << 8) | (((b) & 0xff)))
 
 /**
  * Convert four 8-bit ARGB values into a single packed 32-bit
@@ -246,8 +246,8 @@ struct pdf_path_operation {
  * (transparent)
  */
 #define PDF_ARGB(a, r, g, b)                                                 \
-    (uint32_t)(((uint32_t)((a)&0xff) << 24) | (((r)&0xff) << 16) |           \
-               (((g)&0xff) << 8) | (((b)&0xff)))
+    (uint32_t)(((uint32_t)((a) & 0xff) << 24) | (((r) & 0xff) << 16) |       \
+               (((g) & 0xff) << 8) | (((b) & 0xff)))
 
 /*! Utility macro to provide bright red */
 #define PDF_RED PDF_RGB(0xff, 0, 0)
@@ -792,6 +792,75 @@ int pdf_add_image_file(struct pdf_doc *pdf, struct pdf_object *page, float x,
 int pdf_parse_image_header(struct pdf_img_info *info, const uint8_t *data,
                            size_t length, char *err_msg,
                            size_t err_msg_length);
+
+/**
+ * List of PDF form field types supported by pdf_add_text_field,
+ * pdf_add_checkbox and pdf_add_radio_button.
+ */
+enum {
+    PDF_FIELD_TYPE_TEXT,         //!< Single-line text input field
+    PDF_FIELD_TYPE_CHECKBOX,     //!< Boolean checkbox
+    PDF_FIELD_TYPE_RADIO,        //!< Radio button group (internal use)
+    PDF_FIELD_TYPE_RADIO_BUTTON, //!< Individual radio button (internal use)
+    PDF_FIELD_TYPE_PUSH_BUTTON,  //!< Push button (reserved for future use)
+};
+
+/**
+ * Add a text input form field to the document.
+ * The field can be filled in by the user when the PDF is opened in a
+ * form-capable viewer.
+ * @param pdf PDF document to add to
+ * @param page Page to add the field to (NULL => most recently added page)
+ * @param x X coordinate of the bottom-left corner of the field
+ * @param y Y coordinate of the bottom-left corner of the field
+ * @param width Width of the field
+ * @param height Height of the field
+ * @param name Field name (used to identify the field; must not be empty)
+ * @param value Initial/default text value, or NULL for an empty field
+ * @param font_size Font size for the field text (0 => default 12pt)
+ * @param colour Text colour
+ * @return < 0 on failure, object index on success
+ */
+int pdf_add_text_field(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                       float y, float width, float height, const char *name,
+                       const char *value, float font_size, uint32_t colour);
+
+/**
+ * Add a checkbox form field to the document.
+ * @param pdf PDF document to add to
+ * @param page Page to add the field to (NULL => most recently added page)
+ * @param x X coordinate of the bottom-left corner of the checkbox
+ * @param y Y coordinate of the bottom-left corner of the checkbox
+ * @param width Width of the checkbox
+ * @param height Height of the checkbox
+ * @param name Field name (must not be empty)
+ * @param checked Non-zero for initially checked, zero for unchecked
+ * @return < 0 on failure, object index on success
+ */
+int pdf_add_checkbox(struct pdf_doc *pdf, struct pdf_object *page, float x,
+                     float y, float width, float height, const char *name,
+                     int checked);
+
+/**
+ * Add a radio button to a named radio button group.
+ * All radio buttons sharing the same @p radio_group_name belong to the
+ * same group; at most one can be selected at a time.
+ * Call this function once for each option in the group.
+ * @param pdf PDF document to add to
+ * @param page Page to add the button to (NULL => most recently added page)
+ * @param x X coordinate of the bottom-left corner of the button
+ * @param y Y coordinate of the bottom-left corner of the button
+ * @param width Width of the button
+ * @param height Height of the button
+ * @param radio_group_name Name of the radio button group (must not be empty)
+ * @param option_name Value name for this specific button (must not be empty)
+ * @param selected Non-zero if this button should be initially selected
+ * @return < 0 on failure, object index on success
+ */
+int pdf_add_radio_button(struct pdf_doc *pdf, struct pdf_object *page,
+                         float x, float y, float width, float height,
+                         const char *radio_group_name,
+                         const char *option_name, int selected);
 
 #ifdef __cplusplus
 }
