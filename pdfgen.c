@@ -208,6 +208,227 @@ static const char png_chunk_palette[] = "PLTE";
 static const char png_chunk_data[] = "IDAT";
 static const char png_chunk_end[] = "IEND";
 
+// Windows-1252 to Unicode for the 0x80-0x9F range
+// (0x00-0x7F and 0xA0-0xFF map directly to the same Unicode codepoint)
+static const uint16_t win1252_to_unicode_table[32] = {
+    0x20AC, 0x0000, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+    0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x0000, 0x017D, 0x0000,
+    0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+    0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x0000, 0x017E, 0x0178,
+};
+
+static uint32_t win1252_to_unicode(uint8_t c)
+{
+    if (c >= 0x80 && c <= 0x9F)
+        return win1252_to_unicode_table[c - 0x80];
+    return c;
+}
+
+// Read big-endian values from a byte array (used for TTF parsing)
+static uint16_t ttf_be16(const uint8_t *p)
+{
+    return ((uint16_t)p[0] << 8) | p[1];
+}
+
+static uint32_t ttf_be32(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | p[3];
+}
+
+static int16_t ttf_bes16(const uint8_t *p)
+{
+    return (int16_t)ttf_be16(p);
+}
+
+// Find a table in a TrueType font file by its 4-byte tag.
+// Returns a pointer to the table data and optionally sets *table_len.
+static const uint8_t *ttf_find_table(const uint8_t *data, size_t data_len,
+                                     const char *tag, uint32_t *table_len)
+{
+    if (data_len < 12)
+        return NULL;
+    uint16_t numTables = ttf_be16(data + 4);
+    for (uint16_t i = 0; i < numTables; i++) {
+        if ((size_t)(12 + ((size_t)i + 1) * 16) > data_len)
+            break;
+        const uint8_t *entry = data + 12 + (size_t)i * 16;
+        if (memcmp(entry, tag, 4) == 0) {
+            uint32_t offset = ttf_be32(entry + 8);
+            uint32_t length = ttf_be32(entry + 12);
+            if ((size_t)offset + length > data_len)
+                return NULL;
+            if (table_len)
+                *table_len = length;
+            return data + offset;
+        }
+    }
+    return NULL;
+}
+
+// Look up glyph ID for a Unicode codepoint using the cmap table.
+// Supports format 4 subtables (Unicode BMP).
+static uint16_t ttf_cmap_lookup(const uint8_t *cmap, size_t cmap_len,
+                                 uint32_t unicode)
+{
+    if (!cmap || cmap_len < 4)
+        return 0;
+    uint16_t numTables = ttf_be16(cmap + 2);
+    const uint8_t *best_subtable = NULL;
+    int best_priority = -1;
+
+    for (uint16_t i = 0; i < numTables; i++) {
+        size_t rec_off = 4 + (size_t)i * 8;
+        if (rec_off + 8 > cmap_len)
+            break;
+        const uint8_t *rec = cmap + rec_off;
+        uint16_t platformID = ttf_be16(rec);
+        uint16_t platEncID = ttf_be16(rec + 2);
+        uint32_t subtable_offset = ttf_be32(rec + 4);
+        if (subtable_offset + 2 > cmap_len)
+            continue;
+        const uint8_t *sub = cmap + subtable_offset;
+        uint16_t fmt = ttf_be16(sub);
+        if (fmt != 4)
+            continue; // Only format 4 is supported
+
+        int priority;
+        if (platformID == 3 && platEncID == 1)
+            priority = 3; // Windows Unicode BMP - preferred
+        else if (platformID == 0 && (platEncID == 3 || platEncID == 4))
+            priority = 2; // Unicode BMP
+        else if (platformID == 0)
+            priority = 1; // Other Unicode
+        else if (platformID == 1 && platEncID == 0)
+            priority = 0; // Mac Roman fallback
+        else
+            continue;
+
+        if (priority > best_priority) {
+            best_priority = priority;
+            best_subtable = sub;
+        }
+    }
+    if (!best_subtable)
+        return 0;
+
+    // Parse format 4 cmap subtable
+    size_t sub_off = (size_t)(best_subtable - cmap);
+    if (sub_off + 14 > cmap_len)
+        return 0;
+    uint16_t segCountX2 = ttf_be16(best_subtable + 6);
+    uint16_t segCount = segCountX2 / 2;
+    const uint8_t *endCounts = best_subtable + 14;
+    const uint8_t *startCounts = endCounts + segCountX2 + 2;
+    const uint8_t *idDeltas = startCounts + segCountX2;
+    const uint8_t *idRangeOffsets = idDeltas + segCountX2;
+
+    // Bounds-check the segment arrays
+    if (sub_off + 14 + (size_t)segCountX2 * 4 + 2 > cmap_len)
+        return 0;
+
+    for (uint16_t i = 0; i < segCount; i++) {
+        uint16_t endCount = ttf_be16(endCounts + (size_t)i * 2);
+        if (unicode > endCount)
+            continue;
+        uint16_t startCount = ttf_be16(startCounts + (size_t)i * 2);
+        if (unicode < startCount)
+            return 0; // No segment covers this codepoint
+        int16_t idDelta = ttf_bes16(idDeltas + (size_t)i * 2);
+        uint16_t idRangeOffset = ttf_be16(idRangeOffsets + (size_t)i * 2);
+
+        uint16_t glyphId;
+        if (idRangeOffset == 0) {
+            glyphId = (uint16_t)((unicode + (uint32_t)(uint16_t)idDelta) &
+                                 0xFFFFu);
+        } else {
+            // Per the spec: *(idRangeOffset[i]/2 + (c-startCount[i]) +
+            //               &idRangeOffset[i])
+            const uint8_t *ptr = idRangeOffsets + (size_t)i * 2 +
+                                 idRangeOffset +
+                                 (size_t)(unicode - startCount) * 2;
+            if (ptr < cmap || ptr + 2 > cmap + cmap_len)
+                return 0;
+            glyphId = ttf_be16(ptr);
+            if (glyphId == 0)
+                return 0;
+            glyphId = (uint16_t)((glyphId + (uint32_t)(uint16_t)idDelta) &
+                                 0xFFFFu);
+        }
+        return glyphId;
+    }
+    return 0;
+}
+
+// Get the advance width of a glyph from the hmtx table.
+static uint16_t ttf_hmtx_advance(const uint8_t *hmtx, size_t hmtx_len,
+                                  uint16_t glyph_id, uint16_t num_h_metrics)
+{
+    if (!hmtx || num_h_metrics == 0)
+        return 0;
+    if (glyph_id < num_h_metrics) {
+        size_t offset = (size_t)glyph_id * 4;
+        if (offset + 2 > hmtx_len)
+            return 0;
+        return ttf_be16(hmtx + offset);
+    }
+    // Glyphs past numberOfHMetrics share the last advance width
+    size_t offset = (size_t)(num_h_metrics - 1) * 4;
+    if (offset + 2 > hmtx_len)
+        return 0;
+    return ttf_be16(hmtx + offset);
+}
+
+// Extract the PostScript name (nameID 6) from the TTF 'name' table.
+static void ttf_extract_name(const uint8_t *name_table, size_t table_len,
+                              char *out, size_t out_len)
+{
+    if (!out || out_len == 0)
+        return;
+    out[0] = '\0';
+    if (!name_table || table_len < 6)
+        return;
+    uint16_t count = ttf_be16(name_table + 2);
+    uint16_t stringOffset = ttf_be16(name_table + 4);
+
+    for (uint16_t i = 0; i < count; i++) {
+        size_t rec_off = 6 + (size_t)i * 12;
+        if (rec_off + 12 > table_len)
+            break;
+        const uint8_t *rec = name_table + rec_off;
+        uint16_t platformID = ttf_be16(rec);
+        uint16_t nameID = ttf_be16(rec + 6);
+        uint16_t length = ttf_be16(rec + 8);
+        uint16_t offset = ttf_be16(rec + 10);
+        if (nameID != 6) // Only the PostScript name (ID 6)
+            continue;
+        size_t str_off = stringOffset + offset;
+        if (str_off + length > table_len)
+            continue;
+        const uint8_t *str = name_table + str_off;
+        if (platformID == 3) {
+            // Windows UTF-16 BE: extract only ASCII characters
+            size_t ascii_len = 0;
+            for (uint16_t j = 0;
+                 j + 1 < length && ascii_len < out_len - 1; j += 2) {
+                uint16_t cp = ttf_be16(str + j);
+                if (cp < 128)
+                    out[ascii_len++] = (char)cp;
+            }
+            out[ascii_len] = '\0';
+            if (ascii_len > 0)
+                return;
+        } else if (platformID == 1) {
+            // Mac Roman: ASCII-compatible
+            size_t copy_len =
+                length < out_len - 1 ? length : out_len - 1;
+            memcpy(out, str, copy_len);
+            out[copy_len] = '\0';
+            return;
+        }
+    }
+}
+
 // PDF standard fonts
 static const char *valid_fonts[] = {
     "Times-Roman",
@@ -233,6 +454,7 @@ enum {
     OBJ_info,
     OBJ_stream,
     OBJ_font,
+    OBJ_font_descriptor,
     OBJ_page,
     OBJ_bookmark,
     OBJ_outline,
@@ -288,7 +510,22 @@ struct pdf_object {
         struct {
             char name[64];
             int index;
+            bool is_ttf;
+            uint16_t *widths;     // TTF: 256 advance widths scaled for internal use
+            int units_per_em;     // TTF: units per em from head table
+            int descriptor_index; // TTF: index of OBJ_font_descriptor object
         } font;
+        struct {
+            char font_name[64];
+            int flags;
+            float bbox[4];       // [xmin, ymin, xmax, ymax] in 1000/em units
+            float italic_angle;
+            float ascent;
+            float descent;
+            float cap_height;
+            float stem_v;
+            int font_file_index; // index of stream object with embedded font
+        } font_descriptor;
         struct {
             struct pdf_object *page; /* Page containing link */
             float llx;               /* Clickable rectangle */
@@ -665,6 +902,9 @@ static void pdf_object_destroy(struct pdf_object *object)
     case OBJ_image:
         dstr_free(&object->stream.stream);
         break;
+    case OBJ_font:
+        free(object->font.widths);
+        break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
         flexarray_clear(&object->page.annotations);
@@ -884,6 +1124,268 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font)
 
     pdf->current_font = obj;
 
+    return 0;
+}
+
+int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
+{
+    FILE *fp;
+    uint8_t *font_data;
+    size_t font_data_len;
+    struct pdf_object *font_obj, *descriptor_obj, *stream_obj;
+    int last_font_index = 0;
+    uint32_t sfVersion;
+    uint32_t head_len = 0, hhea_len = 0, hmtx_len = 0;
+    uint32_t cmap_len = 0, os2_len = 0, post_len = 0, name_len = 0;
+    const uint8_t *head, *hhea, *hmtx, *cmap, *os2, *post, *name_table;
+    uint16_t units_per_em, numberOfHMetrics;
+    int16_t xMin, yMin, xMax, yMax;
+    uint16_t macStyle;
+    int16_t ascender, descender;
+    int16_t cap_height_val, ascender_os2, descender_os2;
+    uint16_t fs_selection;
+    float ascent, descent, cap_height, italic_angle, stem_v;
+    int flags;
+    char font_name[64];
+    uint16_t *widths;
+    struct stat st;
+
+    fp = fopen(path, "rb");
+    if (!fp)
+        return pdf_set_err(pdf, -errno,
+                           "Unable to open font file '%s': %s", path,
+                           strerror(errno));
+
+    if (fstat(fileno(fp), &st) < 0) {
+        fclose(fp);
+        return pdf_set_err(pdf, -errno,
+                           "Unable to stat font file '%s': %s", path,
+                           strerror(errno));
+    }
+    font_data_len = (size_t)st.st_size;
+    font_data = (uint8_t *)malloc(font_data_len);
+    if (!font_data) {
+        fclose(fp);
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to allocate %zu bytes for font '%s'",
+                           font_data_len, path);
+    }
+    if (fread(font_data, 1, font_data_len, fp) != font_data_len) {
+        free(font_data);
+        fclose(fp);
+        return pdf_set_err(pdf, -EIO, "Unable to read font file '%s'", path);
+    }
+    fclose(fp);
+
+    if (font_data_len < 12) {
+        free(font_data);
+        return pdf_set_err(pdf, -EINVAL,
+                           "Font file '%s' is too small to be a TrueType font",
+                           path);
+    }
+    sfVersion = ttf_be32(font_data);
+    // TrueType fonts have sfVersion 0x00010000 or 'true' (0x74727565)
+    if (sfVersion != 0x00010000u && sfVersion != 0x74727565u) {
+        free(font_data);
+        return pdf_set_err(
+            pdf, -EINVAL,
+            "File '%s' is not a TrueType font (version 0x%08x)", path,
+            sfVersion);
+    }
+
+    head = ttf_find_table(font_data, font_data_len, "head", &head_len);
+    hhea = ttf_find_table(font_data, font_data_len, "hhea", &hhea_len);
+    hmtx = ttf_find_table(font_data, font_data_len, "hmtx", &hmtx_len);
+    cmap = ttf_find_table(font_data, font_data_len, "cmap", &cmap_len);
+    os2 = ttf_find_table(font_data, font_data_len, "OS/2", &os2_len);
+    post = ttf_find_table(font_data, font_data_len, "post", &post_len);
+    name_table =
+        ttf_find_table(font_data, font_data_len, "name", &name_len);
+
+    if (!head || head_len < 54 || !hhea || hhea_len < 36 || !hmtx ||
+        !cmap) {
+        free(font_data);
+        return pdf_set_err(pdf, -EINVAL,
+                           "Font '%s' is missing required TrueType tables",
+                           path);
+    }
+
+    // Parse head table
+    units_per_em = ttf_be16(head + 18);
+    xMin = ttf_bes16(head + 36);
+    yMin = ttf_bes16(head + 38);
+    xMax = ttf_bes16(head + 40);
+    yMax = ttf_bes16(head + 42);
+    macStyle = ttf_be16(head + 44);
+    if (units_per_em == 0) {
+        free(font_data);
+        return pdf_set_err(pdf, -EINVAL,
+                           "Font '%s' has zero units_per_em", path);
+    }
+
+    // Parse hhea table
+    ascender = ttf_bes16(hhea + 4);
+    descender = ttf_bes16(hhea + 6);
+    numberOfHMetrics = ttf_be16(hhea + 34);
+
+    // Parse OS/2 table (optional, provides better metrics when available)
+    cap_height_val = 0;
+    ascender_os2 = 0;
+    descender_os2 = 0;
+    fs_selection = 0;
+    if (os2 && os2_len >= 78) {
+        uint16_t os2_version = ttf_be16(os2);
+        fs_selection = ttf_be16(os2 + 62);
+        ascender_os2 = ttf_bes16(os2 + 68);  // sTypoAscender
+        descender_os2 = ttf_bes16(os2 + 70); // sTypoDescender
+        if (os2_version >= 2 && os2_len >= 90)
+            cap_height_val = ttf_bes16(os2 + 88); // sCapHeight
+    }
+
+    // Compute ascent, descent, cap height in PDF units (1000/em)
+    ascent = (float)(ascender_os2 != 0 ? ascender_os2 : ascender) *
+             1000.0f / (float)units_per_em;
+    descent = (float)(descender_os2 != 0 ? descender_os2 : descender) *
+              1000.0f / (float)units_per_em;
+    cap_height = cap_height_val != 0
+                     ? (float)cap_height_val * 1000.0f / (float)units_per_em
+                     : ascent * 0.7f;
+
+    // Parse post table for italic angle (16.16 fixed-point)
+    italic_angle = 0.0f;
+    if (post && post_len >= 12) {
+        int32_t ia_fixed = (int32_t)ttf_be32(post + 4);
+        italic_angle = (float)ia_fixed / 65536.0f;
+    }
+
+    // Compute font descriptor flags
+    // Bit 6 (value 32): Nonsymbolic -- standard latin font
+    // Bit 7 (value 64): Italic
+    // Bit 1 (value  1): FixedPitch
+    flags = 32; // Nonsymbolic
+    if ((macStyle & 2u) || (fs_selection & 1u) || italic_angle != 0.0f)
+        flags |= 64; // Italic
+    if (post && post_len >= 16 && ttf_be32(post + 12))
+        flags |= 1; // FixedPitch
+
+    // Approximate StemV (vertical stem width) from weight
+    stem_v = (macStyle & 1u) ? 120.0f : 80.0f;
+
+    // Extract PostScript name from the name table, fall back to filename
+    font_name[0] = '\0';
+    if (name_table && name_len > 0)
+        ttf_extract_name(name_table, (size_t)name_len, font_name,
+                         sizeof(font_name));
+    if (font_name[0] == '\0') {
+        const char *base = strrchr(path, '/');
+        base = base ? base + 1 : path;
+        strncpy(font_name, base, sizeof(font_name) - 1);
+        font_name[sizeof(font_name) - 1] = '\0';
+        char *dot = strrchr(font_name, '.');
+        if (dot)
+            *dot = '\0';
+    }
+
+    // Check whether this TTF font has already been loaded (reuse if so)
+    for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_font);
+         obj; obj = obj->next) {
+        if (obj->font.is_ttf && strcmp(obj->font.name, font_name) == 0) {
+            free(font_data);
+            pdf->current_font = obj;
+            return 0;
+        }
+        last_font_index = obj->font.index;
+    }
+
+    // Build the widths array (256 entries) for WinAnsiEncoding.
+    // Widths are stored in the same scale as the built-in font tables:
+    //   stored_width = ttf_advance * 14 * 72 / units_per_em
+    // so that pdf_text_point_width()'s formula (widths * size / (14*72))
+    // yields the correct result in points.
+    widths = (uint16_t *)calloc(256, sizeof(uint16_t));
+    if (!widths) {
+        free(font_data);
+        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate font widths");
+    }
+    for (int c = 0; c < 256; c++) {
+        uint32_t unicode = win1252_to_unicode((uint8_t)c);
+        uint16_t glyph_id = 0;
+        uint16_t advance;
+        if (unicode != 0)
+            glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, unicode);
+        if (glyph_id == 0)
+            glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, 0x20u);
+        advance =
+            ttf_hmtx_advance(hmtx, (size_t)hmtx_len, glyph_id,
+                             numberOfHMetrics);
+        widths[c] = (uint16_t)((unsigned)advance * 14u * 72u /
+                               (unsigned)units_per_em);
+    }
+
+    // Create the embedded font file stream
+    stream_obj = pdf_add_object(pdf, OBJ_stream);
+    if (!stream_obj) {
+        free(widths);
+        free(font_data);
+        return pdf->errval;
+    }
+    dstr_printf(&stream_obj->stream.stream,
+                "<<\r\n"
+                "  /Length %zu\r\n"
+                "  /Length1 %zu\r\n"
+                ">>stream\r\n",
+                font_data_len, font_data_len);
+    if (dstr_append_data(&stream_obj->stream.stream, font_data,
+                         font_data_len) < 0) {
+        free(widths);
+        free(font_data);
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to allocate font stream data");
+    }
+    dstr_append(&stream_obj->stream.stream, "\r\nendstream\r\n");
+    free(font_data);
+
+    // Create the font descriptor object
+    descriptor_obj = pdf_add_object(pdf, OBJ_font_descriptor);
+    if (!descriptor_obj) {
+        free(widths);
+        return pdf->errval;
+    }
+    strncpy(descriptor_obj->font_descriptor.font_name, font_name,
+            sizeof(descriptor_obj->font_descriptor.font_name) - 1);
+    descriptor_obj->font_descriptor.font_name
+        [sizeof(descriptor_obj->font_descriptor.font_name) - 1] = '\0';
+    descriptor_obj->font_descriptor.flags = flags;
+    descriptor_obj->font_descriptor.bbox[0] =
+        (float)xMin * 1000.0f / (float)units_per_em;
+    descriptor_obj->font_descriptor.bbox[1] =
+        (float)yMin * 1000.0f / (float)units_per_em;
+    descriptor_obj->font_descriptor.bbox[2] =
+        (float)xMax * 1000.0f / (float)units_per_em;
+    descriptor_obj->font_descriptor.bbox[3] =
+        (float)yMax * 1000.0f / (float)units_per_em;
+    descriptor_obj->font_descriptor.italic_angle = italic_angle;
+    descriptor_obj->font_descriptor.ascent = ascent;
+    descriptor_obj->font_descriptor.descent = descent;
+    descriptor_obj->font_descriptor.cap_height = cap_height;
+    descriptor_obj->font_descriptor.stem_v = stem_v;
+    descriptor_obj->font_descriptor.font_file_index = stream_obj->index;
+
+    // Create the font dictionary object
+    font_obj = pdf_add_object(pdf, OBJ_font);
+    if (!font_obj) {
+        free(widths);
+        return pdf->errval;
+    }
+    strncpy(font_obj->font.name, font_name, sizeof(font_obj->font.name) - 1);
+    font_obj->font.name[sizeof(font_obj->font.name) - 1] = '\0';
+    font_obj->font.index = last_font_index + 1;
+    font_obj->font.is_ttf = true;
+    font_obj->font.widths = widths;
+    font_obj->font.units_per_em = units_per_em;
+    font_obj->font.descriptor_index = descriptor_obj->index;
+
+    pdf->current_font = font_obj;
     return 0;
 }
 
@@ -1154,14 +1656,65 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_font:
+        if (object->font.is_ttf) {
+            fprintf(fp,
+                    "<<\r\n"
+                    "  /Type /Font\r\n"
+                    "  /Subtype /TrueType\r\n"
+                    "  /BaseFont /%s\r\n"
+                    "  /FirstChar 32\r\n"
+                    "  /LastChar 255\r\n"
+                    "  /Encoding /WinAnsiEncoding\r\n"
+                    "  /FontDescriptor %d 0 R\r\n"
+                    "  /Widths [",
+                    object->font.name, object->font.descriptor_index);
+            for (int c = 32; c <= 255; c++) {
+                // Convert internal width (scaled by 14*72) to PDF width
+                // (thousandths of em)
+                int pdf_width =
+                    (int)((float)object->font.widths[c] * 1000.0f /
+                          (14.0f * 72.0f));
+                fprintf(fp, " %d", pdf_width);
+            }
+            fprintf(fp, " ]\r\n>>\r\n");
+        } else {
+            fprintf(fp,
+                    "<<\r\n"
+                    "  /Type /Font\r\n"
+                    "  /Subtype /Type1\r\n"
+                    "  /BaseFont /%s\r\n"
+                    "  /Encoding /WinAnsiEncoding\r\n"
+                    ">>\r\n",
+                    object->font.name);
+        }
+        break;
+
+    case OBJ_font_descriptor:
         fprintf(fp,
                 "<<\r\n"
-                "  /Type /Font\r\n"
-                "  /Subtype /Type1\r\n"
-                "  /BaseFont /%s\r\n"
-                "  /Encoding /WinAnsiEncoding\r\n"
+                "  /Type /FontDescriptor\r\n"
+                "  /FontName /%s\r\n"
+                "  /Flags %d\r\n"
+                "  /FontBBox [%g %g %g %g]\r\n"
+                "  /ItalicAngle %g\r\n"
+                "  /Ascent %g\r\n"
+                "  /Descent %g\r\n"
+                "  /CapHeight %g\r\n"
+                "  /StemV %g\r\n"
+                "  /FontFile2 %d 0 R\r\n"
                 ">>\r\n",
-                object->font.name);
+                object->font_descriptor.font_name,
+                object->font_descriptor.flags,
+                object->font_descriptor.bbox[0],
+                object->font_descriptor.bbox[1],
+                object->font_descriptor.bbox[2],
+                object->font_descriptor.bbox[3],
+                object->font_descriptor.italic_angle,
+                object->font_descriptor.ascent,
+                object->font_descriptor.descent,
+                object->font_descriptor.cap_height,
+                object->font_descriptor.stem_v,
+                object->font_descriptor.font_file_index);
         break;
 
     case OBJ_pages: {
@@ -1956,6 +2509,18 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
         font_name = pdf->current_font->font.name;
     const uint16_t *widths = find_font_widths(font_name);
 
+    if (!widths) {
+        // Check TTF fonts loaded into this document
+        for (const struct pdf_object *obj =
+                 pdf_find_first_object(pdf, OBJ_font);
+             obj; obj = obj->next) {
+            if (obj->font.is_ttf &&
+                strcmp(obj->font.name, font_name) == 0) {
+                widths = obj->font.widths;
+                break;
+            }
+        }
+    }
     if (!widths)
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to determine width for font '%s'",
@@ -1990,6 +2555,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
     float orig_yoff = yoff;
 
     widths = find_font_widths(pdf->current_font->font.name);
+    if (!widths && pdf->current_font->font.is_ttf)
+        widths = pdf->current_font->font.widths;
     if (!widths)
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to determine width for font '%s'",

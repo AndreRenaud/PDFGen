@@ -285,6 +285,52 @@ int main(int argc, char *argv[])
     }
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
+    // Test TrueType font embedding (if a font file is available)
+    {
+        const char *ttf_path =
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
+        FILE *check = fopen(ttf_path, "rb");
+        if (check) {
+            fclose(check);
+            pdf_append_page(pdf);
+            pdf_add_bookmark(pdf, NULL, -1, "TrueType Font Page");
+            if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
+                fprintf(stderr, "Failed to load TTF font: %s\n",
+                        pdf_get_err(pdf, &err));
+                pdf_destroy(pdf);
+                return -1;
+            }
+            pdf_add_text(pdf, NULL, "This text uses an embedded TrueType font.",
+                         14, 50, 750, PDF_BLACK);
+            pdf_add_text(pdf, NULL, "The quick brown fox jumps over the lazy dog.",
+                         12, 50, 720, PDF_RGB(0, 0, 0x80));
+            pdf_add_text(pdf, NULL,
+                         "Special chars: \xc3\xa9\xc3\xa0\xc3\xbc (UTF-8)", 12,
+                         50, 690, PDF_BLACK);
+            // Verify text width calculation works for TTF fonts
+            if (pdf_get_font_text_width(pdf, NULL, "Hello", 12, &width) < 0) {
+                fprintf(stderr, "TTF font width failed\n");
+                pdf_destroy(pdf);
+                return -1;
+            }
+            if (width <= 0) {
+                fprintf(stderr, "TTF font width unexpectedly zero\n");
+                pdf_destroy(pdf);
+                return -1;
+            }
+            // Reload the same font (should reuse the existing object)
+            if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
+                fprintf(stderr, "Failed to reload TTF font\n");
+                pdf_destroy(pdf);
+                return -1;
+            }
+            pdf_add_text(pdf, NULL, "Second line in same TrueType font.", 12,
+                         50, 660, PDF_BLACK);
+            // Switch back to a standard font
+            pdf_set_font(pdf, "Times-Roman");
+        }
+    }
+
     pdf_save(pdf, "output.pdf");
 
     const char *err_str = pdf_get_err(pdf, &err);
