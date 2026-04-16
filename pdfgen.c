@@ -4587,7 +4587,9 @@ int pdf_add_radio_button(struct pdf_doc *pdf, struct pdf_object *page,
         group->form_field.name[sizeof(group->form_field.name) - 1] = '\0';
     }
 
-    /* Selected appearance: filled circle (approximated with Bezier curves) */
+    /* Selected appearance: filled circle (approximated with Bezier curves).
+     * 0.5523 is the Bezier control-point distance constant (≈ 4/3*(√2-1))
+     * that makes four cubic segments approximate a full circle. */
     char on_content[512];
     float cx = width / 2.0f;
     float cy = height / 2.0f;
@@ -4639,8 +4641,19 @@ int pdf_add_radio_button(struct pdf_doc *pdf, struct pdf_object *page,
     kid->form_field.on_appearance = on_ap;
     kid->form_field.off_appearance = off_ap;
 
-    /* If this button is selected, update the group's current value */
+    /* If this button is selected, ensure no other button in the group
+     * is already selected (enforce single-selection invariant) and
+     * update the group's current value. */
     if (selected) {
+        for (int i = 0; i < flexarray_size(&group->form_field.kids); i++) {
+            struct pdf_object *existing = (struct pdf_object *)flexarray_get(
+                &group->form_field.kids, i);
+            if (existing->form_field.checked)
+                return pdf_set_err(
+                    pdf, -EINVAL,
+                    "Radio group '%s' already has a selected button",
+                    radio_group_name);
+        }
         strncpy(group->form_field.value, option_name,
                 sizeof(group->form_field.value) - 1);
         group->form_field.value[sizeof(group->form_field.value) - 1] = '\0';
