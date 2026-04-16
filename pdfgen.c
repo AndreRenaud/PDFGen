@@ -1311,13 +1311,24 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
         uint32_t unicode = win1252_to_unicode((uint8_t)c);
         uint16_t glyph_id = 0;
         uint16_t advance;
-        if (unicode != 0)
-            glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, unicode);
-        if (glyph_id == 0)
+        // Undefined Win1252 codepoints get zero width
+        if (unicode == 0) {
+            widths[c] = 0;
+            continue;
+        }
+        glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, unicode);
+        if (glyph_id == 0) {
+            // Missing glyph: fall back to the space glyph width so that
+            // text layout remains sensible even for unmapped characters
             glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, 0x20u);
+        }
         advance =
             ttf_hmtx_advance(hmtx, (size_t)hmtx_len, glyph_id,
                              numberOfHMetrics);
+        // Store width scaled to match the built-in width tables so that
+        // pdf_text_point_width()'s formula (width * size / (14 * 72)) gives
+        // correct point widths.  TTF advance / units_per_em = fraction of em,
+        // and (14 * 72) converts that to the internal scale used everywhere.
         widths[c] = (uint16_t)((unsigned)advance * 14u * 72u /
                                (unsigned)units_per_em);
     }

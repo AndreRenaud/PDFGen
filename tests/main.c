@@ -305,8 +305,8 @@ int main(int argc, char *argv[])
             pdf_add_text(pdf, NULL, "The quick brown fox jumps over the lazy dog.",
                          12, 50, 720, PDF_RGB(0, 0, 0x80));
             pdf_add_text(pdf, NULL,
-                         "Special chars: \xc3\xa9\xc3\xa0\xc3\xbc (UTF-8)", 12,
-                         50, 690, PDF_BLACK);
+                         "Latin-1 chars: \xc3\xa9\xc3\xa0\xc3\xbc (UTF-8 encoded, WinAnsi rendered)",
+                         12, 50, 690, PDF_BLACK);
             // Verify text width calculation works for TTF fonts
             if (pdf_get_font_text_width(pdf, NULL, "Hello", 12, &width) < 0) {
                 fprintf(stderr, "TTF font width failed\n");
