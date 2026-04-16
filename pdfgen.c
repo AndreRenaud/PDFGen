@@ -4068,8 +4068,7 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (header->bfOffBits >= len)
         return pdf_set_err(pdf, -EINVAL, "Invalid BMP image offset");
 
-    if (len - header->bfOffBits <
-        (size_t)height * stride)
+    if (len - header->bfOffBits < (size_t)height * stride)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
 
     if (bpp == 3) {
@@ -4079,8 +4078,8 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
             return pdf_set_err(pdf, -ENOMEM,
                                "Insufficient memory for bitmap");
         for (uint32_t pos = 0; pos < width * height; pos++) {
-            uint32_t src_pos =
-                header->bfOffBits + (pos / width) * stride + (pos % width) * 3;
+            uint32_t src_pos = header->bfOffBits + (pos / width) * stride +
+                               (pos % width) * 3;
 
             bmp_data[pos * 3] = data[src_pos + 2];
             bmp_data[pos * 3 + 1] = data[src_pos + 1];
