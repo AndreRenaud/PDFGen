@@ -658,6 +658,8 @@ static int pdf_append_object(struct pdf_doc *pdf, struct pdf_object *obj)
 
 static void pdf_object_destroy(struct pdf_object *object)
 {
+    if (!object)
+        return;
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
@@ -947,6 +949,16 @@ static int pdf_get_bookmark_count(const struct pdf_object *obj)
     return count;
 }
 
+static void pdf_print_escaped_string(FILE *fp, const char *str)
+{
+    while (*str) {
+        if (*str == '(' || *str == ')' || *str == '\\')
+            fputc('\\', fp);
+        fputc(*str, fp);
+        str++;
+    }
+}
+
 static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 {
     struct pdf_object *object = pdf_get_object(pdf, index);
@@ -971,18 +983,36 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         struct pdf_info *info = object->info;
 
         fprintf(fp, "<<\r\n");
-        if (info->creator[0])
-            fprintf(fp, "  /Creator (%s)\r\n", info->creator);
-        if (info->producer[0])
-            fprintf(fp, "  /Producer (%s)\r\n", info->producer);
-        if (info->title[0])
-            fprintf(fp, "  /Title (%s)\r\n", info->title);
-        if (info->author[0])
-            fprintf(fp, "  /Author (%s)\r\n", info->author);
-        if (info->subject[0])
-            fprintf(fp, "  /Subject (%s)\r\n", info->subject);
-        if (info->date[0])
-            fprintf(fp, "  /CreationDate (D:%s)\r\n", info->date);
+        if (info->creator[0]) {
+            fprintf(fp, "  /Creator (");
+            pdf_print_escaped_string(fp, info->creator);
+            fprintf(fp, ")\r\n");
+        }
+        if (info->producer[0]) {
+            fprintf(fp, "  /Producer (");
+            pdf_print_escaped_string(fp, info->producer);
+            fprintf(fp, ")\r\n");
+        }
+        if (info->title[0]) {
+            fprintf(fp, "  /Title (");
+            pdf_print_escaped_string(fp, info->title);
+            fprintf(fp, ")\r\n");
+        }
+        if (info->author[0]) {
+            fprintf(fp, "  /Author (");
+            pdf_print_escaped_string(fp, info->author);
+            fprintf(fp, ")\r\n");
+        }
+        if (info->subject[0]) {
+            fprintf(fp, "  /Subject (");
+            pdf_print_escaped_string(fp, info->subject);
+            fprintf(fp, ")\r\n");
+        }
+        if (info->date[0]) {
+            fprintf(fp, "  /CreationDate (D:");
+            pdf_print_escaped_string(fp, info->date);
+            fprintf(fp, ")\r\n");
+        }
         fprintf(fp, ">>\r\n");
         break;
     }
@@ -1063,9 +1093,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "<<\r\n"
                 "  /Dest [%d 0 R /XYZ 0 %f null]\r\n"
                 "  /Parent %d 0 R\r\n"
-                "  /Title (%s)\r\n",
-                object->bookmark.page->index, pdf->height, parent->index,
-                object->bookmark.name);
+                "  /Title (",
+                object->bookmark.page->index, pdf->height, parent->index);
+        pdf_print_escaped_string(fp, object->bookmark.name);
+        fprintf(fp, ")\r\n");
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
             struct pdf_object *f, *l;
@@ -3454,8 +3485,11 @@ static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
     if (*pos >= len)
         return 0;
 
+    if (line_len == 0)
+        return 0;
+
     while ((*pos) < len) {
-        if (line_pos < line_len) {
+        if (line_pos < line_len - 1) {
             // Reject non-ascii data
             if (data[*pos] & 0x80) {
                 return 0;
@@ -3470,9 +3504,7 @@ static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
         (*pos)++;
     }
 
-    if (line_pos < line_len) {
-        line[line_pos] = '\0';
-    }
+    line[line_pos] = '\0';
 
     return *pos;
 }
