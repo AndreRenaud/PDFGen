@@ -53,7 +53,7 @@ run "check barcode Code 128" grep -q "CODE-128:Code128" output-barcodes.txt
 run "check barcode CODE 39" grep -q "CODE-39:CODE39" output-barcodes.txt
 
 # Check for pdftk meta data
-run "check page count" grep -q "NumberOfPages: 5$" output.pdftk
+run "check page count" grep -q "NumberOfPages: 6$" output.pdftk
 run "check bookmarks" grep -q "BookmarkTitle: First page$" output.pdftk
 run "check for subject" grep -q "InfoValue: My subject$" output.pdftk
 

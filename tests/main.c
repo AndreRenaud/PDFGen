@@ -285,6 +285,68 @@ int main(int argc, char *argv[])
     }
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
+    /* Page 6: Form fields */
+    pdf_append_page(pdf);
+    pdf_add_bookmark(pdf, NULL, -1, "Form Page");
+
+    pdf_add_text(pdf, NULL, "PDF Forms Demo", 16, 50, 780, PDF_BLACK);
+
+    /* Text field */
+    pdf_add_text(pdf, NULL, "Name:", 12, 50, 740, PDF_BLACK);
+    err = pdf_add_text_field(pdf, NULL, 120, 730, 200, 20, "name",
+                             "Enter name here", 12, PDF_BLACK);
+    if (err < 0) {
+        fprintf(stderr, "Failed to add text field: %d\n", err);
+        pdf_destroy(pdf);
+        return -1;
+    }
+
+    /* Checkbox - initially checked */
+    pdf_add_text(pdf, NULL, "Agree to terms:", 12, 50, 700, PDF_BLACK);
+    err = pdf_add_checkbox(pdf, NULL, 180, 698, 14, 14, "agree", 1);
+    if (err < 0) {
+        fprintf(stderr, "Failed to add checkbox: %d\n", err);
+        pdf_destroy(pdf);
+        return -1;
+    }
+
+    /* Checkbox - initially unchecked */
+    pdf_add_text(pdf, NULL, "Subscribe to newsletter:", 12, 50, 670,
+                 PDF_BLACK);
+    err = pdf_add_checkbox(pdf, NULL, 230, 668, 14, 14, "subscribe", 0);
+    if (err < 0) {
+        fprintf(stderr, "Failed to add checkbox: %d\n", err);
+        pdf_destroy(pdf);
+        return -1;
+    }
+
+    /* Radio buttons */
+    pdf_add_text(pdf, NULL, "Favourite colour:", 12, 50, 640, PDF_BLACK);
+    pdf_add_text(pdf, NULL, "Red", 12, 200, 640, PDF_BLACK);
+    err =
+        pdf_add_radio_button(pdf, NULL, 190, 638, 14, 14, "colour", "red", 1);
+    if (err < 0) {
+        fprintf(stderr, "Failed to add radio button: %d\n", err);
+        pdf_destroy(pdf);
+        return -1;
+    }
+    pdf_add_text(pdf, NULL, "Green", 12, 260, 640, PDF_BLACK);
+    err = pdf_add_radio_button(pdf, NULL, 250, 638, 14, 14, "colour", "green",
+                               0);
+    if (err < 0) {
+        fprintf(stderr, "Failed to add radio button: %d\n", err);
+        pdf_destroy(pdf);
+        return -1;
+    }
+    pdf_add_text(pdf, NULL, "Blue", 12, 330, 640, PDF_BLACK);
+    err = pdf_add_radio_button(pdf, NULL, 320, 638, 14, 14, "colour", "blue",
+                               0);
+    if (err < 0) {
+        fprintf(stderr, "Failed to add radio button: %d\n", err);
+        pdf_destroy(pdf);
+        return -1;
+    }
+
     pdf_save(pdf, "output.pdf");
 
     const char *err_str = pdf_get_err(pdf, &err);
