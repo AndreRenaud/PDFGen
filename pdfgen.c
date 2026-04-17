@@ -208,22 +208,6 @@ static const char png_chunk_palette[] = "PLTE";
 static const char png_chunk_data[] = "IDAT";
 static const char png_chunk_end[] = "IEND";
 
-// Windows-1252 to Unicode for the 0x80-0x9F range
-// (0x00-0x7F and 0xA0-0xFF map directly to the same Unicode codepoint)
-static const uint16_t win1252_to_unicode_table[32] = {
-    0x20AC, 0x0000, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
-    0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x0000, 0x017D, 0x0000,
-    0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
-    0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x0000, 0x017E, 0x0178,
-};
-
-static uint32_t win1252_to_unicode(uint8_t c)
-{
-    if (c >= 0x80 && c <= 0x9F)
-        return win1252_to_unicode_table[c - 0x80];
-    return c;
-}
-
 // Read big-endian values from a byte array (used for TTF parsing)
 static uint16_t ttf_be16(const uint8_t *p)
 {
@@ -266,13 +250,67 @@ static const uint8_t *ttf_find_table(const uint8_t *data, size_t data_len,
     return NULL;
 }
 
-// Look up glyph ID for a Unicode codepoint using the cmap table.
-// Supports format 4 subtables (Unicode BMP).
-static uint16_t ttf_cmap_lookup(const uint8_t *cmap, size_t cmap_len,
-                                 uint32_t unicode)
+// Look up glyph ID in a format-4 cmap subtable.
+// The `subtable` pointer must point directly to the start of a format-4
+// subtable (i.e., ttf_be16(subtable) == 4).
+static uint16_t ttf_cmap_subtable_lookup(const uint8_t *subtable,
+                                          size_t subtable_len,
+                                          uint32_t unicode)
+{
+    if (!subtable || subtable_len < 14)
+        return 0;
+
+    uint16_t segCountX2 = ttf_be16(subtable + 6);
+    uint16_t segCount = segCountX2 / 2;
+    const uint8_t *endCounts = subtable + 14;
+    const uint8_t *startCounts = endCounts + segCountX2 + 2;
+    const uint8_t *idDeltas = startCounts + segCountX2;
+    const uint8_t *idRangeOffsets = idDeltas + segCountX2;
+
+    if (14 + (size_t)segCountX2 * 4 + 2 > subtable_len)
+        return 0;
+
+    for (uint16_t i = 0; i < segCount; i++) {
+        uint16_t endCount = ttf_be16(endCounts + (size_t)i * 2);
+        if (unicode > endCount)
+            continue;
+        uint16_t startCount = ttf_be16(startCounts + (size_t)i * 2);
+        if (unicode < startCount)
+            return 0; // No segment covers this codepoint
+        int16_t idDelta = ttf_bes16(idDeltas + (size_t)i * 2);
+        uint16_t idRangeOffset = ttf_be16(idRangeOffsets + (size_t)i * 2);
+
+        uint16_t glyphId;
+        if (idRangeOffset == 0) {
+            glyphId = (uint16_t)((unicode + (uint32_t)(uint16_t)idDelta) &
+                                 0xFFFFu);
+        } else {
+            const uint8_t *ptr = idRangeOffsets + (size_t)i * 2 +
+                                 idRangeOffset +
+                                 (size_t)(unicode - startCount) * 2;
+            if (ptr < subtable || ptr + 2 > subtable + subtable_len)
+                return 0;
+            glyphId = ttf_be16(ptr);
+            if (glyphId == 0)
+                return 0;
+            glyphId = (uint16_t)((glyphId + (uint32_t)(uint16_t)idDelta) &
+                                 0xFFFFu);
+        }
+        return glyphId;
+    }
+    return 0;
+}
+
+// Find the best format-4 cmap subtable in a full cmap table.
+// Returns a pointer to the subtable start (within `cmap`), and sets
+// `*out_subtable_len` to the length given in the subtable header.
+// Returns NULL if no suitable subtable is found.
+static const uint8_t *ttf_find_cmap_subtable(const uint8_t *cmap,
+                                              size_t cmap_len,
+                                              uint16_t *out_subtable_len)
 {
     if (!cmap || cmap_len < 4)
-        return 0;
+        return NULL;
     uint16_t numTables = ttf_be16(cmap + 2);
     const uint8_t *best_subtable = NULL;
     int best_priority = -1;
@@ -285,7 +323,7 @@ static uint16_t ttf_cmap_lookup(const uint8_t *cmap, size_t cmap_len,
         uint16_t platformID = ttf_be16(rec);
         uint16_t platEncID = ttf_be16(rec + 2);
         uint32_t subtable_offset = ttf_be32(rec + 4);
-        if (subtable_offset + 2 > cmap_len)
+        if (subtable_offset + 4 > cmap_len)
             continue;
         const uint8_t *sub = cmap + subtable_offset;
         uint16_t fmt = ttf_be16(sub);
@@ -310,54 +348,10 @@ static uint16_t ttf_cmap_lookup(const uint8_t *cmap, size_t cmap_len,
         }
     }
     if (!best_subtable)
-        return 0;
-
-    // Parse format 4 cmap subtable
-    size_t sub_off = (size_t)(best_subtable - cmap);
-    if (sub_off + 14 > cmap_len)
-        return 0;
-    uint16_t segCountX2 = ttf_be16(best_subtable + 6);
-    uint16_t segCount = segCountX2 / 2;
-    const uint8_t *endCounts = best_subtable + 14;
-    const uint8_t *startCounts = endCounts + segCountX2 + 2;
-    const uint8_t *idDeltas = startCounts + segCountX2;
-    const uint8_t *idRangeOffsets = idDeltas + segCountX2;
-
-    // Bounds-check the segment arrays
-    if (sub_off + 14 + (size_t)segCountX2 * 4 + 2 > cmap_len)
-        return 0;
-
-    for (uint16_t i = 0; i < segCount; i++) {
-        uint16_t endCount = ttf_be16(endCounts + (size_t)i * 2);
-        if (unicode > endCount)
-            continue;
-        uint16_t startCount = ttf_be16(startCounts + (size_t)i * 2);
-        if (unicode < startCount)
-            return 0; // No segment covers this codepoint
-        int16_t idDelta = ttf_bes16(idDeltas + (size_t)i * 2);
-        uint16_t idRangeOffset = ttf_be16(idRangeOffsets + (size_t)i * 2);
-
-        uint16_t glyphId;
-        if (idRangeOffset == 0) {
-            glyphId = (uint16_t)((unicode + (uint32_t)(uint16_t)idDelta) &
-                                 0xFFFFu);
-        } else {
-            // Per the spec: *(idRangeOffset[i]/2 + (c-startCount[i]) +
-            //               &idRangeOffset[i])
-            const uint8_t *ptr = idRangeOffsets + (size_t)i * 2 +
-                                 idRangeOffset +
-                                 (size_t)(unicode - startCount) * 2;
-            if (ptr < cmap || ptr + 2 > cmap + cmap_len)
-                return 0;
-            glyphId = ttf_be16(ptr);
-            if (glyphId == 0)
-                return 0;
-            glyphId = (uint16_t)((glyphId + (uint32_t)(uint16_t)idDelta) &
-                                 0xFFFFu);
-        }
-        return glyphId;
-    }
-    return 0;
+        return NULL;
+    if (out_subtable_len)
+        *out_subtable_len = ttf_be16(best_subtable + 2);
+    return best_subtable;
 }
 
 // Get the advance width of a glyph from the hmtx table.
@@ -455,6 +449,7 @@ enum {
     OBJ_stream,
     OBJ_font,
     OBJ_font_descriptor,
+    OBJ_cid_font,
     OBJ_page,
     OBJ_bookmark,
     OBJ_outline,
@@ -511,10 +506,23 @@ struct pdf_object {
             char name[64];
             int index;
             bool is_ttf;
-            uint16_t *widths;     // TTF: 256 advance widths scaled for internal use
-            int units_per_em;     // TTF: units per em from head table
-            int descriptor_index; // TTF: index of OBJ_font_descriptor object
+            // TTF: raw table copies kept for glyph lookups at text-add time
+            uint8_t *cmap_data;     // copy of best format-4 cmap subtable
+            uint32_t cmap_data_len;
+            uint8_t *hmtx_data;     // copy of hmtx table
+            uint32_t hmtx_data_len;
+            uint16_t num_h_metrics; // from hhea
+            int units_per_em;       // from head
+            int descriptor_index;   // index of OBJ_font_descriptor
+            int cid_font_index;     // index of OBJ_cid_font descendant
         } font;
+        struct {
+            char font_name[64];
+            int descriptor_index; // index of OBJ_font_descriptor
+            int default_width;    // /DW: PDF width (thousandths/em) for unlisted glyphs
+            uint16_t *glyph_widths; // per-glyph PDF width; num_h_metrics entries
+            uint16_t num_h_metrics;
+        } cid_font;
         struct {
             char font_name[64];
             int flags;
@@ -903,7 +911,11 @@ static void pdf_object_destroy(struct pdf_object *object)
         dstr_free(&object->stream.stream);
         break;
     case OBJ_font:
-        free(object->font.widths);
+        free(object->font.cmap_data);
+        free(object->font.hmtx_data);
+        break;
+    case OBJ_cid_font:
+        free(object->cid_font.glyph_widths);
         break;
     case OBJ_page:
         flexarray_clear(&object->page.children);
@@ -1132,7 +1144,7 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     FILE *fp;
     uint8_t *font_data;
     size_t font_data_len;
-    struct pdf_object *font_obj, *descriptor_obj, *stream_obj;
+    struct pdf_object *font_obj, *descriptor_obj, *stream_obj, *cid_obj;
     int last_font_index = 0;
     uint32_t sfVersion;
     uint32_t head_len = 0, hhea_len = 0, hmtx_len = 0;
@@ -1147,7 +1159,6 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     float ascent, descent, cap_height, italic_angle, stem_v;
     int flags;
     char font_name[64];
-    uint16_t *widths;
     struct stat st;
 
     fp = fopen(path, "rb");
@@ -1297,46 +1308,73 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
         last_font_index = obj->font.index;
     }
 
-    // Build the widths array (256 entries) for WinAnsiEncoding.
-    // Widths are stored in the same scale as the built-in font tables:
-    //   stored_width = ttf_advance * 14 * 72 / units_per_em
-    // so that pdf_text_point_width()'s formula (widths * size / (14*72))
-    // yields the correct result in points.
-    widths = (uint16_t *)calloc(256, sizeof(uint16_t));
-    if (!widths) {
+    // Find the best cmap format-4 subtable and make a copy for runtime lookups
+    uint16_t cmap_subtable_len = 0;
+    const uint8_t *cmap_subtable =
+        ttf_find_cmap_subtable(cmap, (size_t)cmap_len, &cmap_subtable_len);
+    if (!cmap_subtable) {
         free(font_data);
-        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate font widths");
+        return pdf_set_err(pdf, -EINVAL,
+                           "Font '%s' has no usable cmap subtable", path);
     }
-    for (int c = 0; c < 256; c++) {
-        uint32_t unicode = win1252_to_unicode((uint8_t)c);
-        uint16_t glyph_id = 0;
-        uint16_t advance;
-        // Undefined Win1252 codepoints get zero width
-        if (unicode == 0) {
-            widths[c] = 0;
-            continue;
-        }
-        glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, unicode);
-        if (glyph_id == 0) {
-            // Missing glyph: fall back to the space glyph width so that
-            // text layout remains sensible even for unmapped characters
-            glyph_id = ttf_cmap_lookup(cmap, (size_t)cmap_len, 0x20u);
-        }
-        advance =
-            ttf_hmtx_advance(hmtx, (size_t)hmtx_len, glyph_id,
-                             numberOfHMetrics);
-        // Store width scaled to match the built-in width tables so that
-        // pdf_text_point_width()'s formula (width * size / (14 * 72)) gives
-        // correct point widths.  TTF advance / units_per_em = fraction of em,
-        // and (14 * 72) converts that to the internal scale used everywhere.
-        widths[c] = (uint16_t)((unsigned)advance * 14u * 72u /
-                               (unsigned)units_per_em);
+    uint8_t *cmap_copy = (uint8_t *)malloc(cmap_subtable_len);
+    if (!cmap_copy) {
+        free(font_data);
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to allocate cmap subtable for font '%s'",
+                           path);
     }
+    memcpy(cmap_copy, cmap_subtable, cmap_subtable_len);
+
+    // Make a copy of the hmtx table for runtime advance-width lookups
+    uint8_t *hmtx_copy = (uint8_t *)malloc(hmtx_len);
+    if (!hmtx_copy) {
+        free(cmap_copy);
+        free(font_data);
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to allocate hmtx table for font '%s'",
+                           path);
+    }
+    memcpy(hmtx_copy, hmtx, hmtx_len);
+
+    // Build the glyph-width array for the CIDFont /W entry.
+    // Widths are in PDF thousandths-of-em units.  We store one entry per
+    // glyph ID in 0..numberOfHMetrics-1; glyphs beyond that share the last
+    // advance width (/DW).
+    if (numberOfHMetrics == 0) {
+        free(hmtx_copy);
+        free(cmap_copy);
+        free(font_data);
+        return pdf_set_err(pdf, -EINVAL,
+                           "Font '%s' has numberOfHMetrics == 0", path);
+    }
+    uint16_t *glyph_widths =
+        (uint16_t *)calloc(numberOfHMetrics, sizeof(uint16_t));
+    if (!glyph_widths) {
+        free(hmtx_copy);
+        free(cmap_copy);
+        free(font_data);
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to allocate glyph widths for font '%s'",
+                           path);
+    }
+    for (uint16_t g = 0; g < numberOfHMetrics; g++) {
+        uint16_t advance = ttf_hmtx_advance(hmtx, hmtx_len, g,
+                                            numberOfHMetrics);
+        glyph_widths[g] =
+            (uint16_t)((unsigned)advance * 1000u / (unsigned)units_per_em);
+    }
+    // Default width = advance of the last hmtx entry (applies to all glyphs
+    // beyond numberOfHMetrics)
+    int default_width =
+        (int)glyph_widths[numberOfHMetrics - 1];
 
     // Create the embedded font file stream
     stream_obj = pdf_add_object(pdf, OBJ_stream);
     if (!stream_obj) {
-        free(widths);
+        free(glyph_widths);
+        free(hmtx_copy);
+        free(cmap_copy);
         free(font_data);
         return pdf->errval;
     }
@@ -1348,7 +1386,9 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
                 font_data_len, font_data_len);
     if (dstr_append_data(&stream_obj->stream.stream, font_data,
                          font_data_len) < 0) {
-        free(widths);
+        free(glyph_widths);
+        free(hmtx_copy);
+        free(cmap_copy);
         free(font_data);
         return pdf_set_err(pdf, -ENOMEM,
                            "Unable to allocate font stream data");
@@ -1359,7 +1399,9 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     // Create the font descriptor object
     descriptor_obj = pdf_add_object(pdf, OBJ_font_descriptor);
     if (!descriptor_obj) {
-        free(widths);
+        free(glyph_widths);
+        free(hmtx_copy);
+        free(cmap_copy);
         return pdf->errval;
     }
     strncpy(descriptor_obj->font_descriptor.font_name, font_name,
@@ -1382,19 +1424,42 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     descriptor_obj->font_descriptor.stem_v = stem_v;
     descriptor_obj->font_descriptor.font_file_index = stream_obj->index;
 
-    // Create the font dictionary object
+    // Create the CIDFont (Type2) descendant object
+    cid_obj = pdf_add_object(pdf, OBJ_cid_font);
+    if (!cid_obj) {
+        free(glyph_widths);
+        free(hmtx_copy);
+        free(cmap_copy);
+        return pdf->errval;
+    }
+    strncpy(cid_obj->cid_font.font_name, font_name,
+            sizeof(cid_obj->cid_font.font_name) - 1);
+    cid_obj->cid_font.font_name[sizeof(cid_obj->cid_font.font_name) - 1] =
+        '\0';
+    cid_obj->cid_font.descriptor_index = descriptor_obj->index;
+    cid_obj->cid_font.default_width = default_width;
+    cid_obj->cid_font.glyph_widths = glyph_widths;
+    cid_obj->cid_font.num_h_metrics = numberOfHMetrics;
+
+    // Create the Type0 (composite) font dictionary object
     font_obj = pdf_add_object(pdf, OBJ_font);
     if (!font_obj) {
-        free(widths);
+        free(hmtx_copy);
+        free(cmap_copy);
         return pdf->errval;
     }
     strncpy(font_obj->font.name, font_name, sizeof(font_obj->font.name) - 1);
     font_obj->font.name[sizeof(font_obj->font.name) - 1] = '\0';
     font_obj->font.index = last_font_index + 1;
     font_obj->font.is_ttf = true;
-    font_obj->font.widths = widths;
+    font_obj->font.cmap_data = cmap_copy;
+    font_obj->font.cmap_data_len = cmap_subtable_len;
+    font_obj->font.hmtx_data = hmtx_copy;
+    font_obj->font.hmtx_data_len = hmtx_len;
+    font_obj->font.num_h_metrics = numberOfHMetrics;
     font_obj->font.units_per_em = units_per_em;
     font_obj->font.descriptor_index = descriptor_obj->index;
+    font_obj->font.cid_font_index = cid_obj->index;
 
     pdf->current_font = font_obj;
     return 0;
@@ -1668,26 +1733,17 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     case OBJ_font:
         if (object->font.is_ttf) {
+            // Type0 (composite) font using Identity-H encoding so that
+            // arbitrary Unicode text can be represented as 2-byte glyph IDs.
             fprintf(fp,
                     "<<\r\n"
                     "  /Type /Font\r\n"
-                    "  /Subtype /TrueType\r\n"
+                    "  /Subtype /Type0\r\n"
                     "  /BaseFont /%s\r\n"
-                    "  /FirstChar 32\r\n"
-                    "  /LastChar 255\r\n"
-                    "  /Encoding /WinAnsiEncoding\r\n"
-                    "  /FontDescriptor %d 0 R\r\n"
-                    "  /Widths [",
-                    object->font.name, object->font.descriptor_index);
-            for (int c = 32; c <= 255; c++) {
-                // Convert internal width (scaled by 14*72) to PDF width
-                // (thousandths of em)
-                int pdf_width =
-                    (int)((float)object->font.widths[c] * 1000.0f /
-                          (14.0f * 72.0f));
-                fprintf(fp, " %d", pdf_width);
-            }
-            fprintf(fp, " ]\r\n>>\r\n");
+                    "  /Encoding /Identity-H\r\n"
+                    "  /DescendantFonts [%d 0 R]\r\n"
+                    ">>\r\n",
+                    object->font.name, object->font.cid_font_index);
         } else {
             fprintf(fp,
                     "<<\r\n"
@@ -1699,6 +1755,35 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                     object->font.name);
         }
         break;
+
+    case OBJ_cid_font: {
+        // CIDFontType2 descendant for the Type0 font.
+        // /W specifies per-glyph advance widths in thousandths-of-em for
+        // glyph IDs 0 .. num_h_metrics-1; remaining glyphs use /DW.
+        fprintf(fp,
+                "<<\r\n"
+                "  /Type /Font\r\n"
+                "  /Subtype /CIDFontType2\r\n"
+                "  /BaseFont /%s\r\n"
+                "  /CIDSystemInfo <<\r\n"
+                "    /Registry (Adobe)\r\n"
+                "    /Ordering (Identity)\r\n"
+                "    /Supplement 0\r\n"
+                "  >>\r\n"
+                "  /DW %d\r\n"
+                "  /W [0 [",
+                object->cid_font.font_name,
+                object->cid_font.default_width);
+        for (uint16_t g = 0; g < object->cid_font.num_h_metrics; g++)
+            fprintf(fp, " %d", (int)object->cid_font.glyph_widths[g]);
+        fprintf(fp,
+                " ]]\r\n"
+                "  /FontDescriptor %d 0 R\r\n"
+                "  /CIDToGIDMap /Identity\r\n"
+                ">>\r\n",
+                object->cid_font.descriptor_index);
+        break;
+    }
 
     case OBJ_font_descriptor:
         fprintf(fp,
@@ -2155,35 +2240,66 @@ static int pdf_add_text_spacing(struct pdf_doc *pdf, struct pdf_object *page,
     dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f Tc ", spacing);
-    dstr_append(&str, "(");
 
-    /* Escape magic characters properly */
-    for (size_t i = 0; i < len;) {
-        int code_len;
-        uint8_t pdf_char;
-        code_len = utf8_to_pdfencoding(pdf, &text[i], len - i, &pdf_char);
-        if (code_len < 0) {
-            dstr_free(&str);
-            return code_len;
+    if (pdf->current_font->font.is_ttf) {
+        /* Type0/Identity-H: encode text as a hex string of 2-byte glyph IDs.
+         * Each UTF-8 codepoint is mapped to its glyph ID via the stored cmap
+         * subtable.  Control characters (< U+0020) are skipped. */
+        dstr_append(&str, "<");
+        for (size_t i = 0; i < len;) {
+            uint32_t codepoint;
+            int code_len =
+                utf8_to_utf32(&text[i], (int)(len - i), &codepoint);
+            if (code_len < 0) {
+                dstr_free(&str);
+                return pdf_set_err(pdf, -EINVAL,
+                                   "Invalid UTF-8 encoding in text at "
+                                   "position %zu",
+                                   i);
+            }
+            i += code_len;
+            if (codepoint < 0x20u)
+                continue; // skip control characters
+            uint16_t glyph_id = ttf_cmap_subtable_lookup(
+                pdf->current_font->font.cmap_data,
+                pdf->current_font->font.cmap_data_len, codepoint);
+            char hex[5];
+            snprintf(hex, sizeof(hex), "%04X", (unsigned)glyph_id);
+            dstr_append(&str, hex);
         }
+        dstr_append(&str, "> Tj ");
+    } else {
+        dstr_append(&str, "(");
+        /* Escape magic characters properly */
+        for (size_t i = 0; i < len;) {
+            int code_len;
+            uint8_t pdf_char;
+            code_len =
+                utf8_to_pdfencoding(pdf, &text[i], len - i, &pdf_char);
+            if (code_len < 0) {
+                dstr_free(&str);
+                return code_len;
+            }
 
-        if (strchr("()\\", pdf_char)) {
-            char buf[3];
-            /* Escape some characters */
-            buf[0] = '\\';
-            buf[1] = pdf_char;
-            buf[2] = '\0';
-            dstr_append(&str, buf);
-        } else if (strrchr("\n\r\t\b\f", pdf_char)) {
-            /* Skip over these characters */
-            ;
-        } else {
-            dstr_append_data(&str, &pdf_char, 1);
+            if (strchr("()\\", pdf_char)) {
+                char buf[3];
+                /* Escape some characters */
+                buf[0] = '\\';
+                buf[1] = pdf_char;
+                buf[2] = '\0';
+                dstr_append(&str, buf);
+            } else if (strrchr("\n\r\t\b\f", pdf_char)) {
+                /* Skip over these characters */
+                ;
+            } else {
+                dstr_append_data(&str, &pdf_char, 1);
+            }
+
+            i += code_len;
         }
-
-        i += code_len;
+        dstr_append(&str, ") Tj ");
     }
-    dstr_append(&str, ") Tj ");
+
     dstr_append(&str, "ET");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
@@ -2482,6 +2598,42 @@ static int pdf_text_point_width(struct pdf_doc *pdf, const char *text,
     return 0;
 }
 
+// Compute text point width for a TTF font using direct Unicode → glyph
+// width lookup (bypasses the WinAnsi encoding used by standard fonts).
+static int pdf_ttf_text_point_width(struct pdf_doc *pdf,
+                                    const struct pdf_object *font_obj,
+                                    const char *text, ptrdiff_t text_len,
+                                    float size, float *point_width)
+{
+    float total = 0.0f;
+    if (text_len < 0)
+        text_len = (ptrdiff_t)strlen(text);
+    *point_width = 0.0f;
+
+    for (int i = 0; i < (int)text_len;) {
+        uint32_t codepoint;
+        int code_len =
+            utf8_to_utf32(&text[i], (int)(text_len - i), &codepoint);
+        if (code_len < 0)
+            return pdf_set_err(pdf, -EINVAL,
+                               "Invalid UTF-8 encoding in text at position %d",
+                               i);
+        i += code_len;
+        if (codepoint < 0x20u)
+            continue; // skip control characters
+        uint16_t glyph_id = ttf_cmap_subtable_lookup(
+            font_obj->font.cmap_data, font_obj->font.cmap_data_len,
+            codepoint);
+        uint16_t advance =
+            ttf_hmtx_advance(font_obj->font.hmtx_data,
+                             font_obj->font.hmtx_data_len, glyph_id,
+                             font_obj->font.num_h_metrics);
+        total += (float)advance;
+    }
+    *point_width = total * size / (float)font_obj->font.units_per_em;
+    return 0;
+}
+
 static const uint16_t *find_font_widths(const char *font_name)
 {
     if (strcasecmp(font_name, "Helvetica") == 0)
@@ -2518,20 +2670,17 @@ int pdf_get_font_text_width(struct pdf_doc *pdf, const char *font_name,
 {
     if (!font_name)
         font_name = pdf->current_font->font.name;
-    const uint16_t *widths = find_font_widths(font_name);
 
-    if (!widths) {
-        // Check TTF fonts loaded into this document
-        for (const struct pdf_object *obj =
-                 pdf_find_first_object(pdf, OBJ_font);
-             obj; obj = obj->next) {
-            if (obj->font.is_ttf &&
-                strcmp(obj->font.name, font_name) == 0) {
-                widths = obj->font.widths;
-                break;
-            }
+    // Check for a loaded TTF font with this name
+    for (const struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_font);
+         obj; obj = obj->next) {
+        if (obj->font.is_ttf && strcmp(obj->font.name, font_name) == 0) {
+            return pdf_ttf_text_point_width(pdf, obj, text, -1, size,
+                                            text_width);
         }
     }
+
+    const uint16_t *widths = find_font_widths(font_name);
     if (!widths)
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to determine width for font '%s'",
@@ -2562,16 +2711,24 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
     const char *last_best = text;
     const char *end = text;
     char line[512];
-    const uint16_t *widths;
+    const uint16_t *widths = NULL;
+    bool ttf_font = pdf->current_font->font.is_ttf;
     float orig_yoff = yoff;
 
-    widths = find_font_widths(pdf->current_font->font.name);
-    if (!widths && pdf->current_font->font.is_ttf)
-        widths = pdf->current_font->font.widths;
-    if (!widths)
-        return pdf_set_err(pdf, -EINVAL,
-                           "Unable to determine width for font '%s'",
-                           pdf->current_font->font.name);
+    if (!ttf_font) {
+        widths = find_font_widths(pdf->current_font->font.name);
+        if (!widths)
+            return pdf_set_err(pdf, -EINVAL,
+                               "Unable to determine width for font '%s'",
+                               pdf->current_font->font.name);
+    }
+
+// Helper macro to compute text width using the right path for font type
+#define TEXT_WIDTH(txt, tlen, sz, out)                                     \
+    (ttf_font                                                               \
+         ? pdf_ttf_text_point_width(pdf, pdf->current_font, (txt), (tlen), \
+                                    (sz), (out))                           \
+         : pdf_text_point_width(pdf, (txt), (tlen), (sz), widths, (out)))
 
     while (start && *start) {
         const char *new_end = find_word_break(end + 1);
@@ -2582,8 +2739,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         end = new_end;
 
-        e = pdf_text_point_width(pdf, start, end - start, size, widths,
-                                 &line_width);
+        e = TEXT_WIDTH(start, end - start, size, &line_width);
         if (e < 0)
             return e;
 
@@ -2600,8 +2756,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                         ((start[i - 1] & 0xc0) == 0x80 &&
                          (start[i] & 0xc0) == 0x80))
                         continue;
-                    e = pdf_text_point_width(pdf, start, i, size, widths,
-                                             &this_width);
+                    e = TEXT_WIDTH(start, i, size, &this_width);
                     if (e < 0)
                         return e;
                     if (this_width < wrap_width)
@@ -2630,8 +2785,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             strncpy(line, start, len);
             line[len] = '\0';
 
-            e = pdf_text_point_width(pdf, start, len, size, widths,
-                                     &line_width);
+            e = TEXT_WIDTH(start, len, size, &line_width);
             if (e < 0)
                 return e;
 
@@ -2669,6 +2823,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
     if (height)
         *height = orig_yoff - yoff;
+
+#undef TEXT_WIDTH
     return 0;
 }
 
