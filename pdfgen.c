@@ -2610,15 +2610,16 @@ static int pdf_ttf_text_point_width(struct pdf_doc *pdf,
         text_len = (ptrdiff_t)strlen(text);
     *point_width = 0.0f;
 
-    for (int i = 0; i < (int)text_len;) {
+    for (int byte_pos = 0; byte_pos < (int)text_len;) {
         uint32_t codepoint;
         int code_len =
-            utf8_to_utf32(&text[i], (int)(text_len - i), &codepoint);
+            utf8_to_utf32(&text[byte_pos], (int)(text_len - byte_pos),
+                          &codepoint);
         if (code_len < 0)
             return pdf_set_err(pdf, -EINVAL,
                                "Invalid UTF-8 encoding in text at position %d",
-                               i);
-        i += code_len;
+                               byte_pos);
+        byte_pos += code_len;
         if (codepoint < 0x20u)
             continue; // skip control characters
         uint16_t glyph_id = ttf_cmap_subtable_lookup(
@@ -2632,6 +2633,19 @@ static int pdf_ttf_text_point_width(struct pdf_doc *pdf,
     }
     *point_width = total * size / (float)font_obj->font.units_per_em;
     return 0;
+}
+
+// Dispatch text width calculation based on whether the current font is a TTF.
+// For standard fonts, `widths` must be a pointer to a 256-entry advance-width
+// table; for TTF fonts it is ignored (glyph widths are looked up via cmap).
+static int pdf_text_width_for_font(struct pdf_doc *pdf, bool is_ttf,
+                                    const uint16_t *widths, const char *text,
+                                    ptrdiff_t len, float size, float *out)
+{
+    if (is_ttf)
+        return pdf_ttf_text_point_width(pdf, pdf->current_font, text, len,
+                                        size, out);
+    return pdf_text_point_width(pdf, text, len, size, widths, out);
 }
 
 static const uint16_t *find_font_widths(const char *font_name)
@@ -2723,12 +2737,6 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                                pdf->current_font->font.name);
     }
 
-// Helper macro to compute text width using the right path for font type
-#define TEXT_WIDTH(txt, tlen, sz, out)                                     \
-    (ttf_font                                                               \
-         ? pdf_ttf_text_point_width(pdf, pdf->current_font, (txt), (tlen), \
-                                    (sz), (out))                           \
-         : pdf_text_point_width(pdf, (txt), (tlen), (sz), widths, (out)))
 
     while (start && *start) {
         const char *new_end = find_word_break(end + 1);
@@ -2739,7 +2747,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         end = new_end;
 
-        e = TEXT_WIDTH(start, end - start, size, &line_width);
+        e = pdf_text_width_for_font(pdf, ttf_font, widths, start,
+                                    end - start, size, &line_width);
         if (e < 0)
             return e;
 
@@ -2756,7 +2765,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                         ((start[i - 1] & 0xc0) == 0x80 &&
                          (start[i] & 0xc0) == 0x80))
                         continue;
-                    e = TEXT_WIDTH(start, i, size, &this_width);
+                    e = pdf_text_width_for_font(pdf, ttf_font, widths, start,
+                                                i, size, &this_width);
                     if (e < 0)
                         return e;
                     if (this_width < wrap_width)
@@ -2785,7 +2795,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             strncpy(line, start, len);
             line[len] = '\0';
 
-            e = TEXT_WIDTH(start, len, size, &line_width);
+            e = pdf_text_width_for_font(pdf, ttf_font, widths, start, len,
+                                        size, &line_width);
             if (e < 0)
                 return e;
 
@@ -2823,8 +2834,6 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
     if (height)
         *height = orig_yoff - yoff;
-
-#undef TEXT_WIDTH
     return 0;
 }
 
