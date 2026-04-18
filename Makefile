@@ -79,7 +79,7 @@ podman-image:
 	podman build -t pdfgen .
 
 podman-build-win32: podman-image
-	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make CC=x86_64-w64-mingw32-gcc && cp testprog testprog.exe'
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make CC=x86_64-w64-mingw32-gcc'
 
 podman-infer: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && infer run --no-progress-bar -- make CFLAGS="-g -Wall -pipe" LFLAGS="-lm"'
