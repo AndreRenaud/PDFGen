@@ -9,41 +9,30 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: docker://andredesigna/pdfgen:latest
 
     steps:
       - uses: actions/checkout@v6
       - name: Build Win32
-        run: |
-          make clean
-          make CC=/usr/lib/mxe/usr/bin/i686-w64-mingw32.static-gcc CLANG_FORMAT=clang-format-10
-          cp testprog testprog.exe
+        run: make podman-build-win32
       - name: Infer
-        run: make clean && infer run --no-progress-bar -- make CFLAGS="-g -Wall -pipe" LFLAGS="-lm"
+        run: make podman-infer
       - name: Build
-        run: make clean && make
-      - name: Update coverage statistics
-        shell: bash
+        run: make podman-build
+      - name: Test
+        run: make podman-test
+      - name: Fuzz Test
+        run: make podman-fuzz-check -j8
+      - name: Docs
+        run: make podman-docs
+      - name: Coverage
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        run: |
-          if [[ "${GITHUB_REF##*/}" == "master" ]] ; then
-            ./testprog
-            coveralls -i pdfgen.c
-          fi
-      - name: Test
-        run: make clean && scan-build-10 --status-bugs make check CLANG_FORMAT=clang-format-10
-      - name: Fuzz Test
-        run: make fuzz-check CLANG=clang-10 CLANG_FORMAT=clang-format-10 -j8
-      - name: Docs
-        run: make docs
-      - name: Coverage
-        run: make clean && make coverage
+          GITHUB_REF: ${{ github.ref }}
+        run: make podman-coverage
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: main-artifacts
+          name: pdfgen-main-artifacts
           path: |
             output.pdf
             pdfgen.h
@@ -76,10 +65,10 @@ jobs:
         cp testprog.exe testprog-32.exe
         testprog-32
         cp output.pdf output-win32.pdf
-    - name: Upload aritfacts
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: win32-artifacts
+        name: pdfgen-win32-artifacts
         path: |
           output-win32.pdf
           output-win64.pdf
