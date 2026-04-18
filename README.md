@@ -10,7 +10,7 @@ All contained a single C-file with header and no external library dependencies.
 Useful for embedding into other programs that require rudimentary PDF output.
 
 Supports the following PDF features
-* Text of various fonts/sizes/colours/rotation
+* Text of various fonts/sizes/colours/rotation (including TrueType Fonts)
 * Primitive drawing elements
     * Lines
     * Rectangles
@@ -18,8 +18,16 @@ Supports the following PDF features
     * Polygons
     * Filled Polygons
     * Bezier curves
-* Bookmarks
-* Barcodes (Code-128 & Code-39)
+    * Circles / Ellipses
+    * Custom Paths
+* Bookmarks / Links
+* Barcodes
+    * Code-128
+    * Code-39
+    * EAN-13
+    * UPC-A
+    * EAN-8
+    * UPC-E
 * Embedded images
     * PPM/PGM (binary format only)
     * JPEG
