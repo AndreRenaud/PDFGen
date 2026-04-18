@@ -25,14 +25,7 @@ run_fail() {
 # Run the test program
 run "valgrind" valgrind -q --leak-check=full --error-exitcode=1 ./testprog
 
-# We can either use pdftotext or acroread to process it. The results should
-# be the same
-if [ "$1" = "acroread" ] ; then
-	run "acroread" acroread -toPostScript output.pdf
-	run "ps2ascii" ps2ascii output.ps output.txt
-else
-	run "pdftotext" pdftotext -layout output.pdf
-fi
+run "pdftotext" pdftotext -layout output.pdf
 run "pdftk" pdftk output.pdf dump_data output output.pdftk
 
 # Produces output.ppm

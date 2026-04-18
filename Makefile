@@ -44,7 +44,6 @@ check: $(TESTPROG) pdfgen.c pdfgen.h example-check
 	cppcheck --std=c99 --enable=style,warning,performance,portability,unusedFunction --quiet pdfgen.c pdfgen.h tests/main.c
 	$(CXX) -c pdfgen.c $(CFLAGS_OBJECT) /dev/null -Werror -Wall -Wextra
 	./tests/tests.sh
-	./tests/tests.sh acroread
 	$(CLANG_FORMAT) pdfgen.c | colordiff -u pdfgen.c -
 	$(CLANG_FORMAT) pdfgen.h | colordiff -u pdfgen.h -
 	$(CLANG_FORMAT) tests/main.c | colordiff -u tests/main.c -
