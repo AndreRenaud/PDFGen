@@ -87,13 +87,13 @@ podman-build: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make'
 
 podman-test: podman-image
-	podman run --rm -v $(PWD):/src -w /src -e CLANG_FORMAT=clang-format pdfgen bash -c 'make clean && scan-build --status-bugs make check CLANG_FORMAT=clang-format'
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && scan-build --status-bugs make check'
 
 podman-check: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make check'
 
 podman-fuzz-check: podman-image
-	podman run --rm -v $(PWD):/src -w /src -e CLANG=clang -e CLANG_FORMAT=clang-format pdfgen bash -c 'make clean && make fuzz-check CLANG=clang CLANG_FORMAT=clang-format' -j8
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make fuzz-check -j8'
 
 podman-docs: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen make docs
