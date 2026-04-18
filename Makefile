@@ -99,7 +99,7 @@ podman-docs: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen make docs
 
 podman-coverage: podman-image
-	podman run --rm -v $(PWD):/src -w /src -e COVERALLS_REPO_TOKEN=$(COVERALLS_REPO_TOKEN) -e GITHUB_REF=$(GITHUB_REF) pdfgen bash -c 'make clean && make coverage && if [ "$${GITHUB_REF\#\#*/}" = "master" ]; then ./testprog && coveralls -i pdfgen.c; fi'
+	podman run --rm -v $(PWD):/src -w /src -e COVERALLS_REPO_TOKEN=$(COVERALLS_REPO_TOKEN) -e GITHUB_REF=$(GITHUB_REF) pdfgen bash -c 'make clean && make coverage && if [ "$$(basename "$${GITHUB_REF:-none}")" = "master" ]; then ./testprog && coveralls -i pdfgen.c; fi'
 
 podman-shell: podman-image
 	podman run -i -t --rm -v $(PWD):/src -w /src pdfgen /bin/bash
