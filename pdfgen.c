@@ -672,10 +672,15 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
     if (bin < 0)
         return -EINVAL;
     if (bin >= flex->bin_count) {
-        void ***bins = (void ***)realloc(flex->bins, (flex->bin_count + 1) *
-                                                         sizeof(*flex->bins));
+        void ***bins = (void ***)malloc((flex->bin_count + 1) * sizeof(*flex->bins));
         if (!bins)
             return -ENOMEM;
+        if (flex->bins) {
+            for (int i = 0; i < flex->bin_count; i++) {
+                bins[i] = flex->bins[i];
+            }
+            free(flex->bins);
+        }
         flex->bin_count++;
         flex->bins = bins;
         flex->bins[flex->bin_count - 1] =
@@ -3725,7 +3730,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
         return e;
     }
 
-    text[0] = *--string;
+    text[0] = *(string - 1);
 
     x += eanupc_dimensions[1].quiet_right * x_width -
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);

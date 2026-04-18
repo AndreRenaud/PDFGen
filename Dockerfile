@@ -42,8 +42,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 RUN python3 -m pip install --break-system-packages cpp-coveralls
 
 # Install Infer
-RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v1.0.0/infer-linux64-v1.0.0.tar.xz | tar -C /opt -x -J
-ENV PATH $PATH:/opt/infer-linux64-v1.0.0/bin/
+RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v1.2.0/infer-linux-x86_64-v1.2.0.tar.xz | tar -C /opt -x -J
+ENV PATH $PATH:/opt/infer-linux-x86_64-v1.2.0/bin/
 
 # Install acroread
 RUN apt-get install -y --no-install-recommends \

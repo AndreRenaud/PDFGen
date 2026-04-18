@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
     struct pdf_object *first_page, *second_page;
     int i;
-    float height, width;
+    float height, width = 0.0f;
     int bm;
     int err;
 
