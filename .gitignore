@@ -12,3 +12,4 @@ coverage-html/
 docs/html
 docs/latex
 doxygen.log
+tests/massive-file
