@@ -4,7 +4,6 @@ ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update && apt-get install -y dirmngr
 
-RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install --no-install-recommends -y \
 	ca-certificates \
 	clang \
@@ -21,6 +20,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 	ghostscript \
 	git \
 	graphviz \
+	libclang-rt-dev \
 	libtinfo6 \
 	llvm \
 	locales-all \
