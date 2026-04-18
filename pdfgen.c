@@ -233,6 +233,8 @@ static const uint8_t *ttf_find_table(const uint8_t *data, size_t data_len,
     if (data_len < 12)
         return NULL;
     uint16_t numTables = ttf_be16(data + 4);
+    if (numTables > (data_len - 12) / 16)
+        numTables = (uint16_t)((data_len - 12) / 16);
     for (uint16_t i = 0; i < numTables; i++) {
         if ((size_t)(12 + ((size_t)i + 1) * 16) > data_len)
             break;
@@ -312,6 +314,8 @@ static const uint8_t *ttf_find_cmap_subtable(const uint8_t *cmap,
     if (!cmap || cmap_len < 4)
         return NULL;
     uint16_t numTables = ttf_be16(cmap + 2);
+    if (numTables > (cmap_len - 4) / 8)
+        numTables = (uint16_t)((cmap_len - 4) / 8);
     const uint8_t *best_subtable = NULL;
     int best_priority = -1;
 
@@ -323,7 +327,7 @@ static const uint8_t *ttf_find_cmap_subtable(const uint8_t *cmap,
         uint16_t platformID = ttf_be16(rec);
         uint16_t platEncID = ttf_be16(rec + 2);
         uint32_t subtable_offset = ttf_be32(rec + 4);
-        if (subtable_offset + 4 > cmap_len)
+        if ((size_t)subtable_offset + 4 > cmap_len)
             continue;
         const uint8_t *sub = cmap + subtable_offset;
         uint16_t fmt = ttf_be16(sub);
@@ -383,6 +387,8 @@ static void ttf_extract_name(const uint8_t *name_table, size_t table_len,
     if (!name_table || table_len < 6)
         return;
     uint16_t count = ttf_be16(name_table + 2);
+    if (count > (table_len - 6) / 12)
+        count = (uint16_t)((table_len - 6) / 12);
     uint16_t stringOffset = ttf_be16(name_table + 4);
 
     for (uint16_t i = 0; i < count; i++) {
@@ -403,7 +409,10 @@ static void ttf_extract_name(const uint8_t *name_table, size_t table_len,
         if (platformID == 3) {
             // Windows UTF-16 BE: extract only ASCII characters
             size_t ascii_len = 0;
-            for (uint16_t j = 0; j + 1 < length && ascii_len < out_len - 1;
+            size_t safe_length = length;
+            if (safe_length > table_len - str_off)
+                safe_length = table_len - str_off;
+            for (size_t j = 0; j + 1 < safe_length && ascii_len < out_len - 1;
                  j += 2) {
                 uint16_t cp = ttf_be16(str + j);
                 if (cp < 128)
@@ -414,7 +423,11 @@ static void ttf_extract_name(const uint8_t *name_table, size_t table_len,
                 return;
         } else if (platformID == 1) {
             // Mac Roman: ASCII-compatible
-            size_t copy_len = length < out_len - 1 ? length : out_len - 1;
+            size_t safe_length = length;
+            if (safe_length > table_len - str_off)
+                safe_length = table_len - str_off;
+            size_t copy_len =
+                safe_length < out_len - 1 ? safe_length : out_len - 1;
             memcpy(out, str, copy_len);
             out[copy_len] = '\0';
             return;
@@ -1285,8 +1298,8 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
                          sizeof(font_name));
     if (font_name[0] == '\0') {
         const char *base = strrchr(path, '/');
-        base = base ? base + 1 : path;
-        strncpy(font_name, base, sizeof(font_name) - 1);
+        const char *name_src = base ? base + 1 : path;
+        strncpy(font_name, name_src, sizeof(font_name) - 1);
         font_name[sizeof(font_name) - 1] = '\0';
         char *dot = strrchr(font_name, '.');
         if (dot)
@@ -1309,7 +1322,8 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     uint16_t cmap_subtable_len = 0;
     const uint8_t *cmap_subtable =
         ttf_find_cmap_subtable(cmap, (size_t)cmap_len, &cmap_subtable_len);
-    if (!cmap_subtable) {
+    if (!cmap_subtable || cmap_subtable_len == 0 ||
+        cmap_subtable_len > font_data_len) {
         free(font_data);
         return pdf_set_err(pdf, -EINVAL,
                            "Font '%s' has no usable cmap subtable", path);
@@ -1321,7 +1335,21 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
                            "Unable to allocate cmap subtable for font '%s'",
                            path);
     }
+    // ensure subtable fits in cmap bounds safely before blind copy
+    if (cmap_subtable_len > (cmap + cmap_len) - cmap_subtable) {
+        free(cmap_copy);
+        free(font_data);
+        return pdf_set_err(pdf, -EINVAL,
+                           "Font '%s' cmap subtable length invalid", path);
+    }
     memcpy(cmap_copy, cmap_subtable, cmap_subtable_len);
+
+    if (hmtx_len == 0 || hmtx_len > font_data_len) {
+        free(cmap_copy);
+        free(font_data);
+        return pdf_set_err(pdf, -EINVAL, "Font '%s' has invalid hmtx_len",
+                           path);
+    }
 
     // Make a copy of the hmtx table for runtime advance-width lookups
     uint8_t *hmtx_copy = (uint8_t *)malloc(hmtx_len);
@@ -1338,12 +1366,12 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     // Widths are in PDF thousandths-of-em units.  We store one entry per
     // glyph ID in 0..numberOfHMetrics-1; glyphs beyond that share the last
     // advance width (/DW).
-    if (numberOfHMetrics == 0) {
+    if (numberOfHMetrics == 0 || numberOfHMetrics > font_data_len / 2) {
         free(hmtx_copy);
         free(cmap_copy);
         free(font_data);
         return pdf_set_err(pdf, -EINVAL,
-                           "Font '%s' has numberOfHMetrics == 0", path);
+                           "Font '%s' has invalid numberOfHMetrics", path);
     }
     uint16_t *glyph_widths =
         (uint16_t *)calloc(numberOfHMetrics, sizeof(uint16_t));

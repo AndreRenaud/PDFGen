@@ -66,7 +66,7 @@ check-fuzz-%: tests/fuzz-% FORCE
 	mkdir -p fuzz-artifacts
 	./$< -verbosity=0 -max_total_time=240 -max_len=8192 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
-fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr check-fuzz-barcode
+fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr check-fuzz-barcode check-fuzz-ttf
 
 format: FORCE
 	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c tests/massive-file.c
