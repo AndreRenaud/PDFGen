@@ -549,8 +549,7 @@ struct pdf_object {
             int font_file_index; // index of stream object with embedded font
         } font_descriptor;
         struct {
-            struct pdf_object *page; /* Page containing link */
-            float llx;               /* Clickable rectangle */
+            float llx; /* Clickable rectangle */
             float lly;
             float urx;
             float ury;
@@ -741,7 +740,7 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
         return 0;
     if (!str->data && len <= sizeof(str->static_data))
         str->alloc_len = len;
-    else if (str->alloc_len < len) {
+    else {
         size_t new_len;
 
         new_len = len + 4096;
@@ -768,7 +767,7 @@ static ssize_t dstr_ensure(struct dstr *str, size_t len)
 // This breaks the PDF output, so we force a 'safe' locale.
 static void force_locale(char *buf, int len)
 {
-    char *saved_locale = setlocale(LC_ALL, NULL);
+    const char *saved_locale = setlocale(LC_ALL, NULL);
 
     if (!saved_locale) {
         *buf = '\0';
@@ -780,7 +779,7 @@ static void force_locale(char *buf, int len)
     setlocale(LC_NUMERIC, "POSIX");
 }
 
-static void restore_locale(char *buf)
+static void restore_locale(const char *buf)
 {
     setlocale(LC_ALL, buf);
 }
@@ -889,7 +888,7 @@ void pdf_clear_err(struct pdf_doc *pdf)
     pdf->errval = 0;
 }
 
-static int pdf_get_errval(struct pdf_doc *pdf)
+static int pdf_get_errval(const struct pdf_doc *pdf)
 {
     if (!pdf)
         return 0;
@@ -1043,7 +1042,7 @@ struct pdf_doc *pdf_create(float width, float height,
         time_t now = time(NULL);
         struct tm tm;
 #ifdef _WIN32
-        struct tm *tmp;
+        const struct tm *tmp;
         tmp = localtime(&now);
         tm = *tmp;
 #else
@@ -1589,7 +1588,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         break;
     }
     case OBJ_info: {
-        struct pdf_info *info = object->info;
+        const struct pdf_info *info = object->info;
 
         fprintf(fp, "<<\r\n");
         if (info->creator[0]) {
@@ -1627,7 +1626,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_page: {
-        struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
+        const struct pdf_object *pages =
+            pdf_find_first_object(pdf, OBJ_pages);
         bool printed_xobjects = false;
 
         fprintf(fp,
@@ -1669,8 +1669,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
         fprintf(fp, "  /Contents [\r\n");
         for (int i = 0; i < flexarray_size(&object->page.children); i++) {
-            struct pdf_object *child =
-                (struct pdf_object *)flexarray_get(&object->page.children, i);
+            const struct pdf_object *child =
+                (const struct pdf_object *)flexarray_get(
+                    &object->page.children, i);
             fprintf(fp, "%d 0 R\r\n", child->index);
         }
         fprintf(fp, "]\r\n");
@@ -1679,8 +1680,9 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
             fprintf(fp, "  /Annots [\r\n");
             for (int i = 0; i < flexarray_size(&object->page.annotations);
                  i++) {
-                struct pdf_object *child = (struct pdf_object *)flexarray_get(
-                    &object->page.annotations, i);
+                const struct pdf_object *child =
+                    (const struct pdf_object *)flexarray_get(
+                        &object->page.annotations, i);
                 fprintf(fp, "%d 0 R\r\n", child->index);
             }
             fprintf(fp, "]\r\n");
@@ -1691,7 +1693,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_bookmark: {
-        struct pdf_object *parent, *other;
+        const struct pdf_object *parent, *other;
 
         parent = object->bookmark.parent;
         if (!parent)
@@ -1708,14 +1710,16 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, ")\r\n");
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
-            struct pdf_object *f, *l;
-            f = (struct pdf_object *)flexarray_get(&object->bookmark.children,
-                                                   0);
-            l = (struct pdf_object *)flexarray_get(&object->bookmark.children,
-                                                   nchildren - 1);
+            const struct pdf_object *f, *l;
+            f = (const struct pdf_object *)flexarray_get(
+                &object->bookmark.children, 0);
+            l = (const struct pdf_object *)flexarray_get(
+                &object->bookmark.children, nchildren - 1);
             fprintf(fp, "  /First %d 0 R\r\n", f->index);
             fprintf(fp, "  /Last %d 0 R\r\n", l->index);
-            fprintf(fp, "  /Count %d\r\n", pdf_get_bookmark_count(object));
+            fprintf(
+                fp, "  /Count %d\r\n",
+                pdf_get_bookmark_count((const struct pdf_object *)object));
         }
         // Find the previous bookmark with the same parent
         for (other = object->prev;
@@ -1736,7 +1740,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_outline: {
-        struct pdf_object *first, *last, *cur;
+        const struct pdf_object *first, *last, *cur;
         first = pdf_find_first_object(pdf, OBJ_bookmark);
         last = pdf_find_last_object(pdf, OBJ_bookmark);
 
@@ -1846,7 +1850,8 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
         fprintf(fp, "<<\r\n"
                     "  /Type /Pages\r\n"
                     "  /Kids [ ");
-        for (struct pdf_object *page = pdf_find_first_object(pdf, OBJ_page);
+        for (const struct pdf_object *page =
+                 pdf_find_first_object(pdf, OBJ_page);
              page; page = page->next) {
             npages++;
             fprintf(fp, "%d 0 R ", page->index);
@@ -1858,8 +1863,10 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     }
 
     case OBJ_catalog: {
-        struct pdf_object *outline = pdf_find_first_object(pdf, OBJ_outline);
-        struct pdf_object *pages = pdf_find_first_object(pdf, OBJ_pages);
+        const struct pdf_object *outline =
+            pdf_find_first_object(pdf, OBJ_outline);
+        const struct pdf_object *pages =
+            pdf_find_first_object(pdf, OBJ_pages);
 
         fprintf(fp, "<<\r\n"
                     "  /Type /Catalog\r\n");
@@ -1914,7 +1921,7 @@ static uint64_t hash(uint64_t hash, const void *data, size_t len)
 
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 {
-    struct pdf_object *obj;
+    const struct pdf_object *obj;
     int xref_offset;
     int xref_count = 0;
     uint64_t id1, id2;
@@ -1980,10 +1987,11 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
 
     e = pdf_save_file(pdf, fp);
 
-    if (fp != stdout)
-        if (fclose(fp) != 0 && e >= 0)
+    if (fp != stdout) {
+        if (fclose(fp) != 0)
             return pdf_set_err(pdf, -errno, "Unable to close '%s': %s",
                                filename, strerror(errno));
+    }
 
     return e;
 }
@@ -2765,7 +2773,6 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         const char *new_end = find_word_break(end + 1);
         float line_width;
         int output = 0;
-        float xoff_align = xoff;
         int e;
 
         end = new_end;
@@ -2813,6 +2820,8 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         if (output) {
             int len = end - start;
             float char_spacing = 0;
+            float xoff_align = xoff;
+
             if (len >= (int)sizeof(line))
                 len = (int)sizeof(line) - 1;
             strncpy(line, start, len);
@@ -4408,7 +4417,8 @@ static int parse_jpeg_header(struct pdf_img_info *info, const uint8_t *data,
 
 static int pdf_add_jpeg_data(struct pdf_doc *pdf, struct pdf_object *page,
                              float x, float y, float display_width,
-                             float display_height, struct pdf_img_info *info,
+                             float display_height,
+                             const struct pdf_img_info *info,
                              const uint8_t *jpeg_data, size_t len)
 {
     struct pdf_object *obj;
