@@ -56,26 +56,56 @@ coverage: $(TESTPROG)
 	mkdir coverage-html
 	gcovr -r . --html --html-details -o coverage-html/coverage.html
 
-example-check: FORCE
+example-check:
 	# Extract the code block from the README & make sure it compiles
 	sed -n '/^```/,/^```/ p' < README.md | sed '/^```/ d' > example-check.c
 	$(CC) $(CFLAGS) -o example-check example-check.c pdfgen.c $(LFLAGS)
 	rm example-check example-check.c
 
-check-fuzz-%: tests/fuzz-% FORCE
+check-fuzz-%: tests/fuzz-%
 	mkdir -p fuzz-artifacts
 	./$< -verbosity=0 -max_total_time=240 -max_len=8192 -rss_limit_mb=1024 -artifact_prefix="./fuzz-artifacts/"
 
 fuzz-check: check-fuzz-image-data check-fuzz-image-file check-fuzz-header check-fuzz-text check-fuzz-dstr check-fuzz-barcode check-fuzz-ttf
 
-format: FORCE
+format:
 	$(CLANG_FORMAT) -i pdfgen.c pdfgen.h tests/main.c tests/fuzz-*.c tests/massive-file.c
 
-docs: FORCE
+docs:
 	doxygen docs/pdfgen.dox 2>&1 | tee doxygen.log
 	cat doxygen.log | test `wc -c` -le 0
 
-FORCE:
+podman-image:
+	podman build -t pdfgen .
+
+podman-build-win32: podman-image
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make CC=x86_64-w64-mingw32-gcc && cp testprog testprog.exe'
+
+podman-infer: podman-image
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && infer run --no-progress-bar -- make CFLAGS="-g -Wall -pipe" LFLAGS="-lm"'
+
+podman-build: podman-image
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make'
+
+podman-test: podman-image
+	podman run --rm -v $(PWD):/src -w /src -e CLANG_FORMAT=clang-format pdfgen bash -c 'make clean && scan-build --status-bugs make check CLANG_FORMAT=clang-format'
+
+podman-check: podman-image
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make check'
+
+podman-fuzz-check: podman-image
+	podman run --rm -v $(PWD):/src -w /src -e CLANG=clang -e CLANG_FORMAT=clang-format pdfgen bash -c 'make clean && make fuzz-check CLANG=clang CLANG_FORMAT=clang-format'
+
+podman-docs: podman-image
+	podman run --rm -v $(PWD):/src -w /src pdfgen make docs
+
+podman-coverage: podman-image
+	podman run --rm -v $(PWD):/src -w /src -e COVERALLS_REPO_TOKEN=$(COVERALLS_REPO_TOKEN) -e GITHUB_REF=$(GITHUB_REF) pdfgen bash -c 'make clean && make coverage && if [ "$${GITHUB_REF\#\#*/}" = "master" ]; then ./testprog && coveralls -i pdfgen.c; fi'
+
+podman-shell: podman-image
+	podman run -i -t --rm -v $(PWD):/src -w /src pdfgen /bin/bash
+
+.PHONY: default check coverage example-check fuzz-check format docs podman-image podman-build-win32 podman-infer podman-build podman-test podman-check podman-fuzz-check podman-docs podman-coverage podman-shell clean
 
 clean:
 	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file test/massive-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps output.ppm output-barcodes.txt
