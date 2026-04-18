@@ -672,7 +672,8 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
     if (bin < 0)
         return -EINVAL;
     if (bin >= flex->bin_count) {
-        void ***bins = (void ***)malloc((flex->bin_count + 1) * sizeof(*flex->bins));
+        void ***bins =
+            (void ***)malloc((flex->bin_count + 1) * sizeof(*flex->bins));
         if (!bins)
             return -ENOMEM;
         if (flex->bins) {
