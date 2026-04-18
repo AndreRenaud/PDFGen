@@ -62,8 +62,6 @@ Builds
 ======
 Build status: [![GitHub Actions](https://github.com/AndreRenaud/PDFGen/workflows/Build%20and%20Test/badge.svg)](https://github.com/AndreRenaud/PDFGen/actions)
 
-Appveyor status: [![Build status](https://ci.appveyor.com/api/projects/status/3qpsmr06xg5gx74j/branch/master?svg=true)](https://ci.appveyor.com/project/AndreRenaud/pdfgen/branch/master)
-
 Code Coverage: [![Coverage Status](https://coveralls.io/repos/github/AndreRenaud/PDFGen/badge.svg?branch=master)](https://coveralls.io/github/AndreRenaud/PDFGen?branch=master)
 
 Coverity scan: [![Coverity scan](https://scan.coverity.com/projects/11942/badge.svg)](https://scan.coverity.com/projects/andrerenaud-pdfgen)
