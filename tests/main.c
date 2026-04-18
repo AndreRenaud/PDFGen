@@ -285,83 +285,77 @@ int main(int argc, char *argv[])
     }
     pdf_add_rgb24(pdf, NULL, 72, 72, 288, 144, data_rgb, 16, 8);
 
-    // Test TrueType font embedding with Unicode characters outside WinAnsiEncoding
-    {
-        const char *ttf_path =
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
-        FILE *check = fopen(ttf_path, "rb");
-        if (check) {
-            fclose(check);
-            pdf_append_page(pdf);
-            pdf_add_bookmark(pdf, NULL, -1, "TrueType Font (Unicode)");
-            if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
-                fprintf(stderr, "Failed to load TTF font: %s\n",
-                        pdf_get_err(pdf, &err));
-                pdf_destroy(pdf);
-                return -1;
-            }
-
-            // ASCII — should always work
-            pdf_add_text(pdf, NULL,
-                         "TrueType (Type0/CIDFont): the quick brown fox.", 14,
-                         50, 750, PDF_BLACK);
-
-            // Latin Extended — é (U+00E9), ï (U+00EF), ü (U+00FC)
-            // These are valid WinAnsi but now encoded as glyph IDs via Type0
-            pdf_add_text(pdf, NULL,
-                         "Latin-1: caf\xc3\xa9, na" "\xc3\xaf" "ve, " "\xc3\xbc" "ber",
-                         12, 50, 720, PDF_RGB(0, 0, 0x80));
-
-            // Greek — αβγ (U+03B1..U+03B3) — outside WinAnsiEncoding
-            pdf_add_text(pdf, NULL,
-                         "Greek: \xce\xb1\xce\xb2\xce\xb3 (alpha beta gamma)",
-                         12, 50, 692, PDF_RGB(0, 0x80, 0));
-
-            // Cyrillic — мир (U+043C U+0438 U+0440) — outside WinAnsiEncoding
-            pdf_add_text(pdf, NULL,
-                         "Cyrillic: \xd0\xbc\xd0\xb8\xd1\x80 (mir = peace)",
-                         12, 50, 664, PDF_RGB(0x80, 0, 0));
-
-            // Mixed ASCII and non-ASCII
-            pdf_add_text(pdf, NULL,
-                         "Mixed: caf\xc3\xa9 \xce\xb1\xce\xb2\xce\xb3 \xd0\xbc\xd0\xb8\xd1\x80",
-                         12, 50, 636, PDF_BLACK);
-
-            // Verify text width works for Unicode text
-            if (pdf_get_font_text_width(
-                    pdf, NULL,
-                    "\xce\xb1\xce\xb2\xce\xb3", // αβγ
-                    12, &width) < 0) {
-                fprintf(stderr, "TTF Unicode width failed\n");
-                pdf_destroy(pdf);
-                return -1;
-            }
-            if (width <= 0) {
-                fprintf(stderr, "TTF Unicode width unexpectedly zero\n");
-                pdf_destroy(pdf);
-                return -1;
-            }
-
-            // Test text_wrap with Unicode characters
-            pdf_add_text_wrap(
-                pdf, NULL,
-                "Wrapped: \xce\xb1\xce\xb2\xce\xb3 alpha beta gamma "
-                "\xd0\xbc\xd0\xb8\xd1\x80 mir peace",
-                12, 50, 600, 0, PDF_BLACK, 300, PDF_ALIGN_LEFT, NULL);
-
-            // Reload the same font (should reuse the existing object)
-            if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
-                fprintf(stderr, "Failed to reload TTF font\n");
-                pdf_destroy(pdf);
-                return -1;
-            }
-            pdf_add_text(pdf, NULL, "Reloaded font: same object reused.", 12,
-                         50, 560, PDF_BLACK);
-
-            // Switch back to a standard font
-            pdf_set_font(pdf, "Times-Roman");
-        }
+    const char *ttf_path = "data/Ithaca.ttf";
+    pdf_append_page(pdf);
+    pdf_add_bookmark(pdf, NULL, -1, "TrueType Font (Unicode)");
+    if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
+        fprintf(stderr, "Failed to load TTF font: %s\n",
+                pdf_get_err(pdf, &err));
+        pdf_destroy(pdf);
+        return -1;
     }
+
+    // ASCII — should always work
+    pdf_add_text(pdf, NULL, "TrueType (Type0/CIDFont): the quick brown fox.",
+                 14, 50, 750, PDF_BLACK);
+
+    // Latin Extended — é (U+00E9), ï (U+00EF), ü (U+00FC)
+    // These are valid WinAnsi but now encoded as glyph IDs via Type0
+    pdf_add_text(pdf, NULL,
+                 "Latin-1: caf\xc3\xa9, na"
+                 "\xc3\xaf"
+                 "ve, "
+                 "\xc3\xbc"
+                 "ber",
+                 12, 50, 720, PDF_RGB(0, 0, 0x80));
+
+    // Greek — αβγ (U+03B1..U+03B3) — outside WinAnsiEncoding
+    pdf_add_text(pdf, NULL,
+                 "Greek: \xce\xb1\xce\xb2\xce\xb3 (alpha beta gamma)", 12, 50,
+                 692, PDF_RGB(0, 0x80, 0));
+
+    // Cyrillic — мир (U+043C U+0438 U+0440) — outside WinAnsiEncoding
+    pdf_add_text(pdf, NULL,
+                 "Cyrillic: \xd0\xbc\xd0\xb8\xd1\x80 (mir = peace)", 12, 50,
+                 664, PDF_RGB(0x80, 0, 0));
+
+    // Mixed ASCII and non-ASCII
+    pdf_add_text(pdf, NULL,
+                 "Mixed: caf\xc3\xa9 \xce\xb1\xce\xb2\xce\xb3 "
+                 "\xd0\xbc\xd0\xb8\xd1\x80",
+                 12, 50, 636, PDF_BLACK);
+
+    // Verify text width works for Unicode text
+    if (pdf_get_font_text_width(pdf, NULL,
+                                "\xce\xb1\xce\xb2\xce\xb3", // αβγ
+                                12, &width) < 0) {
+        fprintf(stderr, "TTF Unicode width failed\n");
+        pdf_destroy(pdf);
+        return -1;
+    }
+    if (width <= 0) {
+        fprintf(stderr, "TTF Unicode width unexpectedly zero\n");
+        pdf_destroy(pdf);
+        return -1;
+    }
+
+    // Test text_wrap with Unicode characters
+    pdf_add_text_wrap(pdf, NULL,
+                      "Wrapped: \xce\xb1\xce\xb2\xce\xb3 alpha beta gamma "
+                      "\xd0\xbc\xd0\xb8\xd1\x80 mir peace",
+                      12, 50, 600, 0, PDF_BLACK, 300, PDF_ALIGN_LEFT, NULL);
+
+    // Reload the same font (should reuse the existing object)
+    if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
+        fprintf(stderr, "Failed to reload TTF font\n");
+        pdf_destroy(pdf);
+        return -1;
+    }
+    pdf_add_text(pdf, NULL, "Reloaded font: same object reused.", 12, 50, 560,
+                 PDF_BLACK);
+
+    // Switch back to a standard font
+    pdf_set_font(pdf, "Times-Roman");
 
     pdf_save(pdf, "output.pdf");
 
