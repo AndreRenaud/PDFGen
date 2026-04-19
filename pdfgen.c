@@ -2172,9 +2172,9 @@ pdf_crypt_compute_keys(const char *user_password, const uint8_t file_id[8],
     memcpy(key_input, padded_user, 32);
     memcpy(key_input + 32, out_owner_key, 32);
     key_input[64] = (uint8_t)(permissions & 0xff);
-    key_input[65] = (uint8_t)((permissions >> 8) & 0xff);
-    key_input[66] = (uint8_t)((permissions >> 16) & 0xff);
-    key_input[67] = (uint8_t)((permissions >> 24) & 0xff);
+    key_input[65] = (uint8_t)((permissions & 0xff00) >> 8);
+    key_input[66] = (uint8_t)((permissions & 0xff0000) >> 16);
+    key_input[67] = (uint8_t)((permissions & 0xff000000) >> 24);
     memcpy(key_input + 68, file_id, 8);
     pdf_md5(key_input, 32 + 32 + 4 + 8, md5_out);
     memcpy(crypt->file_key, md5_out, PDF_CRYPT_KEY_LEN);
@@ -2313,7 +2313,7 @@ static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
 {
     int xref_offset;
     int xref_count = 0;
-    uint64_t id1, id2;
+    uint64_t id2;
     time_t now = time(NULL);
     char saved_locale[32];
 
@@ -2386,6 +2386,7 @@ static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
             fprintf(fp, "%02x", file_id[i]);
         fprintf(fp, ">]\r\n");
     } else {
+        uint64_t id1;
         id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
         id1 = hash(id1, &xref_count, sizeof(xref_count));
         fprintf(fp, "/ID [<%016" PRIx64 "> <%016" PRIx64 ">]\r\n", id1, id2);
