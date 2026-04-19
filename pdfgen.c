@@ -719,10 +719,8 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
  */
 
 #define INIT_DSTR                                                            \
-    (struct dstr)                                                            \
-    {                                                                        \
-        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
-    }
+    (struct dstr){                                                           \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0}
 
 static char *dstr_data(struct dstr *str)
 {
@@ -1160,7 +1158,17 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font)
 
 int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
 {
-    FILE *fp;
+    FILE *fp = fopen(path, "rb");
+    if (!fp)
+        return pdf_set_err(pdf, -errno, "Unable to open font file '%s': %s",
+                           path, strerror(errno));
+    int err = pdf_set_font_ttf_file(pdf, fp, path);
+    fclose(fp);
+    return err;
+}
+
+int pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *path)
+{
     uint8_t *font_data;
     size_t font_data_len;
     struct pdf_object *font_obj, *descriptor_obj, *stream_obj, *cid_obj;
@@ -1180,30 +1188,21 @@ int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     char font_name[64];
     struct stat st;
 
-    fp = fopen(path, "rb");
-    if (!fp)
-        return pdf_set_err(pdf, -errno, "Unable to open font file '%s': %s",
-                           path, strerror(errno));
-
     if (fstat(fileno(fp), &st) < 0) {
-        fclose(fp);
         return pdf_set_err(pdf, -errno, "Unable to stat font file '%s': %s",
                            path, strerror(errno));
     }
     font_data_len = (size_t)st.st_size;
     font_data = (uint8_t *)malloc(font_data_len);
     if (!font_data) {
-        fclose(fp);
         return pdf_set_err(pdf, -ENOMEM,
                            "Unable to allocate %zu bytes for font '%s'",
                            font_data_len, path);
     }
     if (fread(font_data, 1, font_data_len, fp) != font_data_len) {
         free(font_data);
-        fclose(fp);
         return pdf_set_err(pdf, -EIO, "Unable to read font file '%s'", path);
     }
-    fclose(fp);
 
     if (font_data_len < 12) {
         free(font_data);

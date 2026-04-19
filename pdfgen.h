@@ -343,6 +343,17 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font);
 int pdf_set_font_ttf(struct pdf_doc *pdf, const char *path);
 
 /**
+ * Sets the font to use for text objects by loading a TrueType font file from
+ * a FILE pointer.
+ *
+ * @param pdf PDF document to update font on
+ * @param fp TTF font file pointer (must be readable and seekable)
+ * @param path Name of font for error messages and for internal PDF reference
+ * @return < 0 on failure, 0 on success
+ */
+int pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *path);
+
+/**
  * Calculate the width of a given string in the current font
  * @param pdf PDF document
  * @param font_name Name of the font to get the width of.
