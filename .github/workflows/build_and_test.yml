@@ -88,6 +88,7 @@ jobs:
       run: |
         make
         make testprog
+        ./testprog
         cp output.pdf output-macos.pdf
         cp output_encrypted.pdf output_encrypted-macos.pdf
     - name: Upload artifacts
