@@ -1960,8 +1960,10 @@ static void pdf_md5(const uint8_t *data, size_t len, uint8_t digest[16])
     /* Process data in 512-bit (64-byte) blocks, with padding */
     size_t padded = ((len + 8) / 64 + 1) * 64;
     uint8_t *buf = (uint8_t *)calloc(padded, 1);
-    if (!buf)
+    if (!buf) {
+        memset(digest, 0, 16);
         return;
+    }
     memcpy(buf, data, len);
     buf[len] = 0x80;
     uint64_t bits = (uint64_t)len * 8;
@@ -2142,14 +2144,16 @@ static void pdf_crypt_data(const struct pdf_crypt *crypt, int obj_index,
 
 /*
  * Encrypt a string and write it to fp as a PDF hex string <hexbytes>.
+ * Returns false on allocation failure (caller should treat the PDF as
+ * invalid).
  */
-static void pdf_crypt_write_string(const struct pdf_crypt *crypt,
+static bool pdf_crypt_write_string(const struct pdf_crypt *crypt,
                                    int obj_index, const char *str, FILE *fp)
 {
     size_t slen = strlen(str);
-    uint8_t *buf = (uint8_t *)malloc(slen);
+    uint8_t *buf = (uint8_t *)malloc(slen + 1);
     if (!buf)
-        return;
+        return false;
     memcpy(buf, str, slen);
     pdf_crypt_data(crypt, obj_index, buf, slen);
     fputc('<', fp);
@@ -2157,14 +2161,17 @@ static void pdf_crypt_write_string(const struct pdf_crypt *crypt,
         fprintf(fp, "%02x", buf[i]);
     fputc('>', fp);
     free(buf);
+    return true;
 }
 
 /*
  * Write a stream object (OBJ_stream or OBJ_image) to fp with the stream
  * content RC4-encrypted.  The dictionary header and endstream trailer are
  * written verbatim; only the payload bytes are encrypted.
+ * Returns false on allocation failure (content is skipped, not written in
+ * plain text).
  */
-static void pdf_crypt_write_stream(const struct pdf_crypt *crypt,
+static bool pdf_crypt_write_stream(const struct pdf_crypt *crypt,
                                    int obj_index, const struct dstr *stream,
                                    FILE *fp)
 {
@@ -2178,9 +2185,11 @@ static void pdf_crypt_write_stream(const struct pdf_crypt *crypt,
     /* Find the first "stream\r\n" — marks the end of the dictionary header */
     const char *hdr_end = strstr(raw, stream_marker);
     if (!hdr_end || total < footer_len) {
-        /* Unexpected format: write as-is */
-        fwrite(raw, 1, total, fp);
-        return;
+        /* Unexpected format: write empty stream to avoid leaking data */
+        fwrite(raw, 1, (size_t)(hdr_end ? hdr_end - raw + marker_len : 0),
+               fp);
+        fwrite(footer, 1, footer_len, fp);
+        return false;
     }
 
     size_t hdr_len = (size_t)(hdr_end - raw) + marker_len;
@@ -2190,18 +2199,21 @@ static void pdf_crypt_write_stream(const struct pdf_crypt *crypt,
     fwrite(raw, 1, hdr_len, fp);
 
     /* Encrypt the payload and write it */
-    uint8_t *buf = (uint8_t *)malloc(content_len);
-    if (buf) {
-        memcpy(buf, raw + hdr_len, content_len);
-        pdf_crypt_data(crypt, obj_index, buf, content_len);
-        fwrite(buf, 1, content_len, fp);
-        free(buf);
-    } else {
-        fwrite(raw + hdr_len, 1, content_len, fp);
+    uint8_t *buf = (uint8_t *)malloc(content_len + 1);
+    if (!buf) {
+        /* Encryption failed due to OOM - skip remaining content to avoid
+         * writing unencrypted stream data */
+        fwrite(footer, 1, footer_len, fp);
+        return false;
     }
+    memcpy(buf, raw + hdr_len, content_len);
+    pdf_crypt_data(crypt, obj_index, buf, content_len);
+    fwrite(buf, 1, content_len, fp);
+    free(buf);
 
     /* Write the endstream trailer unchanged */
     fwrite(footer, 1, footer_len, fp);
+    return true;
 }
 
 /*
@@ -2223,7 +2235,9 @@ static int pdf_save_object_encrypted(struct pdf_doc *pdf, FILE *fp, int index,
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image:
-        pdf_crypt_write_stream(crypt, index, &object->stream.stream, fp);
+        if (!pdf_crypt_write_stream(crypt, index, &object->stream.stream, fp))
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Out of memory encrypting stream %d", index);
         break;
 
     case OBJ_info: {
@@ -2231,44 +2245,55 @@ static int pdf_save_object_encrypted(struct pdf_doc *pdf, FILE *fp, int index,
         fprintf(fp, "<<\r\n");
         if (info->creator[0]) {
             fprintf(fp, "  /Creator ");
-            pdf_crypt_write_string(crypt, index, info->creator, fp);
+            if (!pdf_crypt_write_string(crypt, index, info->creator, fp))
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting info string");
             fprintf(fp, "\r\n");
         }
         if (info->producer[0]) {
             fprintf(fp, "  /Producer ");
-            pdf_crypt_write_string(crypt, index, info->producer, fp);
+            if (!pdf_crypt_write_string(crypt, index, info->producer, fp))
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting info string");
             fprintf(fp, "\r\n");
         }
         if (info->title[0]) {
             fprintf(fp, "  /Title ");
-            pdf_crypt_write_string(crypt, index, info->title, fp);
+            if (!pdf_crypt_write_string(crypt, index, info->title, fp))
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting info string");
             fprintf(fp, "\r\n");
         }
         if (info->author[0]) {
             fprintf(fp, "  /Author ");
-            pdf_crypt_write_string(crypt, index, info->author, fp);
+            if (!pdf_crypt_write_string(crypt, index, info->author, fp))
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting info string");
             fprintf(fp, "\r\n");
         }
         if (info->subject[0]) {
             fprintf(fp, "  /Subject ");
-            pdf_crypt_write_string(crypt, index, info->subject, fp);
+            if (!pdf_crypt_write_string(crypt, index, info->subject, fp))
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting info string");
             fprintf(fp, "\r\n");
         }
         if (info->date[0]) {
-            /* Encrypt the date string */
+            /* Encrypt the date string (prefix with "D:") */
             size_t dlen = strlen(info->date);
             uint8_t *dbuf = (uint8_t *)malloc(dlen + 2);
-            if (dbuf) {
-                dbuf[0] = 'D';
-                dbuf[1] = ':';
-                memcpy(dbuf + 2, info->date, dlen);
-                pdf_crypt_data(crypt, index, dbuf, dlen + 2);
-                fprintf(fp, "  /CreationDate <");
-                for (size_t i = 0; i < dlen + 2; i++)
-                    fprintf(fp, "%02x", dbuf[i]);
-                fprintf(fp, ">\r\n");
-                free(dbuf);
-            }
+            if (!dbuf)
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting info string");
+            dbuf[0] = 'D';
+            dbuf[1] = ':';
+            memcpy(dbuf + 2, info->date, dlen);
+            pdf_crypt_data(crypt, index, dbuf, dlen + 2);
+            fprintf(fp, "  /CreationDate <");
+            for (size_t i = 0; i < dlen + 2; i++)
+                fprintf(fp, "%02x", dbuf[i]);
+            fprintf(fp, ">\r\n");
+            free(dbuf);
         }
         fprintf(fp, ">>\r\n");
         break;
@@ -2287,7 +2312,9 @@ static int pdf_save_object_encrypted(struct pdf_doc *pdf, FILE *fp, int index,
                 "  /Parent %d 0 R\r\n"
                 "  /Title ",
                 object->bookmark.page->index, pdf->height, parent->index);
-        pdf_crypt_write_string(crypt, index, object->bookmark.name, fp);
+        if (!pdf_crypt_write_string(crypt, index, object->bookmark.name, fp))
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Out of memory encrypting bookmark name");
         fprintf(fp, "\r\n");
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
