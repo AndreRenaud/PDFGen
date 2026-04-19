@@ -2136,7 +2136,8 @@ static void pdf_crypt_pad_password(const char *pwd, uint8_t out[32])
     size_t plen = pwd ? strlen(pwd) : 0;
     if (plen > 32)
         plen = 32;
-    memcpy(out, pwd, plen);
+    if (pwd && plen > 0)
+        memcpy(out, pwd, plen);
     memcpy(out + plen, pdf_crypt_padding, 32 - plen);
 }
 
