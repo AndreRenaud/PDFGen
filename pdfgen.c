@@ -2569,7 +2569,7 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
     uint8_t mask;
 
     if (len <= 0 || !utf8 || !utf32)
-        return -EINVAL;
+        return -ENOSPC;
 
     ch = *(uint8_t *)utf8;
     if ((ch & 0x80) == 0) {
@@ -3203,9 +3203,18 @@ static const char *find_word_break(const char *string)
 {
     if (!string)
         return NULL;
+
     /* Skip over the actual word */
-    while (*string && !isspace((unsigned char)*string))
-        string++;
+    while (*string) {
+        uint32_t codepoint;
+        int code_len = utf8_to_utf32(string, strlen(string), &codepoint);
+        if (code_len <= 0) {
+            code_len = 1;
+        } else if (codepoint < 256 && isspace((unsigned char)codepoint)) {
+            break;
+        }
+        string += code_len;
+    }
 
     return string;
 }
