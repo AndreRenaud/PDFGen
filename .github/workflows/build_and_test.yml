@@ -55,7 +55,6 @@ jobs:
         make clean
         make testprog.exe CC=cl
         cp testprog.exe testprog-64.exe
-        set LC_ALL=en_US.UTF-8
         testprog-64
         cp output.pdf output-win64.pdf
         cp output_encrypted.pdf output_encrypted-win64.pdf
@@ -66,7 +65,6 @@ jobs:
         make clean
         make testprog.exe CC=cl
         cp testprog.exe testprog-32.exe
-        set LC_ALL=en_US.UTF-8
         testprog-32
         cp output.pdf output-win32.pdf
         cp output_encrypted.pdf output_encrypted-win32.pdf
@@ -90,7 +88,6 @@ jobs:
       run: |
         make
         make testprog
-        LC_ALL=C ./testprog
         cp output.pdf output-macos.pdf
         cp output_encrypted.pdf output_encrypted-macos.pdf
     - name: Upload artifacts
