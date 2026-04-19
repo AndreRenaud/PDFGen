@@ -55,7 +55,8 @@ jobs:
         make clean
         make testprog.exe CC=cl
         cp testprog.exe testprog-64.exe
-        LC_ALL=C testprog-64
+        set LC_ALL=C
+        testprog-64
         cp output.pdf output-win64.pdf
         cp output_encrypted.pdf output_encrypted-win64.pdf
     - name: make x86
@@ -65,7 +66,8 @@ jobs:
         make clean
         make testprog.exe CC=cl
         cp testprog.exe testprog-32.exe
-        LC_ALL=C testprog-32
+        set LC_ALL=C
+        testprog-32
         cp output.pdf output-win32.pdf
         cp output_encrypted.pdf output_encrypted-win32.pdf
     - name: Upload artifacts
