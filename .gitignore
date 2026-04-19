@@ -13,3 +13,4 @@ docs/html
 docs/latex
 doxygen.log
 tests/massive-file
+output_encrypted.pdf
