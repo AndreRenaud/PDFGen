@@ -1557,6 +1557,21 @@ static int pdf_get_bookmark_count(const struct pdf_object *obj)
     return count;
 }
 
+/* Forward declarations for encryption helpers used by
+ * pdf_save_object_internal
+ */
+#define PDF_CRYPT_KEY_LEN 5 /* 40-bit key = 5 bytes */
+struct pdf_crypt {
+    uint8_t file_key[PDF_CRYPT_KEY_LEN];
+};
+static bool pdf_crypt_write_string(const struct pdf_crypt *crypt,
+                                   int obj_index, const char *str, FILE *fp);
+static bool pdf_crypt_write_stream(const struct pdf_crypt *crypt,
+                                   int obj_index, const struct dstr *stream,
+                                   FILE *fp);
+static void pdf_crypt_data(const struct pdf_crypt *crypt, int obj_index,
+                           uint8_t *data, size_t len);
+
 static void pdf_print_escaped_string(FILE *fp, const char *str)
 {
     while (*str) {
@@ -1567,7 +1582,36 @@ static void pdf_print_escaped_string(FILE *fp, const char *str)
     }
 }
 
-static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
+/*
+ * Write a PDF string value to fp.
+ * If crypt is non-NULL, the string is RC4-encrypted and written as
+ * <hexbytes>. Otherwise it is written as a literal (escaped) string (...).
+ * Returns 0 on success, < 0 on error (pdf error is set).
+ */
+static int pdf_write_string_val(struct pdf_doc *pdf, FILE *fp, int obj_index,
+                                const char *str,
+                                const struct pdf_crypt *crypt)
+{
+    if (crypt) {
+        if (!pdf_crypt_write_string(crypt, obj_index, str, fp))
+            return pdf_set_err(pdf, -ENOMEM,
+                               "Out of memory encrypting string");
+    } else {
+        fputc('(', fp);
+        pdf_print_escaped_string(fp, str);
+        fputc(')', fp);
+    }
+    return 0;
+}
+
+/*
+ * Internal object-save routine shared by encrypted and unencrypted paths.
+ * When crypt is NULL the object is written in plain text (PDF literal strings
+ * and raw stream bytes).  When crypt is non-NULL, string values are encrypted
+ * and written as hex strings, and stream payload bytes are RC4-encrypted.
+ */
+static int pdf_save_object_internal(struct pdf_doc *pdf, FILE *fp, int index,
+                                    const struct pdf_crypt *crypt)
 {
     struct pdf_object *object = pdf_get_object(pdf, index);
     if (!object)
@@ -1583,43 +1627,80 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
     switch (object->type) {
     case OBJ_stream:
     case OBJ_image: {
-        fwrite(dstr_data(&object->stream.stream),
-               dstr_len(&object->stream.stream), 1, fp);
+        if (crypt) {
+            if (!pdf_crypt_write_stream(crypt, index, &object->stream.stream,
+                                        fp))
+                return pdf_set_err(pdf, -ENOMEM,
+                                   "Out of memory encrypting stream %d",
+                                   index);
+        } else {
+            fwrite(dstr_data(&object->stream.stream),
+                   dstr_len(&object->stream.stream), 1, fp);
+        }
         break;
     }
     case OBJ_info: {
         const struct pdf_info *info = object->info;
+        int e;
 
         fprintf(fp, "<<\r\n");
         if (info->creator[0]) {
-            fprintf(fp, "  /Creator (");
-            pdf_print_escaped_string(fp, info->creator);
-            fprintf(fp, ")\r\n");
+            fprintf(fp, "  /Creator ");
+            if ((e = pdf_write_string_val(pdf, fp, index, info->creator,
+                                          crypt)) < 0)
+                return e;
+            fprintf(fp, "\r\n");
         }
         if (info->producer[0]) {
-            fprintf(fp, "  /Producer (");
-            pdf_print_escaped_string(fp, info->producer);
-            fprintf(fp, ")\r\n");
+            fprintf(fp, "  /Producer ");
+            if ((e = pdf_write_string_val(pdf, fp, index, info->producer,
+                                          crypt)) < 0)
+                return e;
+            fprintf(fp, "\r\n");
         }
         if (info->title[0]) {
-            fprintf(fp, "  /Title (");
-            pdf_print_escaped_string(fp, info->title);
-            fprintf(fp, ")\r\n");
+            fprintf(fp, "  /Title ");
+            if ((e = pdf_write_string_val(pdf, fp, index, info->title,
+                                          crypt)) < 0)
+                return e;
+            fprintf(fp, "\r\n");
         }
         if (info->author[0]) {
-            fprintf(fp, "  /Author (");
-            pdf_print_escaped_string(fp, info->author);
-            fprintf(fp, ")\r\n");
+            fprintf(fp, "  /Author ");
+            if ((e = pdf_write_string_val(pdf, fp, index, info->author,
+                                          crypt)) < 0)
+                return e;
+            fprintf(fp, "\r\n");
         }
         if (info->subject[0]) {
-            fprintf(fp, "  /Subject (");
-            pdf_print_escaped_string(fp, info->subject);
-            fprintf(fp, ")\r\n");
+            fprintf(fp, "  /Subject ");
+            if ((e = pdf_write_string_val(pdf, fp, index, info->subject,
+                                          crypt)) < 0)
+                return e;
+            fprintf(fp, "\r\n");
         }
         if (info->date[0]) {
-            fprintf(fp, "  /CreationDate (D:");
-            pdf_print_escaped_string(fp, info->date);
-            fprintf(fp, ")\r\n");
+            if (crypt) {
+                /* Encrypt the date string with its "D:" prefix */
+                size_t dlen = strlen(info->date);
+                uint8_t *dbuf = (uint8_t *)malloc(dlen + 2);
+                if (!dbuf)
+                    return pdf_set_err(
+                        pdf, -ENOMEM, "Out of memory encrypting date string");
+                dbuf[0] = 'D';
+                dbuf[1] = ':';
+                memcpy(dbuf + 2, info->date, dlen);
+                pdf_crypt_data(crypt, index, dbuf, dlen + 2);
+                fprintf(fp, "  /CreationDate <");
+                for (size_t i = 0; i < dlen + 2; i++)
+                    fprintf(fp, "%02x", dbuf[i]);
+                fprintf(fp, ">\r\n");
+                free(dbuf);
+            } else {
+                fprintf(fp, "  /CreationDate (D:");
+                pdf_print_escaped_string(fp, info->date);
+                fprintf(fp, ")\r\n");
+            }
         }
         fprintf(fp, ">>\r\n");
         break;
@@ -1694,6 +1775,7 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
 
     case OBJ_bookmark: {
         const struct pdf_object *parent, *other;
+        int e;
 
         parent = object->bookmark.parent;
         if (!parent)
@@ -1704,10 +1786,12 @@ static int pdf_save_object(struct pdf_doc *pdf, FILE *fp, int index)
                 "<<\r\n"
                 "  /Dest [%d 0 R /XYZ 0 %f null]\r\n"
                 "  /Parent %d 0 R\r\n"
-                "  /Title (",
+                "  /Title ",
                 object->bookmark.page->index, pdf->height, parent->index);
-        pdf_print_escaped_string(fp, object->bookmark.name);
-        fprintf(fp, ")\r\n");
+        if ((e = pdf_write_string_val(pdf, fp, index, object->bookmark.name,
+                                      crypt)) < 0)
+            return e;
+        fprintf(fp, "\r\n");
         int nchildren = flexarray_size(&object->bookmark.children);
         if (nchildren > 0) {
             const struct pdf_object *f, *l;
@@ -2046,12 +2130,6 @@ static void pdf_rc4(const uint8_t *key, size_t keylen, uint8_t *data,
 /* ----- PDF 40-bit encryption key derivation ------------------------------
  */
 
-#define PDF_CRYPT_KEY_LEN 5 /* 40-bit key = 5 bytes */
-
-struct pdf_crypt {
-    uint8_t file_key[PDF_CRYPT_KEY_LEN];
-};
-
 /* Pad or truncate password to 32 bytes using the PDF padding string */
 static void pdf_crypt_pad_password(const char *pwd, uint8_t out[32])
 {
@@ -2217,150 +2295,22 @@ static bool pdf_crypt_write_stream(const struct pdf_crypt *crypt,
 }
 
 /*
- * Save one PDF object to fp with string/stream content encrypted.
- * Behaves identically to pdf_save_object for non-content objects.
+ * Internal implementation used by both pdf_save_file and
+ * pdf_save_file_encrypted.  When crypt is NULL the file is written as a
+ * plain PDF (PDF 1.3).  When crypt is non-NULL the stream and string content
+ * is RC4-encrypted, an encryption dictionary object is appended, and the
+ * trailer references it (PDF 1.4).
+ *
+ * For the encrypted path the caller must pre-compute the file ID (id1) with
+ * the same xref_count used for key derivation, then pass the resulting
+ * owner/user keys and permissions.  For the plain path all key/ID args are
+ * ignored (pass 0/NULL).
  */
-static int pdf_save_object_encrypted(struct pdf_doc *pdf, FILE *fp, int index,
-                                     const struct pdf_crypt *crypt)
-{
-    struct pdf_object *object = pdf_get_object(pdf, index);
-    if (!object)
-        return -ENOENT;
-    if (object->type == OBJ_none)
-        return -ENOENT;
-
-    object->offset = ftell(fp);
-    fprintf(fp, "%d 0 obj\r\n", index);
-
-    switch (object->type) {
-    case OBJ_stream:
-    case OBJ_image:
-        if (!pdf_crypt_write_stream(crypt, index, &object->stream.stream, fp))
-            return pdf_set_err(pdf, -ENOMEM,
-                               "Out of memory encrypting stream %d", index);
-        break;
-
-    case OBJ_info: {
-        const struct pdf_info *info = object->info;
-        fprintf(fp, "<<\r\n");
-        if (info->creator[0]) {
-            fprintf(fp, "  /Creator ");
-            if (!pdf_crypt_write_string(crypt, index, info->creator, fp))
-                return pdf_set_err(pdf, -ENOMEM,
-                                   "Out of memory encrypting info string");
-            fprintf(fp, "\r\n");
-        }
-        if (info->producer[0]) {
-            fprintf(fp, "  /Producer ");
-            if (!pdf_crypt_write_string(crypt, index, info->producer, fp))
-                return pdf_set_err(pdf, -ENOMEM,
-                                   "Out of memory encrypting info string");
-            fprintf(fp, "\r\n");
-        }
-        if (info->title[0]) {
-            fprintf(fp, "  /Title ");
-            if (!pdf_crypt_write_string(crypt, index, info->title, fp))
-                return pdf_set_err(pdf, -ENOMEM,
-                                   "Out of memory encrypting info string");
-            fprintf(fp, "\r\n");
-        }
-        if (info->author[0]) {
-            fprintf(fp, "  /Author ");
-            if (!pdf_crypt_write_string(crypt, index, info->author, fp))
-                return pdf_set_err(pdf, -ENOMEM,
-                                   "Out of memory encrypting info string");
-            fprintf(fp, "\r\n");
-        }
-        if (info->subject[0]) {
-            fprintf(fp, "  /Subject ");
-            if (!pdf_crypt_write_string(crypt, index, info->subject, fp))
-                return pdf_set_err(pdf, -ENOMEM,
-                                   "Out of memory encrypting info string");
-            fprintf(fp, "\r\n");
-        }
-        if (info->date[0]) {
-            /* Encrypt the date string (prefix with "D:") */
-            size_t dlen = strlen(info->date);
-            uint8_t *dbuf = (uint8_t *)malloc(dlen + 2);
-            if (!dbuf)
-                return pdf_set_err(pdf, -ENOMEM,
-                                   "Out of memory encrypting info string");
-            dbuf[0] = 'D';
-            dbuf[1] = ':';
-            memcpy(dbuf + 2, info->date, dlen);
-            pdf_crypt_data(crypt, index, dbuf, dlen + 2);
-            fprintf(fp, "  /CreationDate <");
-            for (size_t i = 0; i < dlen + 2; i++)
-                fprintf(fp, "%02x", dbuf[i]);
-            fprintf(fp, ">\r\n");
-            free(dbuf);
-        }
-        fprintf(fp, ">>\r\n");
-        break;
-    }
-
-    case OBJ_bookmark: {
-        const struct pdf_object *parent, *other;
-        parent = object->bookmark.parent;
-        if (!parent)
-            parent = pdf_find_first_object(pdf, OBJ_outline);
-        if (!object->bookmark.page)
-            break;
-        fprintf(fp,
-                "<<\r\n"
-                "  /Dest [%d 0 R /XYZ 0 %f null]\r\n"
-                "  /Parent %d 0 R\r\n"
-                "  /Title ",
-                object->bookmark.page->index, pdf->height, parent->index);
-        if (!pdf_crypt_write_string(crypt, index, object->bookmark.name, fp))
-            return pdf_set_err(pdf, -ENOMEM,
-                               "Out of memory encrypting bookmark name");
-        fprintf(fp, "\r\n");
-        int nchildren = flexarray_size(&object->bookmark.children);
-        if (nchildren > 0) {
-            const struct pdf_object *f, *l;
-            f = (const struct pdf_object *)flexarray_get(
-                &object->bookmark.children, 0);
-            l = (const struct pdf_object *)flexarray_get(
-                &object->bookmark.children, nchildren - 1);
-            fprintf(fp, "  /First %d 0 R\r\n", f->index);
-            fprintf(fp, "  /Last %d 0 R\r\n", l->index);
-            fprintf(
-                fp, "  /Count %d\r\n",
-                pdf_get_bookmark_count((const struct pdf_object *)object));
-        }
-        for (other = object->prev;
-             other && other->bookmark.parent != object->bookmark.parent;
-             other = other->prev)
-            ;
-        if (other)
-            fprintf(fp, "  /Prev %d 0 R\r\n", other->index);
-        for (other = object->next;
-             other && other->bookmark.parent != object->bookmark.parent;
-             other = other->next)
-            ;
-        if (other)
-            fprintf(fp, "  /Next %d 0 R\r\n", other->index);
-        fprintf(fp, ">>\r\n");
-        break;
-    }
-
-    default:
-        /* All other object types have no string/stream content to encrypt;
-         * delegate to the standard (non-encrypting) save routine */
-        return pdf_save_object(pdf, fp, index);
-    }
-
-    fprintf(fp, "endobj\r\n");
-    return 0;
-}
-
-/*
- * Save the PDF to fp with all string and stream content encrypted.
- * user_password is the "open" password used to protect the document.
- */
-static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
-                                   const char *user_password)
+static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
+                                  const struct pdf_crypt *crypt,
+                                  const uint8_t *owner_key,
+                                  const uint8_t *user_key,
+                                  int32_t permissions)
 {
     int xref_offset;
     int xref_count = 0;
@@ -2370,64 +2320,37 @@ static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
 
     force_locale(saved_locale, sizeof(saved_locale));
 
-    /* --- Pre-pass: count objects and compute file ID --- */
-    for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
-        const struct pdf_object *o = pdf_get_object(pdf, i);
-        if (o && o->type != OBJ_none)
-            xref_count++;
-    }
-    /* The encryption dictionary will be an additional object */
-    int encrypt_obj_index = flexarray_size(&pdf->objects);
-    xref_count++; /* account for the encrypt dict */
-
-    const struct pdf_object *info_obj = pdf_find_first_object(pdf, OBJ_info);
-    id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
-    id1 = hash(id1, &xref_count, sizeof(xref_count));
-    id2 = hash(5381, &now, sizeof(now));
-
-    /* Convert id1 to a 16-byte file_id (8 bytes big-endian + 8 zero bytes) */
-    uint8_t file_id[16] = {0};
-    for (int i = 0; i < 8; i++)
-        file_id[i] = (uint8_t)((id1 >> (56 - 8 * i)) & 0xff);
-
-    /* --- Compute encryption keys --- */
-    struct pdf_crypt crypt;
-    uint8_t owner_key[32], user_key[32];
-    /* P = -4 (0xFFFFFFFC): all operations permitted once document is opened
-     */
-    int32_t permissions = -4;
-    pdf_crypt_compute_keys(user_password, file_id, permissions, &crypt,
-                           owner_key, user_key);
-
-    /* --- Write PDF header --- */
-    fprintf(fp, "%%PDF-1.4\r\n");
+    fprintf(fp, crypt ? "%%PDF-1.4\r\n" : "%%PDF-1.3\r\n");
+    /* Hibit bytes */
     fprintf(fp, "%c%c%c%c%c\r\n", 0x25, 0xc7, 0xec, 0x8f, 0xa2);
 
-    /* --- Write all objects (with encryption) --- */
-    /* Reset xref_count to recount only successfully-written objects */
-    xref_count = 0;
+    /* Write all objects (encrypted or plain) */
     for (int i = 0; i < flexarray_size(&pdf->objects); i++)
-        if (pdf_save_object_encrypted(pdf, fp, i, &crypt) >= 0)
+        if (pdf_save_object_internal(pdf, fp, i, crypt) >= 0)
             xref_count++;
 
-    /* --- Write the encryption dictionary object --- */
-    int encrypt_obj_offset = ftell(fp);
-    fprintf(fp, "%d 0 obj\r\n", encrypt_obj_index);
-    fprintf(fp, "<<\r\n"
-                "  /Filter /Standard\r\n"
-                "  /V 1\r\n"
-                "  /R 2\r\n"
-                "  /O <");
-    for (int i = 0; i < 32; i++)
-        fprintf(fp, "%02x", owner_key[i]);
-    fprintf(fp, ">\r\n  /U <");
-    for (int i = 0; i < 32; i++)
-        fprintf(fp, "%02x", user_key[i]);
-    fprintf(fp, ">\r\n  /P %d\r\n", permissions);
-    fprintf(fp, ">>\r\nendobj\r\n");
-    xref_count++; /* count the encrypt dict */
+    /* For encrypted output: append the encryption dictionary object */
+    int encrypt_obj_index = flexarray_size(&pdf->objects);
+    int encrypt_obj_offset = 0;
+    if (crypt) {
+        encrypt_obj_offset = ftell(fp);
+        fprintf(fp, "%d 0 obj\r\n", encrypt_obj_index);
+        fprintf(fp, "<<\r\n"
+                    "  /Filter /Standard\r\n"
+                    "  /V 1\r\n"
+                    "  /R 2\r\n"
+                    "  /O <");
+        for (int i = 0; i < 32; i++)
+            fprintf(fp, "%02x", owner_key[i]);
+        fprintf(fp, ">\r\n  /U <");
+        for (int i = 0; i < 32; i++)
+            fprintf(fp, "%02x", user_key[i]);
+        fprintf(fp, ">\r\n  /P %d\r\n", permissions);
+        fprintf(fp, ">>\r\nendobj\r\n");
+        xref_count++;
+    }
 
-    /* --- Write cross-reference table --- */
+    /* Cross-reference table */
     xref_offset = ftell(fp);
     fprintf(fp, "xref\r\n");
     fprintf(fp, "0 %d\r\n", xref_count + 1);
@@ -2437,12 +2360,16 @@ static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
         if (obj && obj->type != OBJ_none)
             fprintf(fp, "%10.10d 00000 n\r\n", obj->offset);
     }
-    /* Entry for the encryption dictionary */
-    fprintf(fp, "%10.10d 00000 n\r\n", encrypt_obj_offset);
+    if (crypt)
+        fprintf(fp, "%10.10d 00000 n\r\n", encrypt_obj_offset);
 
-    /* --- Write trailer --- */
+    /* Trailer */
+    const struct pdf_object *info_obj = pdf_find_first_object(pdf, OBJ_info);
     const struct pdf_object *catalog =
         pdf_find_first_object(pdf, OBJ_catalog);
+    id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
+    id1 = hash(id1, &xref_count, sizeof(xref_count));
+    id2 = hash(5381, &now, sizeof(now));
     fprintf(fp,
             "trailer\r\n"
             "<<\r\n"
@@ -2450,7 +2377,8 @@ static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
             xref_count + 1);
     fprintf(fp, "/Root %d 0 R\r\n", catalog->index);
     fprintf(fp, "/Info %d 0 R\r\n", info_obj->index);
-    fprintf(fp, "/Encrypt %d 0 R\r\n", encrypt_obj_index);
+    if (crypt)
+        fprintf(fp, "/Encrypt %d 0 R\r\n", encrypt_obj_index);
     fprintf(fp, "/ID [<%016" PRIx64 "> <%016" PRIx64 ">]\r\n", id1, id2);
     fprintf(fp, ">>\r\nstartxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
@@ -2462,57 +2390,44 @@ static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
 
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 {
-    const struct pdf_object *obj;
-    int xref_offset;
-    int xref_count = 0;
-    uint64_t id1, id2;
+    return pdf_save_file_internal(pdf, fp, NULL, NULL, NULL, 0);
+}
+
+static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
+                                   const char *user_password)
+{
     time_t now = time(NULL);
-    char saved_locale[32];
 
-    force_locale(saved_locale, sizeof(saved_locale));
-
-    fprintf(fp, "%%PDF-1.3\r\n");
-    /* Hibit bytes */
-    fprintf(fp, "%c%c%c%c%c\r\n", 0x25, 0xc7, 0xec, 0x8f, 0xa2);
-
-    /* Dump all the objects & get their file offsets */
-    for (int i = 0; i < flexarray_size(&pdf->objects); i++)
-        if (pdf_save_object(pdf, fp, i) >= 0)
-            xref_count++;
-
-    /* xref */
-    xref_offset = ftell(fp);
-    fprintf(fp, "xref\r\n");
-    fprintf(fp, "0 %d\r\n", xref_count + 1);
-    fprintf(fp, "0000000000 65535 f\r\n");
+    /* Pre-count objects (including the encrypt dict) to build the file ID
+     * that is used for key derivation. */
+    int xref_count = 0;
     for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
-        obj = pdf_get_object(pdf, i);
-        if (obj->type != OBJ_none)
-            fprintf(fp, "%10.10d 00000 n\r\n", obj->offset);
+        const struct pdf_object *o = pdf_get_object(pdf, i);
+        if (o && o->type != OBJ_none)
+            xref_count++;
     }
+    xref_count++; /* for the encryption dictionary object */
 
-    fprintf(fp,
-            "trailer\r\n"
-            "<<\r\n"
-            "/Size %d\r\n",
-            xref_count + 1);
-    obj = pdf_find_first_object(pdf, OBJ_catalog);
-    fprintf(fp, "/Root %d 0 R\r\n", obj->index);
-    obj = pdf_find_first_object(pdf, OBJ_info);
-    fprintf(fp, "/Info %d 0 R\r\n", obj->index);
-    /* Generate document unique IDs */
-    id1 = hash(5381, obj->info, sizeof(struct pdf_info));
+    const struct pdf_object *info_obj = pdf_find_first_object(pdf, OBJ_info);
+    uint64_t id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
     id1 = hash(id1, &xref_count, sizeof(xref_count));
-    id2 = hash(5381, &now, sizeof(now));
-    fprintf(fp, "/ID [<%16.16" PRIx64 "> <%16.16" PRIx64 ">]\r\n", id1, id2);
-    fprintf(fp, ">>\r\n"
-                "startxref\r\n");
-    fprintf(fp, "%d\r\n", xref_offset);
-    fprintf(fp, "%%%%EOF\r\n");
+    (void)hash(5381, &now, sizeof(now)); /* id2 computed in internal */
 
-    restore_locale(saved_locale);
+    /* Convert id1 to a 16-byte file_id (8 big-endian bytes + 8 zero bytes) */
+    uint8_t file_id[16] = {0};
+    for (int i = 0; i < 8; i++)
+        file_id[i] = (uint8_t)((id1 >> (56 - 8 * i)) & 0xff);
 
-    return 0;
+    /* Derive encryption keys */
+    struct pdf_crypt crypt;
+    uint8_t owner_key[32], user_key[32];
+    /* P = -4 (0xFFFFFFFC): all operations permitted once opened */
+    int32_t permissions = -4;
+    pdf_crypt_compute_keys(user_password, file_id, permissions, &crypt,
+                           owner_key, user_key);
+
+    return pdf_save_file_internal(pdf, fp, &crypt, owner_key, user_key,
+                                  permissions);
 }
 
 int pdf_save(struct pdf_doc *pdf, const char *filename)
