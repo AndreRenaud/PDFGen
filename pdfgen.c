@@ -2138,7 +2138,8 @@ static void pdf_crypt_pad_password(const char *pwd, uint8_t out[32])
         plen = 32;
     if (pwd && plen > 0)
         memcpy(out, pwd, plen);
-    memcpy(out + plen, pdf_crypt_padding, 32 - plen);
+    if (plen < 32)
+        memcpy(out + plen, pdf_crypt_padding, 32 - plen);
 }
 
 /*
@@ -2203,8 +2204,6 @@ static size_t pdf_crypt_object_key(const struct pdf_crypt *crypt,
     uint8_t md5_out[16];
     pdf_md5(key_in, sizeof(key_in), md5_out);
     size_t keylen = PDF_CRYPT_KEY_LEN + 5; /* min(n+5, 16) = 10 for 40-bit */
-    if (keylen > 16)
-        keylen = 16;
     memcpy(out_key, md5_out, keylen);
     return keylen;
 }
