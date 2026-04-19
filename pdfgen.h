@@ -804,6 +804,20 @@ int pdf_parse_image_header(struct pdf_img_info *info, const uint8_t *data,
                            size_t length, char *err_msg,
                            size_t err_msg_length);
 
+/**
+ * Save the given pdf document to the supplied filename with password
+ * protection. The document content is encrypted using RC4 40-bit encryption
+ * (PDF Standard Security Handler revision 2) so that a password is required
+ * to open the document in a PDF viewer.
+ * @param pdf PDF document to save
+ * @param filename Name of the file to store the PDF into (NULL for stdout)
+ * @param password Password required to open the document (may be empty or
+ *                 NULL for no password)
+ * @return < 0 on failure, >= 0 on success
+ */
+int pdf_save_encrypted(struct pdf_doc *pdf, const char *filename,
+                       const char *password);
+
 #ifdef __cplusplus
 }
 #endif

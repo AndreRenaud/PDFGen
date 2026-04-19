@@ -17,7 +17,7 @@ int LLVMFuzzerTestOneInput(char *data, int size)
     pdf_add_text_wrap(pdf, NULL, text, 10, 20, 30, 0, PDF_RGB(0xff, 0, 0),
                       200, PDF_ALIGN_LEFT, NULL);
     free(text);
-    pdf_save(pdf, "fuzz.pdf");
+    pdf_save_encrypted(pdf, "fuzz.pdf", "secret");
     pdf_destroy(pdf);
     return 0;
 }

@@ -365,6 +365,22 @@ int main(int argc, char *argv[])
         pdf_destroy(pdf);
         return -1;
     }
+
+    /* Save an encrypted copy with password "secret" */
+    if (pdf_save_encrypted(pdf, "output_encrypted.pdf", "secret") < 0) {
+        err_str = pdf_get_err(pdf, &err);
+        fprintf(stderr, "PDF Encryption Error: %d - %s\n", err,
+                err_str ? err_str : "unknown");
+        pdf_destroy(pdf);
+        return -1;
+    }
+    err_str = pdf_get_err(pdf, &err);
+    if (err_str) {
+        fprintf(stderr, "PDF Encryption Error: %d - %s\n", err, err_str);
+        pdf_destroy(pdf);
+        return -1;
+    }
+
     pdf_destroy(pdf);
 
     return 0;
