@@ -2143,14 +2143,14 @@ static void pdf_crypt_pad_password(const char *pwd, uint8_t out[32])
 /*
  * Compute the encryption keys for PDF Standard Security Handler Rev. 2.
  * user_password : the "open" password (may be NULL/"" for no user password)
- * file_id       : first element of /ID array (16 bytes)
+ * file_id       : first element of /ID array (exactly 8 bytes)
  * crypt         : output - encryption context (file key)
  * out_owner_key : output - 32-byte /O value for the encryption dictionary
  * out_user_key  : output - 32-byte /U value for the encryption dictionary
  * permissions   : /P value (signed 32-bit, stored little-endian)
  */
 static void
-pdf_crypt_compute_keys(const char *user_password, const uint8_t file_id[16],
+pdf_crypt_compute_keys(const char *user_password, const uint8_t file_id[8],
                        int32_t permissions, struct pdf_crypt *crypt,
                        uint8_t out_owner_key[32], uint8_t out_user_key[32])
 {
@@ -2166,17 +2166,16 @@ pdf_crypt_compute_keys(const char *user_password, const uint8_t file_id[16],
     pdf_rc4(md5_out, PDF_CRYPT_KEY_LEN, out_owner_key, 32);
 
     /* Step 2: compute file encryption key */
-    /* MD5 of: padded_user + owner_key + P (LE 4 bytes) + file_id (16 bytes)
-     */
-    uint8_t key_input[32 + 32 + 4 + 16];
+    /* MD5 of: padded_user + owner_key + P (LE 4 bytes) + file_id (8 bytes) */
+    uint8_t key_input[32 + 32 + 4 + 8];
     memcpy(key_input, padded_user, 32);
     memcpy(key_input + 32, out_owner_key, 32);
     key_input[64] = (uint8_t)(permissions & 0xff);
     key_input[65] = (uint8_t)((permissions >> 8) & 0xff);
     key_input[66] = (uint8_t)((permissions >> 16) & 0xff);
     key_input[67] = (uint8_t)((permissions >> 24) & 0xff);
-    memcpy(key_input + 68, file_id, 16);
-    pdf_md5(key_input, 32 + 32 + 4 + 16, md5_out);
+    memcpy(key_input + 68, file_id, 8);
+    pdf_md5(key_input, 32 + 32 + 4 + 8, md5_out);
     memcpy(crypt->file_key, md5_out, PDF_CRYPT_KEY_LEN);
 
     /* Step 3: compute /U (user key) */
@@ -2301,16 +2300,15 @@ static bool pdf_crypt_write_stream(const struct pdf_crypt *crypt,
  * is RC4-encrypted, an encryption dictionary object is appended, and the
  * trailer references it (PDF 1.4).
  *
- * For the encrypted path the caller must pre-compute the file ID (id1) with
- * the same xref_count used for key derivation, then pass the resulting
- * owner/user keys and permissions.  For the plain path all key/ID args are
- * ignored (pass 0/NULL).
+ * file_id is only used when crypt is non-NULL: it must be the same 8 bytes
+ * that were passed to pdf_crypt_compute_keys, so the trailer /ID element
+ * matches the bytes used for key derivation.
  */
 static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
                                   const struct pdf_crypt *crypt,
                                   const uint8_t *owner_key,
                                   const uint8_t *user_key,
-                                  int32_t permissions)
+                                  int32_t permissions, const uint8_t *file_id)
 {
     int xref_offset;
     int xref_count = 0;
@@ -2367,8 +2365,6 @@ static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
     const struct pdf_object *info_obj = pdf_find_first_object(pdf, OBJ_info);
     const struct pdf_object *catalog =
         pdf_find_first_object(pdf, OBJ_catalog);
-    id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
-    id1 = hash(id1, &xref_count, sizeof(xref_count));
     id2 = hash(5381, &now, sizeof(now));
     fprintf(fp,
             "trailer\r\n"
@@ -2377,9 +2373,22 @@ static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
             xref_count + 1);
     fprintf(fp, "/Root %d 0 R\r\n", catalog->index);
     fprintf(fp, "/Info %d 0 R\r\n", info_obj->index);
-    if (crypt)
+    if (crypt) {
         fprintf(fp, "/Encrypt %d 0 R\r\n", encrypt_obj_index);
-    fprintf(fp, "/ID [<%016" PRIx64 "> <%016" PRIx64 ">]\r\n", id1, id2);
+        /* Write the /ID using the exact file_id bytes used for key derivation
+         * (8 bytes each element). Use same bytes for both elements. */
+        fprintf(fp, "/ID [<");
+        for (int i = 0; i < 8; i++)
+            fprintf(fp, "%02x", file_id[i]);
+        fprintf(fp, "> <");
+        for (int i = 0; i < 8; i++)
+            fprintf(fp, "%02x", file_id[i]);
+        fprintf(fp, ">]\r\n");
+    } else {
+        id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
+        id1 = hash(id1, &xref_count, sizeof(xref_count));
+        fprintf(fp, "/ID [<%016" PRIx64 "> <%016" PRIx64 ">]\r\n", id1, id2);
+    }
     fprintf(fp, ">>\r\nstartxref\r\n");
     fprintf(fp, "%d\r\n", xref_offset);
     fprintf(fp, "%%%%EOF\r\n");
@@ -2390,14 +2399,12 @@ static int pdf_save_file_internal(struct pdf_doc *pdf, FILE *fp,
 
 int pdf_save_file(struct pdf_doc *pdf, FILE *fp)
 {
-    return pdf_save_file_internal(pdf, fp, NULL, NULL, NULL, 0);
+    return pdf_save_file_internal(pdf, fp, NULL, NULL, NULL, 0, NULL);
 }
 
 static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
                                    const char *user_password)
 {
-    time_t now = time(NULL);
-
     /* Pre-count objects (including the encrypt dict) to build the file ID
      * that is used for key derivation. */
     int xref_count = 0;
@@ -2411,10 +2418,10 @@ static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
     const struct pdf_object *info_obj = pdf_find_first_object(pdf, OBJ_info);
     uint64_t id1 = hash(5381, info_obj->info, sizeof(struct pdf_info));
     id1 = hash(id1, &xref_count, sizeof(xref_count));
-    (void)hash(5381, &now, sizeof(now)); /* id2 computed in internal */
 
-    /* Convert id1 to a 16-byte file_id (8 big-endian bytes + 8 zero bytes) */
-    uint8_t file_id[16] = {0};
+    /* Convert id1 to 8 bytes big-endian — these are the exact bytes written
+     * to the PDF's /ID first element and used for key derivation. */
+    uint8_t file_id[8];
     for (int i = 0; i < 8; i++)
         file_id[i] = (uint8_t)((id1 >> (56 - 8 * i)) & 0xff);
 
@@ -2427,7 +2434,7 @@ static int pdf_save_file_encrypted(struct pdf_doc *pdf, FILE *fp,
                            owner_key, user_key);
 
     return pdf_save_file_internal(pdf, fp, &crypt, owner_key, user_key,
-                                  permissions);
+                                  permissions, file_id);
 }
 
 int pdf_save(struct pdf_doc *pdf, const char *filename)
