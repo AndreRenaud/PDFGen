@@ -27,12 +27,14 @@ run "valgrind" valgrind -q --leak-check=full --error-exitcode=1 ./testprog
 
 run "pdftotext" pdftotext -layout output.pdf
 run "pdftk" pdftk output.pdf dump_data output output.pdftk
+run "pdftotext_encrypted" pdftotext -layout -upw secret output_encrypted.pdf output_encrypted.txt
 
 # Produces output.ppm
 run "pdfppm-p4" pdftoppm -f 4 -l 4 -singlefile output.pdf output
 
 # Check for various output strings
 run "check utf8 characters" grep -q "Special characters: €ÜŽžŠšÁáüöäÄÜÖß" output.txt
+run "check utf8 characters encrypted" grep -q "Special characters: €ÜŽžŠšÁáüöäÄÜÖß" output_encrypted.txt
 run "check special characters" grep -q "( ) < > \[ \] { } / %" output.txt
 run_fail "check for line wrapping" grep -q "This is a great big long string that I hope will wrap properly around several lines." output.txt
 
