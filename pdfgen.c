@@ -1162,8 +1162,8 @@ const char *pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
 {
     FILE *fp = fopen(path, "rb");
     if (!fp) {
-        pdf_set_err(pdf, -errno, "Unable to open font file '%s': %s",
-                           path, strerror(errno));
+        pdf_set_err(pdf, -errno, "Unable to open font file '%s': %s", path,
+                    strerror(errno));
         return NULL;
     }
     const char *res = pdf_set_font_ttf_file(pdf, fp, path);
@@ -1171,7 +1171,8 @@ const char *pdf_set_font_ttf(struct pdf_doc *pdf, const char *path)
     return res;
 }
 
-const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *path)
+const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp,
+                                  const char *path)
 {
     uint8_t *font_data;
     size_t font_data_len;
@@ -1193,16 +1194,16 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
     struct stat st;
 
     if (fstat(fileno(fp), &st) < 0) {
-        pdf_set_err(pdf, -errno, "Unable to stat font file '%s': %s",
-                           path, strerror(errno));
+        pdf_set_err(pdf, -errno, "Unable to stat font file '%s': %s", path,
+                    strerror(errno));
         return NULL;
     }
     font_data_len = (size_t)st.st_size;
     font_data = (uint8_t *)malloc(font_data_len);
     if (!font_data) {
         pdf_set_err(pdf, -ENOMEM,
-                           "Unable to allocate %zu bytes for font '%s'",
-                           font_data_len, path);
+                    "Unable to allocate %zu bytes for font '%s'",
+                    font_data_len, path);
         return NULL;
     }
     if (fread(font_data, 1, font_data_len, fp) != font_data_len) {
@@ -1213,18 +1214,18 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
 
     if (font_data_len < 12) {
         free(font_data);
-        pdf_set_err(
-            pdf, -EINVAL, "Font file '%s' is too small to be a TrueType font",
-            path);
+        pdf_set_err(pdf, -EINVAL,
+                    "Font file '%s' is too small to be a TrueType font",
+                    path);
         return NULL;
     }
     sfVersion = ttf_be32(font_data);
     // TrueType fonts have sfVersion 0x00010000 or 'true' (0x74727565)
     if (sfVersion != 0x00010000u && sfVersion != 0x74727565u) {
         free(font_data);
-        pdf_set_err(
-            pdf, -EINVAL, "File '%s' is not a TrueType font (version 0x%08x)",
-            path, sfVersion);
+        pdf_set_err(pdf, -EINVAL,
+                    "File '%s' is not a TrueType font (version 0x%08x)", path,
+                    sfVersion);
         return NULL;
     }
 
@@ -1239,8 +1240,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
     if (!head || head_len < 54 || !hhea || hhea_len < 36 || !hmtx || !cmap) {
         free(font_data);
         pdf_set_err(pdf, -EINVAL,
-                           "Font '%s' is missing required TrueType tables",
-                           path);
+                    "Font '%s' is missing required TrueType tables", path);
         return NULL;
     }
 
@@ -1253,8 +1253,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
     macStyle = ttf_be16(head + 44);
     if (units_per_em == 0) {
         free(font_data);
-        pdf_set_err(pdf, -EINVAL, "Font '%s' has zero units_per_em",
-                           path);
+        pdf_set_err(pdf, -EINVAL, "Font '%s' has zero units_per_em", path);
         return NULL;
     }
 
@@ -1340,24 +1339,23 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
     if (!cmap_subtable || cmap_subtable_len == 0 ||
         cmap_subtable_len > font_data_len) {
         free(font_data);
-        pdf_set_err(pdf, -EINVAL,
-                           "Font '%s' has no usable cmap subtable", path);
+        pdf_set_err(pdf, -EINVAL, "Font '%s' has no usable cmap subtable",
+                    path);
         return NULL;
     }
     uint8_t *cmap_copy = (uint8_t *)malloc(cmap_subtable_len);
     if (!cmap_copy) {
         free(font_data);
         pdf_set_err(pdf, -ENOMEM,
-                           "Unable to allocate cmap subtable for font '%s'",
-                           path);
+                    "Unable to allocate cmap subtable for font '%s'", path);
         return NULL;
     }
     // ensure subtable fits in cmap bounds safely before blind copy
     if (cmap_subtable_len > (cmap + cmap_len) - cmap_subtable) {
         free(cmap_copy);
         free(font_data);
-        pdf_set_err(pdf, -EINVAL,
-                           "Font '%s' cmap subtable length invalid", path);
+        pdf_set_err(pdf, -EINVAL, "Font '%s' cmap subtable length invalid",
+                    path);
         return NULL;
     }
     memcpy(cmap_copy, cmap_subtable, cmap_subtable_len);
@@ -1365,8 +1363,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
     if (hmtx_len == 0 || hmtx_len > font_data_len) {
         free(cmap_copy);
         free(font_data);
-        pdf_set_err(pdf, -EINVAL, "Font '%s' has invalid hmtx_len",
-                           path);
+        pdf_set_err(pdf, -EINVAL, "Font '%s' has invalid hmtx_len", path);
         return NULL;
     }
 
@@ -1376,8 +1373,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
         free(cmap_copy);
         free(font_data);
         pdf_set_err(pdf, -ENOMEM,
-                           "Unable to allocate hmtx table for font '%s'",
-                           path);
+                    "Unable to allocate hmtx table for font '%s'", path);
         return NULL;
     }
     memcpy(hmtx_copy, hmtx, hmtx_len);
@@ -1390,8 +1386,8 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
         free(hmtx_copy);
         free(cmap_copy);
         free(font_data);
-        pdf_set_err(pdf, -EINVAL,
-                           "Font '%s' has invalid numberOfHMetrics", path);
+        pdf_set_err(pdf, -EINVAL, "Font '%s' has invalid numberOfHMetrics",
+                    path);
         return NULL;
     }
     uint16_t *glyph_widths =
@@ -1401,8 +1397,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
         free(cmap_copy);
         free(font_data);
         pdf_set_err(pdf, -ENOMEM,
-                           "Unable to allocate glyph widths for font '%s'",
-                           path);
+                    "Unable to allocate glyph widths for font '%s'", path);
         return NULL;
     }
     for (uint16_t g = 0; g < numberOfHMetrics; g++) {
@@ -1436,8 +1431,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *pat
         free(hmtx_copy);
         free(cmap_copy);
         free(font_data);
-        pdf_set_err(pdf, -ENOMEM,
-                           "Unable to allocate font stream data");
+        pdf_set_err(pdf, -ENOMEM, "Unable to allocate font stream data");
         return NULL;
     }
     dstr_append(&stream_obj->stream.stream, "\r\nendstream\r\n");

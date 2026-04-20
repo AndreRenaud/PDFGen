@@ -338,7 +338,8 @@ int pdf_set_font(struct pdf_doc *pdf, const char *font);
  * and will remain until pdf_set_font or pdf_set_font_ttf is called again.
  * @param pdf PDF document to update font on
  * @param path Filesystem path to a TrueType (.ttf) font file
- * @return NULL on failure, name of the font to use on success (this is used for pdf_get_font_text_width)
+ * @return NULL on failure, name of the font to use on success (this is used
+ * for pdf_get_font_text_width)
  */
 const char *pdf_set_font_ttf(struct pdf_doc *pdf, const char *path);
 
@@ -351,7 +352,8 @@ const char *pdf_set_font_ttf(struct pdf_doc *pdf, const char *path);
  * @param path Name of font for error messages and for internal PDF reference
  * @return NULL on failure, name of the font to use on success
  */
-const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp, const char *path);
+const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp,
+                                  const char *path);
 
 /**
  * Calculate the width of a given string in the current font
