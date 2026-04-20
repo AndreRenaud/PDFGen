@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
     const char *ttf_path = "data/Ithaca.ttf";
     pdf_append_page(pdf);
     pdf_add_bookmark(pdf, NULL, -1, "TrueType Font (Unicode)");
-    if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
+    if (pdf_set_font_ttf(pdf, ttf_path) == NULL) {
         fprintf(stderr, "Failed to load TTF font: %s\n",
                 pdf_get_err(pdf, &err));
         pdf_destroy(pdf);
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
                       12, 50, 600, 0, PDF_BLACK, 300, PDF_ALIGN_LEFT, NULL);
 
     // Reload the same font (should reuse the existing object)
-    if (pdf_set_font_ttf(pdf, ttf_path) < 0) {
+    if (pdf_set_font_ttf(pdf, ttf_path) == NULL) {
         fprintf(stderr, "Failed to reload TTF font\n");
         pdf_destroy(pdf);
         return -1;
