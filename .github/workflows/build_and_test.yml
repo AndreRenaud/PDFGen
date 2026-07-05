@@ -48,20 +48,24 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
     - name: make x64
       shell: cmd
       run: |
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
         make clean
         make testprog.exe CC=cl
         cp testprog.exe testprog-64.exe
         testprog-64
         cp output.pdf output-win64.pdf
         cp output_encrypted.pdf output_encrypted-win64.pdf
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
     - name: make x86
       shell: cmd
       run: |
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars32.bat"
         make clean
         make testprog.exe CC=cl
         cp testprog.exe testprog-32.exe
