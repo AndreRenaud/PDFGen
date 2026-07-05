@@ -114,6 +114,31 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "Page One", 10, 20, 30, PDF_RGB(0xff, 0, 0));
     pdf_add_text(pdf, NULL, "PjGQji", 18, 20, 130, PDF_RGB(0, 0xff, 0xff));
     pdf_add_line(pdf, NULL, 10, 24, 100, 24, 4, PDF_RGB(0xff, 0, 0));
+    float dashed[] = {6, 3};
+    pdf_add_line_pattern(pdf, NULL, 10, 34, 100, 34, 2, PDF_RGB(0, 0x80, 0),
+                         dashed, 2, 0);
+    float dotted[] = {1, 2};
+    pdf_add_line_pattern(pdf, NULL, 10, 40, 100, 40, 2, PDF_RGB(0, 0, 0xff),
+                         dotted, 2, 0);
+    /* Invalid patterns should be rejected */
+    float all_zero[] = {0, 0};
+    if (pdf_add_line_pattern(pdf, NULL, 10, 46, 100, 46, 2, PDF_BLACK,
+                             all_zero, 2, 0) >= 0) {
+        fprintf(stderr, "All-zero line pattern not rejected\n");
+        return -1;
+    }
+    float negative[] = {3, -1};
+    if (pdf_add_line_pattern(pdf, NULL, 10, 46, 100, 46, 2, PDF_BLACK,
+                             negative, 2, 0) >= 0) {
+        fprintf(stderr, "Negative line pattern not rejected\n");
+        return -1;
+    }
+    if (pdf_add_line_pattern(pdf, NULL, 10, 46, 100, 46, 2, PDF_BLACK, NULL,
+                             2, 0) >= 0) {
+        fprintf(stderr, "NULL line pattern not rejected\n");
+        return -1;
+    }
+    pdf_clear_err(pdf);
     pdf_add_cubic_bezier(pdf, NULL, 10, 100, 150, 100, 20, 30, 60, 30, 4,
                          PDF_RGB(0, 0xff, 0));
     pdf_add_quadratic_bezier(pdf, NULL, 10, 140, 150, 140, 50, 160, 4,

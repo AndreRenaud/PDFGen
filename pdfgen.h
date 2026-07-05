@@ -512,6 +512,28 @@ int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
                  float y1, float x2, float y2, float width, uint32_t colour);
 
 /**
+ * Add a line with a dash pattern (dashed/dotted etc...)
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param x1 X offset of start of line
+ * @param y1 Y offset of start of line
+ * @param x2 X offset of end of line
+ * @param y2 Y offset of end of line
+ * @param width Width of the line
+ * @param colour Colour to draw the line
+ * @param pattern Array of alternating dash & gap lengths describing the
+ *        pattern, e.g. {6, 3} => dashed, {1, 2} => dotted. At least one
+ *        length must be non-zero
+ * @param pattern_len Number of entries in pattern (0 => solid line)
+ * @param phase Distance into the pattern at which to start the line
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_line_pattern(struct pdf_doc *pdf, struct pdf_object *page,
+                         float x1, float y1, float x2, float y2, float width,
+                         uint32_t colour, const float pattern[],
+                         int pattern_len, float phase);
+
+/**
  * Add a cubic bezier curve to the document
  * @param pdf PDF document to add to
  * @param page Page to add object to (NULL => most recently added page)
