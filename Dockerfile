@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 # clang-format is pinned so that CI and developer machines format identically;
 # the Ubuntu package (v18) formats compound literals differently to v19+
-RUN python3 -m pip install --break-system-packages cpp-coveralls clang-format==22.1.8
+RUN python3 -m pip install --break-system-packages cpp-coveralls clang-format>=22.1
 
 # Install Infer
 RUN mkdir -p /opt && curl -L https://github.com/facebook/infer/releases/download/v1.2.0/infer-linux-x86_64-v1.2.0.tar.xz | tar -C /opt -x -J
