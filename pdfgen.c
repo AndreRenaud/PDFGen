@@ -719,10 +719,8 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
  */
 
 #define INIT_DSTR                                                            \
-    (struct dstr)                                                            \
-    {                                                                        \
-        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0      \
-    }
+    (struct dstr){                                                           \
+        .static_data = {0}, .data = NULL, .alloc_len = 0, .used_len = 0}
 
 static char *dstr_data(struct dstr *str)
 {
@@ -3354,23 +3352,55 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
     return 0;
 }
 
-int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
-                 float y1, float x2, float y2, float width, uint32_t colour)
+int pdf_add_line_pattern(struct pdf_doc *pdf, struct pdf_object *page,
+                         float x1, float y1, float x2, float y2, float width,
+                         uint32_t colour, const float pattern[],
+                         int pattern_len, float phase)
 {
     int ret;
     struct dstr str = INIT_DSTR;
+    int nonzero = 0;
 
+    if (pattern_len < 0 || (pattern_len > 0 && !pattern))
+        return pdf_set_err(pdf, -EINVAL, "Invalid line pattern");
+    for (int i = 0; i < pattern_len; i++) {
+        if (pattern[i] < 0.0f)
+            return pdf_set_err(pdf, -EINVAL,
+                               "Line pattern lengths must be >= 0");
+        if (pattern[i] > 0.0f)
+            nonzero = 1;
+    }
+    if (pattern_len > 0 && !nonzero)
+        return pdf_set_err(pdf, -EINVAL,
+                           "Line pattern must have a non-zero length");
+
+    if (pattern_len > 0) {
+        dstr_append(&str, "[");
+        for (int i = 0; i < pattern_len; i++)
+            dstr_printf(&str, "%s%f", i ? " " : "", pattern[i]);
+        dstr_printf(&str, "] %f d\r\n", phase);
+    }
     dstr_printf(&str, "%f w\r\n", width);
     dstr_printf(&str, "%f %f m\r\n", x1, y1);
     dstr_printf(&str, "/DeviceRGB CS\r\n");
     dstr_printf(&str, "%f %f %f RG\r\n", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f %f l S\r\n", x2, y2);
+    /* Restore the solid pattern */
+    if (pattern_len > 0)
+        dstr_append(&str, "[] 0 d\r\n");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
 
     return ret;
+}
+
+int pdf_add_line(struct pdf_doc *pdf, struct pdf_object *page, float x1,
+                 float y1, float x2, float y2, float width, uint32_t colour)
+{
+    return pdf_add_line_pattern(pdf, page, x1, y1, x2, y2, width, colour,
+                                NULL, 0, 0.0f);
 }
 
 int pdf_add_cubic_bezier(struct pdf_doc *pdf, struct pdf_object *page,
