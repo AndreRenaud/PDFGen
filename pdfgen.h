@@ -3,7 +3,7 @@
  * It supports text, shapes, images etc...
  * Capable of handling millions of objects without too much performance
  * penalty.
- * Public domain license - no warrenty implied; use at your own risk.
+ * Public domain license - no warranty implied; use at your own risk.
  * @file pdfgen.h
  */
 #ifndef PDFGEN_H
@@ -45,7 +45,7 @@ struct pdf_doc *pdf = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
 pdf_set_font(pdf, "Times-Roman");
 pdf_append_page(pdf);
 pdf_add_text(pdf, NULL, "This is text", 12, 50, 20, PDF_BLACK);
-pdf_add_line(pdf, NULL, 50, 24, 150, 24);
+pdf_add_line(pdf, NULL, 50, 24, 150, 24, 3, PDF_BLACK);
 pdf_save(pdf, "output.pdf");
 pdf_destroy(pdf);
  * @endcode
@@ -148,9 +148,9 @@ struct jpeg_header {
  * PPM color spaces
  */
 enum {
-    PPM_BINARY_COLOR_RGB,  //!< binary ppm with RGB colors (magic number P5)
+    PPM_BINARY_COLOR_RGB,  //!< binary ppm with RGB colors (magic number P6)
     PPM_BINARY_COLOR_GRAY, //!< binary ppm with grayscale colors (magic number
-                           //!< P6)
+                           //!< P5)
 };
 
 /**
@@ -356,10 +356,12 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp,
                                   const char *path);
 
 /**
- * Calculate the width of a given string in the current font
+ * Calculate the width of a given string in the given font
  * @param pdf PDF document
- * @param font_name Name of the font to get the width of.
- *  This must be one of the standard PDF fonts:
+ * @param font_name Name of the font to get the width of
+ *  (NULL => currently selected font).
+ *  This must be either the name of a TrueType font previously loaded
+ *  via @ref pdf_set_font_ttf, or one of the standard PDF fonts:
  *  Courier, Courier-Bold, Courier-BoldOblique, Courier-Oblique,
  *  Helvetica, Helvetica-Bold, Helvetica-BoldOblique, Helvetica-Oblique,
  *  Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic,
@@ -711,7 +713,7 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
  * @param target_page Page to jump to for link
  * @param target_x X coordinate to position at the left of the view
  * @param target_y Y coordinate to position at the top of the view
- * @return < 0 on failure, new bookmark id on success
+ * @return < 0 on failure, new link id on success
  */
 int pdf_add_link(struct pdf_doc *pdf, struct pdf_object *page, float x,
                  float y, float width, float height,
@@ -752,7 +754,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
  * Image data must be one of: JPEG, PNG, PPM, PGM or BMP formats
  * Passing 0 for either the display width or height will
  * include the image but not render it visible.
- * Passing a negative number either the display height or width will
+ * Passing a negative number for either the display height or width will
  * have the image be resized while keeping the original aspect ratio.
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
@@ -772,7 +774,7 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * Add a raw 24 bit per pixel RGB buffer as an image to the document
  * Passing 0 for either the display width or height will
  * include the image but not render it visible.
- * Passing a negative number either the display height or width will
+ * Passing a negative number for either the display height or width will
  * have the image be resized while keeping the original aspect ratio.
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
@@ -791,6 +793,10 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
 
 /**
  * Add a raw 8 bit per pixel grayscale buffer as an image to the document
+ * Passing 0 for either the display width or height will
+ * include the image but not render it visible.
+ * Passing a negative number for either the display height or width will
+ * have the image be resized while keeping the original aspect ratio.
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at
@@ -810,10 +816,10 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * Add an image file as an image to the document.
  * Passing 0 for either the display width or height will
  * include the image but not render it visible.
- * Passing a negative number either the display height or width will
+ * Passing a negative number for either the display height or width will
  * have the image be resized while keeping the original aspect ratio.
  * Supports image formats: JPEG, PNG, PPM, PGM & BMP
- * @param pdf PDF document to add bookmark to
+ * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at
  * @param y Y offset to put image at

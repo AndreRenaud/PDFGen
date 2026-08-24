@@ -5,7 +5,7 @@ PDFGen
 <a href="https://www.buymeacoffee.com/EstIgnavus" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
 Simple C PDF Creation/Generation library.
-All contained a single C-file with header and no external library dependencies.
+All contained in a single C-file with header and no external library dependencies.
 
 Useful for embedding into other programs that require rudimentary PDF output.
 
@@ -22,7 +22,7 @@ Supports the following PDF features
     * Custom Paths
 * Bookmarks / Links
 * Barcodes
-    * Code-128
+    * Code-128A
     * Code-39
     * EAN-13
     * UPC-A
@@ -33,6 +33,7 @@ Supports the following PDF features
     * JPEG
     * PNG (Alpha Channels are not supported)
     * BMP
+* Password protected/encrypted output (RC4 40-bit)
 
 Example usage
 =============
