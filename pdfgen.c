@@ -5492,8 +5492,8 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (!bmp_data)
         return pdf_set_err(pdf, -ENOMEM, "Insufficient memory for bitmap");
     for (uint32_t pos = 0; pos < width * height; pos++) {
-        uint32_t src_pos = header->bfOffBits + (pos / width) * stride +
-                           (pos % width) * bpp;
+        uint32_t src_pos =
+            header->bfOffBits + (pos / width) * stride + (pos % width) * bpp;
 
         bmp_data[pos * 3] = data[src_pos + 2];
         bmp_data[pos * 3 + 1] = data[src_pos + 1];
