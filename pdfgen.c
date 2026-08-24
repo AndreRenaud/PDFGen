@@ -4696,71 +4696,33 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     }
 }
 
-static pdf_object *pdf_add_raw_grayscale8(struct pdf_doc *pdf,
-                                          const uint8_t *data, uint32_t width,
-                                          uint32_t height)
-{
-    struct pdf_object *obj;
-    size_t len;
-    const char *endstream = ">\r\nendstream\r\n";
-    struct dstr str = INIT_DSTR;
-    size_t data_len = (size_t)width * (size_t)height;
-
-    dstr_printf(&str,
-                "<<\r\n"
-                "  /Type /XObject\r\n"
-                "  /Name /Image%d\r\n"
-                "  /Subtype /Image\r\n"
-                "  /ColorSpace /DeviceGray\r\n"
-                "  /Height %d\r\n"
-                "  /Width %d\r\n"
-                "  /BitsPerComponent 8\r\n"
-                "  /Length %zu\r\n"
-                ">>stream\r\n",
-                flexarray_size(&pdf->objects), height, width, data_len + 1);
-
-    len = dstr_len(&str) + data_len + strlen(endstream) + 1;
-    if (dstr_ensure(&str, len) < 0) {
-        dstr_free(&str);
-        pdf_set_err(pdf, -ENOMEM,
-                    "Unable to allocate %zu bytes memory for image", len);
-        return NULL;
-    }
-    dstr_append_data(&str, data, data_len);
-    dstr_append(&str, endstream);
-
-    obj = pdf_add_object(pdf, OBJ_image);
-    if (!obj) {
-        dstr_free(&str);
-        return NULL;
-    }
-    obj->stream.stream = str;
-
-    return obj;
-}
-
-static struct pdf_object *pdf_add_raw_rgb24(struct pdf_doc *pdf,
+/* Add an uncompressed image stream: 1 component => 8-bit grayscale,
+ * 3 components => 24-bit RGB */
+static struct pdf_object *pdf_add_raw_image(struct pdf_doc *pdf,
                                             const uint8_t *data,
-                                            uint32_t width, uint32_t height)
+                                            uint32_t width, uint32_t height,
+                                            int ncomponents)
 {
     struct pdf_object *obj;
     size_t len;
     const char *endstream = ">\r\nendstream\r\n";
     struct dstr str = INIT_DSTR;
-    size_t data_len = (size_t)width * (size_t)height * 3;
+    size_t data_len = (size_t)width * (size_t)height * ncomponents;
 
     dstr_printf(&str,
                 "<<\r\n"
                 "  /Type /XObject\r\n"
                 "  /Name /Image%d\r\n"
                 "  /Subtype /Image\r\n"
-                "  /ColorSpace /DeviceRGB\r\n"
+                "  /ColorSpace %s\r\n"
                 "  /Height %d\r\n"
                 "  /Width %d\r\n"
                 "  /BitsPerComponent 8\r\n"
                 "  /Length %zu\r\n"
                 ">>stream\r\n",
-                flexarray_size(&pdf->objects), height, width, data_len + 1);
+                flexarray_size(&pdf->objects),
+                ncomponents == 1 ? "/DeviceGray" : "/DeviceRGB", height,
+                width, data_len + 1);
 
     len = dstr_len(&str) + data_len + strlen(endstream) + 1;
     if (dstr_ensure(&str, len) < 0) {
@@ -5118,7 +5080,7 @@ int pdf_add_rgb24(struct pdf_doc *pdf, struct pdf_object *page, float x,
 {
     struct pdf_object *obj;
 
-    obj = pdf_add_raw_rgb24(pdf, data, width, height);
+    obj = pdf_add_raw_image(pdf, data, width, height, 3);
     if (!obj)
         return pdf->errval;
 
@@ -5135,7 +5097,7 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
 {
     struct pdf_object *obj;
 
-    obj = pdf_add_raw_grayscale8(pdf, data, width, height);
+    obj = pdf_add_raw_image(pdf, data, width, height, 1);
     if (!obj)
         return pdf->errval;
 
@@ -5525,37 +5487,17 @@ static int pdf_add_bmp_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (len - header->bfOffBits < (size_t)height * stride)
         return pdf_set_err(pdf, -EINVAL, "Wrong BMP image size");
 
-    if (bpp == 3) {
-        /* 24 bits: change R and B colors */
-        bmp_data = (uint8_t *)malloc(data_len);
-        if (!bmp_data)
-            return pdf_set_err(pdf, -ENOMEM,
-                               "Insufficient memory for bitmap");
-        for (uint32_t pos = 0; pos < width * height; pos++) {
-            uint32_t src_pos = header->bfOffBits + (pos / width) * stride +
-                               (pos % width) * 3;
+    /* Convert BGR(A) pixels to packed RGB, dropping any alpha/padding */
+    bmp_data = (uint8_t *)malloc(data_len);
+    if (!bmp_data)
+        return pdf_set_err(pdf, -ENOMEM, "Insufficient memory for bitmap");
+    for (uint32_t pos = 0; pos < width * height; pos++) {
+        uint32_t src_pos = header->bfOffBits + (pos / width) * stride +
+                           (pos % width) * bpp;
 
-            bmp_data[pos * 3] = data[src_pos + 2];
-            bmp_data[pos * 3 + 1] = data[src_pos + 1];
-            bmp_data[pos * 3 + 2] = data[src_pos];
-        }
-    } else if (bpp == 4) {
-        /* 32 bits: change R and B colors, remove key color */
-        int offs = 0;
-        bmp_data = (uint8_t *)malloc(data_len);
-        if (!bmp_data)
-            return pdf_set_err(pdf, -ENOMEM,
-                               "Insufficient memory for bitmap");
-
-        for (uint32_t pos = 0; pos < width * height * 4; pos += 4) {
-            bmp_data[offs] = data[header->bfOffBits + pos + 2];
-            bmp_data[offs + 1] = data[header->bfOffBits + pos + 1];
-            bmp_data[offs + 2] = data[header->bfOffBits + pos];
-            offs += 3;
-        }
-    } else {
-        return pdf_set_err(pdf, -EINVAL, "Unsupported BMP bitdepth: %d",
-                           header->biBitCount);
+        bmp_data[pos * 3] = data[src_pos + 2];
+        bmp_data[pos * 3 + 1] = data[src_pos + 1];
+        bmp_data[pos * 3 + 2] = data[src_pos];
     }
     if (header->biHeight >= 0) {
         // BMP has vertically mirrored representation of lines, so swap them
