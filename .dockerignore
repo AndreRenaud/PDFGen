@@ -1,0 +1,4 @@
+# The image build never COPYs anything from the source tree, so keep the build
+# context empty. Otherwise podman tars up the whole directory (venv, build
+# outputs, test PDFs, ...) and ships it into the VM on every `make podman-image`.
+*
