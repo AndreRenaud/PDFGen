@@ -1656,66 +1656,31 @@ static int pdf_save_object_internal(struct pdf_doc *pdf, FILE *fp, int index,
     }
     case OBJ_info: {
         const struct pdf_info *info = object->info;
+        char date[sizeof(info->date) + 2];
+        const struct {
+            const char *key;
+            const char *value;
+        } fields[] = {
+            {"Creator", info->creator},
+            {"Producer", info->producer},
+            {"Title", info->title},
+            {"Author", info->author},
+            {"Subject", info->subject},
+            /* The date requires a "D:" prefix; skip it when empty */
+            {"CreationDate", info->date[0] ? date : ""},
+        };
         int e;
 
+        snprintf(date, sizeof(date), "D:%s", info->date);
         fprintf(fp, "<<\r\n");
-        if (info->creator[0]) {
-            fprintf(fp, "  /Creator ");
-            if ((e = pdf_write_string_val(pdf, fp, index, info->creator,
+        for (size_t i = 0; i < ARRAY_SIZE(fields); i++) {
+            if (!fields[i].value[0])
+                continue;
+            fprintf(fp, "  /%s ", fields[i].key);
+            if ((e = pdf_write_string_val(pdf, fp, index, fields[i].value,
                                           crypt)) < 0)
                 return e;
             fprintf(fp, "\r\n");
-        }
-        if (info->producer[0]) {
-            fprintf(fp, "  /Producer ");
-            if ((e = pdf_write_string_val(pdf, fp, index, info->producer,
-                                          crypt)) < 0)
-                return e;
-            fprintf(fp, "\r\n");
-        }
-        if (info->title[0]) {
-            fprintf(fp, "  /Title ");
-            if ((e = pdf_write_string_val(pdf, fp, index, info->title,
-                                          crypt)) < 0)
-                return e;
-            fprintf(fp, "\r\n");
-        }
-        if (info->author[0]) {
-            fprintf(fp, "  /Author ");
-            if ((e = pdf_write_string_val(pdf, fp, index, info->author,
-                                          crypt)) < 0)
-                return e;
-            fprintf(fp, "\r\n");
-        }
-        if (info->subject[0]) {
-            fprintf(fp, "  /Subject ");
-            if ((e = pdf_write_string_val(pdf, fp, index, info->subject,
-                                          crypt)) < 0)
-                return e;
-            fprintf(fp, "\r\n");
-        }
-        if (info->date[0]) {
-            if (crypt) {
-                /* Encrypt the date string with its "D:" prefix */
-                size_t dlen = strlen(info->date);
-                uint8_t *dbuf = (uint8_t *)malloc(dlen + 2);
-                if (!dbuf)
-                    return pdf_set_err(
-                        pdf, -ENOMEM, "Out of memory encrypting date string");
-                dbuf[0] = 'D';
-                dbuf[1] = ':';
-                memcpy(dbuf + 2, info->date, dlen);
-                pdf_crypt_data(crypt, index, dbuf, dlen + 2);
-                fprintf(fp, "  /CreationDate <");
-                for (size_t i = 0; i < dlen + 2; i++)
-                    fprintf(fp, "%02x", dbuf[i]);
-                fprintf(fp, ">\r\n");
-                free(dbuf);
-            } else {
-                fprintf(fp, "  /CreationDate (D:");
-                pdf_print_escaped_string(fp, info->date);
-                fprintf(fp, ")\r\n");
-            }
         }
         fprintf(fp, ">>\r\n");
         break;
@@ -2674,6 +2639,43 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
     return len;
 }
 
+/* The *some* minimal UTF-8 characters > 255 that we support, and their
+ * WinAnsiEncoding values. See Appendix D of
+ * https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf
+ */
+static const struct {
+    uint16_t codepoint;
+    uint8_t encoding;
+} win_ansi_encoding[] = {
+    {0x152, 0214},  // Latin Capital Ligature OE
+    {0x153, 0234},  // Latin Small Ligature oe
+    {0x160, 0212},  // Latin Capital Letter S with caron
+    {0x161, 0232},  // Latin Small Letter S with caron
+    {0x178, 0237},  // Latin Capital Letter y with diaeresis
+    {0x17d, 0216},  // Latin Capital Letter Z with caron
+    {0x17e, 0236},  // Latin Small Letter Z with caron
+    {0x192, 0203},  // Latin Small Letter F with hook
+    {0x2c6, 0210},  // Modifier Letter Circumflex Accent
+    {0x2dc, 0230},  // Small Tilde
+    {0x2013, 0226}, // Endash
+    {0x2014, 0227}, // Emdash
+    {0x2018, 0221}, // Left Single Quote
+    {0x2019, 0222}, // Right Single Quote
+    {0x201a, 0202}, // Single low-9 Quotation Mark
+    {0x201c, 0223}, // Left Double Quote
+    {0x201d, 0224}, // Right Double Quote
+    {0x201e, 0204}, // Double low-9 Quotation Mark
+    {0x2020, 0206}, // Dagger
+    {0x2021, 0207}, // Double Dagger
+    {0x2022, 0225}, // Bullet
+    {0x2026, 0205}, // Horizontal Ellipsis
+    {0x2030, 0211}, // Per Mille Sign
+    {0x2039, 0213}, // Single Left-pointing Angle Quotation Mark
+    {0x203a, 0233}, // Single Right-pointing Angle Quotation Mark
+    {0x20ac, 0200}, // Euro
+    {0x2122, 0231}, // Trade Mark Sign
+};
+
 static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
                                uint8_t *res)
 {
@@ -2688,100 +2690,17 @@ static int utf8_to_pdfencoding(struct pdf_doc *pdf, const char *utf8, int len,
     }
 
     if (code > 255) {
-        /* We support *some* minimal UTF-8 characters */
-        // See Appendix D of
-        // https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf
-        // These are all in WinAnsiEncoding
-        switch (code) {
-        case 0x152: // Latin Capital Ligature OE
-            *res = 0214;
-            break;
-        case 0x153: // Latin Small Ligature oe
-            *res = 0234;
-            break;
-        case 0x160: // Latin Capital Letter S with caron
-            *res = 0212;
-            break;
-        case 0x161: // Latin Small Letter S with caron
-            *res = 0232;
-            break;
-        case 0x178: // Latin Capital Letter y with diaeresis
-            *res = 0237;
-            break;
-        case 0x17d: // Latin Capital Letter Z with caron
-            *res = 0216;
-            break;
-        case 0x17e: // Latin Small Letter Z with caron
-            *res = 0236;
-            break;
-        case 0x192: // Latin Small Letter F with hook
-            *res = 0203;
-            break;
-        case 0x2c6: // Modifier Letter Circumflex Accent
-            *res = 0210;
-            break;
-        case 0x2dc: // Small Tilde
-            *res = 0230;
-            break;
-        case 0x2013: // Endash
-            *res = 0226;
-            break;
-        case 0x2014: // Emdash
-            *res = 0227;
-            break;
-        case 0x2018: // Left Single Quote
-            *res = 0221;
-            break;
-        case 0x2019: // Right Single Quote
-            *res = 0222;
-            break;
-        case 0x201a: // Single low-9 Quotation Mark
-            *res = 0202;
-            break;
-        case 0x201c: // Left Double Quote
-            *res = 0223;
-            break;
-        case 0x201d: // Right Double Quote
-            *res = 0224;
-            break;
-        case 0x201e: // Double low-9 Quotation Mark
-            *res = 0204;
-            break;
-        case 0x2020: // Dagger
-            *res = 0206;
-            break;
-        case 0x2021: // Double Dagger
-            *res = 0207;
-            break;
-        case 0x2022: // Bullet
-            *res = 0225;
-            break;
-        case 0x2026: // Horizontal Ellipsis
-            *res = 0205;
-            break;
-        case 0x2030: // Per Mille Sign
-            *res = 0211;
-            break;
-        case 0x2039: // Single Left-pointing Angle Quotation Mark
-            *res = 0213;
-            break;
-        case 0x203a: // Single Right-pointing Angle Quotation Mark
-            *res = 0233;
-            break;
-        case 0x20ac: // Euro
-            *res = 0200;
-            break;
-        case 0x2122: // Trade Mark Sign
-            *res = 0231;
-            break;
-        default:
-            return pdf_set_err(pdf, -EINVAL,
-                               "Unsupported UTF-8 character: 0x%x 0o%o %s",
-                               code, code, utf8);
+        for (size_t i = 0; i < ARRAY_SIZE(win_ansi_encoding); i++) {
+            if (win_ansi_encoding[i].codepoint == code) {
+                *res = win_ansi_encoding[i].encoding;
+                return code_len;
+            }
         }
-    } else {
-        *res = code;
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unsupported UTF-8 character: 0x%x 0o%o %s", code,
+                           code, utf8);
     }
+    *res = code;
     return code_len;
 }
 
@@ -3071,51 +2990,6 @@ static const uint16_t helvetica_bold_widths[256] = {
     615,  560, 615,  560,
 };
 
-static const uint16_t helvetica_bold_oblique_widths[256] = {
-    280,  280, 280,  280, 280, 280, 280, 280,  280, 280, 280, 280,  280, 280,
-    280,  280, 280,  280, 280, 280, 280, 280,  280, 280, 280, 280,  280, 280,
-    280,  280, 280,  280, 280, 335, 477, 560,  560, 896, 727, 239,  335, 335,
-    392,  588, 280,  335, 280, 280, 560, 560,  560, 560, 560, 560,  560, 560,
-    560,  560, 335,  335, 588, 588, 588, 615,  982, 727, 727, 727,  727, 672,
-    615,  784, 727,  280, 560, 727, 615, 839,  727, 784, 672, 784,  727, 672,
-    615,  727, 672,  951, 672, 672, 615, 335,  280, 335, 588, 560,  335, 560,
-    615,  560, 615,  560, 335, 615, 615, 280,  280, 560, 280, 896,  615, 615,
-    615,  615, 392,  560, 335, 615, 560, 784,  560, 560, 504, 392,  282, 392,
-    588,  352, 560,  352, 280, 560, 504, 1008, 560, 560, 335, 1008, 672, 335,
-    1008, 352, 615,  352, 352, 280, 280, 504,  504, 352, 560, 1008, 335, 1008,
-    560,  335, 951,  352, 504, 672, 280, 335,  560, 560, 560, 560,  282, 560,
-    335,  742, 372,  560, 588, 335, 742, 335,  403, 588, 335, 335,  335, 615,
-    560,  280, 335,  335, 367, 560, 840, 840,  840, 615, 727, 727,  727, 727,
-    727,  727, 1008, 727, 672, 672, 672, 672,  280, 280, 280, 280,  727, 727,
-    784,  784, 784,  784, 784, 588, 784, 727,  727, 727, 727, 672,  672, 615,
-    560,  560, 560,  560, 560, 560, 896, 560,  560, 560, 560, 560,  280, 280,
-    280,  280, 615,  615, 615, 615, 615, 615,  615, 588, 615, 615,  615, 615,
-    615,  560, 615,  560,
-};
-
-static const uint16_t helvetica_oblique_widths[256] = {
-    280, 280, 280, 280,  280, 280, 280, 280,  280,  280, 280,  280, 280,
-    280, 280, 280, 280,  280, 280, 280, 280,  280,  280, 280,  280, 280,
-    280, 280, 280, 280,  280, 280, 280, 280,  357,  560, 560,  896, 672,
-    192, 335, 335, 392,  588, 280, 335, 280,  280,  560, 560,  560, 560,
-    560, 560, 560, 560,  560, 560, 280, 280,  588,  588, 588,  560, 1023,
-    672, 672, 727, 727,  672, 615, 784, 727,  280,  504, 672,  560, 839,
-    727, 784, 672, 784,  727, 672, 615, 727,  672,  951, 672,  672, 615,
-    280, 280, 280, 472,  560, 335, 560, 560,  504,  560, 560,  280, 560,
-    560, 223, 223, 504,  223, 839, 560, 560,  560,  560, 335,  504, 280,
-    560, 504, 727, 504,  504, 504, 336, 262,  336,  588, 352,  560, 352,
-    223, 560, 335, 1008, 560, 560, 335, 1008, 672,  335, 1008, 352, 615,
-    352, 352, 223, 223,  335, 335, 352, 560,  1008, 335, 1008, 504, 335,
-    951, 352, 504, 672,  280, 335, 560, 560,  560,  560, 262,  560, 335,
-    742, 372, 560, 588,  335, 742, 335, 403,  588,  335, 335,  335, 560,
-    541, 280, 335, 335,  367, 560, 840, 840,  840,  615, 672,  672, 672,
-    672, 672, 672, 1008, 727, 672, 672, 672,  672,  280, 280,  280, 280,
-    727, 727, 784, 784,  784, 784, 784, 588,  784,  727, 727,  727, 727,
-    672, 672, 615, 560,  560, 560, 560, 560,  560,  896, 504,  560, 560,
-    560, 560, 280, 280,  280, 280, 560, 560,  560,  560, 560,  560, 560,
-    588, 615, 560, 560,  560, 560, 504, 560,  504,
-};
-
 static const uint16_t symbol_widths[256] = {
     252, 252, 252, 252,  252, 252, 252,  252, 252,  252,  252, 252, 252, 252,
     252, 252, 252, 252,  252, 252, 252,  252, 252,  252,  252, 252, 252, 252,
@@ -3350,14 +3224,13 @@ static int pdf_text_width_for_font(struct pdf_doc *pdf, bool is_ttf,
 
 static const uint16_t *find_font_widths(const char *font_name)
 {
-    if (strcasecmp(font_name, "Helvetica") == 0)
+    /* The oblique variants share the metrics of their upright versions */
+    if (strcasecmp(font_name, "Helvetica") == 0 ||
+        strcasecmp(font_name, "Helvetica-Oblique") == 0)
         return helvetica_widths;
-    if (strcasecmp(font_name, "Helvetica-Bold") == 0)
+    if (strcasecmp(font_name, "Helvetica-Bold") == 0 ||
+        strcasecmp(font_name, "Helvetica-BoldOblique") == 0)
         return helvetica_bold_widths;
-    if (strcasecmp(font_name, "Helvetica-BoldOblique") == 0)
-        return helvetica_bold_oblique_widths;
-    if (strcasecmp(font_name, "Helvetica-Oblique") == 0)
-        return helvetica_oblique_widths;
     if (strcasecmp(font_name, "Courier") == 0 ||
         strcasecmp(font_name, "Courier-Bold") == 0 ||
         strcasecmp(font_name, "Courier-BoldOblique") == 0 ||
@@ -3791,8 +3664,10 @@ int pdf_add_filled_rectangle(struct pdf_doc *pdf, struct pdf_object *page,
     return ret;
 }
 
-int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
-                    float y[], int count, float border_width, uint32_t colour)
+static int pdf_add_polygon_internal(struct pdf_doc *pdf,
+                                    struct pdf_object *page, float x[],
+                                    float y[], int count, float border_width,
+                                    uint32_t colour, bool fill)
 {
     int ret;
     struct dstr str = INIT_DSTR;
@@ -3802,12 +3677,15 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
 
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
+    if (fill)
+        dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour),
+                    PDF_RGB_G(colour), PDF_RGB_B(colour));
     dstr_printf(&str, "%f w ", border_width);
     dstr_printf(&str, "%f %f m ", x[0], y[0]);
     for (int i = 1; i < count; i++) {
         dstr_printf(&str, "%f %f l ", x[i], y[i]);
     }
-    dstr_printf(&str, "h S ");
+    dstr_append(&str, fill ? "h f " : "h S ");
 
     ret = pdf_add_stream(pdf, page, dstr_data(&str));
     dstr_free(&str);
@@ -3815,31 +3693,19 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
     return ret;
 }
 
+int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
+                    float y[], int count, float border_width, uint32_t colour)
+{
+    return pdf_add_polygon_internal(pdf, page, x, y, count, border_width,
+                                    colour, false);
+}
+
 int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
                            float x[], float y[], int count,
                            float border_width, uint32_t colour)
 {
-    int ret;
-    struct dstr str = INIT_DSTR;
-
-    if (count < 1 || !x || !y)
-        return pdf_set_err(pdf, -EINVAL, "Invalid polygon point data");
-
-    dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
-    dstr_printf(&str, "%f %f %f rg ", PDF_RGB_R(colour), PDF_RGB_G(colour),
-                PDF_RGB_B(colour));
-    dstr_printf(&str, "%f w ", border_width);
-    dstr_printf(&str, "%f %f m ", x[0], y[0]);
-    for (int i = 1; i < count; i++) {
-        dstr_printf(&str, "%f %f l ", x[i], y[i]);
-    }
-    dstr_printf(&str, "h f ");
-
-    ret = pdf_add_stream(pdf, page, dstr_data(&str));
-    dstr_free(&str);
-
-    return ret;
+    return pdf_add_polygon_internal(pdf, page, x, y, count, border_width,
+                                    colour, true);
 }
 
 static const struct {
@@ -4270,83 +4136,64 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
     text[1] = 0;
     text[0] = lead + '0';
     e = pdf_add_text(pdf, page, text, font, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     x += eanupc_dimensions[0].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
         e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                               7 * x_width, PDF_ALIGN_CENTER, NULL);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
 
         int set = (set_ean13_encoding[lead] & 1 << i) ? 1 : 0;
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, *string, set, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
         string++;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_CENTRE,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
         e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                               7 * x_width, PDF_ALIGN_CENTER, NULL);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
 
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, *string, 2, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
         string++;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     text[0] = '>';
     x += eanupc_dimensions[0].quiet_right * x_width -
          604.0f * font / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+out:
     pdf_set_font(pdf, save_font);
-    return 0;
+    return e < 0 ? e : 0;
 }
 
 static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
@@ -4383,89 +4230,70 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     text[1] = 0;
     text[0] = *string;
     e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     x += eanupc_dimensions[1].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
         if (i) {
             e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                                   7 * x_width, PDF_ALIGN_CENTER, NULL);
-            if (e < 0) {
-                pdf_set_font(pdf, save_font);
-                return e;
-            }
+            if (e < 0)
+                goto out;
         }
 
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y - (i ? 0 : bar_ext),
                                   x_width, bar_height + (i ? 0 : bar_ext),
                                   colour, *string, 0, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
         string++;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_CENTRE,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     for (int i = 0; i != 6; i++) {
         text[0] = *string;
         if (i != 5) {
             e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                                   7 * x_width, PDF_ALIGN_CENTER, NULL);
-            if (e < 0) {
-                pdf_set_font(pdf, save_font);
-                return e;
-            }
+            if (e < 0)
+                goto out;
         }
 
         e = pdf_barcode_eanupc_ch(
             pdf, page, x, bar_y - (i != 5 ? 0 : bar_ext), x_width,
             bar_height + (i != 5 ? 0 : bar_ext), colour, *string, 2, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
         string++;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     text[0] = *(string - 1);
 
     x += eanupc_dimensions[1].quiet_right * x_width -
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+out:
     pdf_set_font(pdf, save_font);
-    return 0;
+    return e < 0 ? e : 0;
 }
 
 static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
@@ -4502,82 +4330,63 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
     text[1] = 0;
     text[0] = '<';
     e = pdf_add_text(pdf, page, text, font, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     x += eanupc_dimensions[2].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     for (int i = 0; i != 4; i++) {
         text[0] = *string;
         e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                               7 * x_width, PDF_ALIGN_CENTER, NULL);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
 
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, *string, 0, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
         string++;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_CENTRE,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     for (int i = 0; i != 4; i++) {
         text[0] = *string;
         e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                               7 * x_width, PDF_ALIGN_CENTER, NULL);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
 
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, *string, 2, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
         string++;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y - bar_ext, x_width,
                                bar_height + bar_ext, colour, GUARD_NORMAL,
                                &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     text[0] = '>';
     x += eanupc_dimensions[0].quiet_right * x_width -
          604.0f * font / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+out:
     pdf_set_font(pdf, save_font);
-    return 0;
+    return e < 0 ? e : 0;
 }
 
 static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
@@ -4624,18 +4433,14 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     text[1] = 0;
     text[0] = string[0];
     e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     x += eanupc_dimensions[2].quiet_left * x_width;
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y, x_width, bar_height,
                                colour, GUARD_NORMAL, &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     char X[6];
     if (string[5] && memcmp(string + 6, "0000", 4) == 0 &&
@@ -4661,46 +4466,36 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
         X[4] = string[10];
         X[5] = '3';
     } else {
-        pdf_set_font(pdf, save_font);
-        return pdf_set_err(pdf, -EINVAL, "Invalid UPCE string format");
+        e = pdf_set_err(pdf, -EINVAL, "Invalid UPCE string format");
+        goto out;
     }
 
     for (int i = 0; i != 6; i++) {
         text[0] = X[i];
         e = pdf_add_text_wrap(pdf, page, text, font, x, y, 0, colour,
                               7 * x_width, PDF_ALIGN_CENTER, NULL);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
 
         int set = (set_upce_encoding[string[11] - '0'] & 1 << i) ? 1 : 0;
         e = pdf_barcode_eanupc_ch(pdf, page, x, bar_y, x_width, bar_height,
                                   colour, X[i], set, &x);
-        if (e < 0) {
-            pdf_set_font(pdf, save_font);
-            return e;
-        }
+        if (e < 0)
+            goto out;
     }
 
     e = pdf_barcode_eanupc_aux(pdf, page, x, bar_y, x_width, bar_height,
                                colour, GUARD_SPECIAL, &x);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
+    if (e < 0)
+        goto out;
 
     text[0] = string[11];
     x += eanupc_dimensions[0].quiet_right * x_width -
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
-    if (e < 0) {
-        pdf_set_font(pdf, save_font);
-        return e;
-    }
-
+out:
     pdf_set_font(pdf, save_font);
-    return 0;
+    return e < 0 ? e : 0;
 }
 
 /* QR code generation: byte mode & error correction level 'L' only,
