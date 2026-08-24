@@ -501,7 +501,7 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 /**
  * Add a line of text formatted with a minimal subset of bbcode.
  * Supported tags: [b]bold[/b], [i]italic[/i],
- * [color=#rrggbb]coloured[/color] (also spelled [colour=...]) and
+ * [color=\#rrggbb]coloured[/color] (also spelled [colour=...]) and
  * [url=https://example.com]link text[/url] ([url]target[/url] links to the
  * enclosed text). Tags nest, with a closing tag restoring the enclosing
  * state. Unrecognised or mismatched tags are rendered as literal text.
