@@ -499,6 +499,28 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                       int align, float *height);
 
 /**
+ * Add a line of text formatted with a minimal subset of bbcode.
+ * Supported tags: [b]bold[/b], [i]italic[/i],
+ * [color=#rrggbb]coloured[/color] (also spelled [colour=...]) and
+ * [url=https://example.com]link text[/url] ([url]target[/url] links to the
+ * enclosed text). Tags nest, with a closing tag restoring the enclosing
+ * state. Unrecognised or mismatched tags are rendered as literal text.
+ * Bold/italic switch to the matching style of the current built-in font's
+ * family (Helvetica/Times/Courier); they have no effect on TTF fonts.
+ * @param pdf PDF document to add to
+ * @param page Page to add object to (NULL => most recently added page)
+ * @param text bbcode-formatted string to display
+ * @param size Point size of the font
+ * @param xoff X location to put it in
+ * @param yoff Y location to put it in
+ * @param colour Default colour of the text
+ * @return 0 on success, < 0 on failure
+ */
+int pdf_add_bbcode(struct pdf_doc *pdf, struct pdf_object *page,
+                   const char *text, float size, float xoff, float yoff,
+                   uint32_t colour);
+
+/**
  * Add a line to the document
  * @param pdf PDF document to add to
  * @param page Page to add object to (NULL => most recently added page)

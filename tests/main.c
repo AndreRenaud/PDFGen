@@ -225,6 +225,15 @@ int main(int argc, char *argv[])
     pdf_add_text(pdf, NULL, "(5.6.3) RS485 pins", 8, 317, 556,
                  PDF_RGB(0, 0, 0));
 
+    /* bbcode formatted text: nested bold/italic/colour and links */
+    pdf_set_font(pdf, "Helvetica");
+    pdf_add_bbcode(pdf, NULL,
+                   "bbcode: [b]bold[/b], [i]italic[/i], [b][i]nested "
+                   "[color=#ff0000]red[/color][/i][/b], "
+                   "[url=https://github.com/AndreRenaud/PDFGen]a link[/url] "
+                   "and [not a tag]",
+                   12, 50, 470, PDF_RGB(0, 0, 0));
+
     bm = pdf_add_bookmark(pdf, NULL, -1, "Another Page");
     bm = pdf_add_bookmark(pdf, NULL, bm, "Another Page again");
     pdf_add_bookmark(pdf, NULL, bm, "A child page");

@@ -556,6 +556,7 @@ struct pdf_object {
             struct pdf_object *target_page; /* Target page */
             float target_x;                 /* Target location */
             float target_y;
+            char *uri; /* External URI (NULL => internal link) */
         } link;
     };
 };
@@ -952,6 +953,9 @@ static void pdf_object_destroy(struct pdf_object *object)
         break;
     case OBJ_bookmark:
         flexarray_clear(&object->bookmark.children);
+        break;
+    case OBJ_link:
+        free(object->link.uri);
         break;
     }
     free(object);
@@ -1994,12 +1998,22 @@ static int pdf_save_object_internal(struct pdf_doc *pdf, FILE *fp, int index,
                 "  /Type /Annot\r\n"
                 "  /Subtype /Link\r\n"
                 "  /Rect [%f %f %f %f]\r\n"
-                "  /Dest [%d 0 R /XYZ %f %f null]\r\n"
-                "  /Border [0 0 0]\r\n"
-                ">>\r\n",
+                "  /Border [0 0 0]\r\n",
                 object->link.llx, object->link.lly, object->link.urx,
-                object->link.ury, object->link.target_page->index,
-                object->link.target_x, object->link.target_y);
+                object->link.ury);
+        if (object->link.uri) {
+            int e;
+            fprintf(fp, "  /A <</Type /Action /S /URI /URI ");
+            if ((e = pdf_write_string_val(pdf, fp, index, object->link.uri,
+                                          crypt)) < 0)
+                return e;
+            fprintf(fp, ">>\r\n");
+        } else {
+            fprintf(fp, "  /Dest [%d 0 R /XYZ %f %f null]\r\n",
+                    object->link.target_page->index, object->link.target_x,
+                    object->link.target_y);
+        }
+        fprintf(fp, ">>\r\n");
         break;
     }
 
@@ -2588,6 +2602,38 @@ int pdf_add_link(struct pdf_doc *pdf, struct pdf_object *page, float x,
     return obj->index;
 }
 
+/* Add an external URI link annotation over the given rectangle */
+static int pdf_add_uri_link(struct pdf_doc *pdf, struct pdf_object *page,
+                            float x, float y, float width, float height,
+                            const char *uri, size_t len)
+{
+    struct pdf_object *obj;
+
+    if (!page)
+        page = pdf_find_last_object(pdf, OBJ_page);
+
+    if (!page)
+        return pdf_set_err(pdf, -EINVAL,
+                           "Unable to add link, no pages available");
+
+    obj = pdf_add_object(pdf, OBJ_link);
+    if (!obj)
+        return pdf->errval;
+
+    obj->link.uri = (char *)malloc(len + 1);
+    if (!obj->link.uri)
+        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate URI");
+    memcpy(obj->link.uri, uri, len);
+    obj->link.uri[len] = '\0';
+    obj->link.llx = x;
+    obj->link.lly = y;
+    obj->link.urx = x + width;
+    obj->link.ury = y + height;
+    flexarray_append(&page->page.annotations, obj);
+
+    return obj->index;
+}
+
 static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
 {
     uint32_t ch;
@@ -2845,6 +2891,156 @@ int pdf_add_text_rotate(struct pdf_doc *pdf, struct pdf_object *page,
 {
     return pdf_add_text_spacing(pdf, page, text, size, xoff, yoff, colour, 0,
                                 angle);
+}
+
+/*
+ * Minimal bbcode renderer: [b], [i], [color=#rrggbb] (or [colour=...]) and
+ * [url]/[url=target] tags, nested via a fixed-depth stack. Unrecognised or
+ * mismatched tags are rendered as literal text.
+ */
+struct bbcode_state {
+    char tag;        /* Tag character that opened this level */
+    int style;       /* Bit 0: bold, bit 1: italic */
+    uint32_t colour; /* Current text colour */
+    const char *url; /* Link target (not nul-terminated), "" => use text */
+    int url_len;
+};
+
+/* Get the styled variant of the current standard font's family, or NULL if
+ * the current font is a TTF (which has no built-in style variants) */
+static const char *pdf_bbcode_font(const struct pdf_doc *pdf, int style)
+{
+    static const char *const styles[3][4] = {
+        {"Helvetica", "Helvetica-Bold", "Helvetica-Oblique",
+         "Helvetica-BoldOblique"},
+        {"Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic"},
+        {"Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique"},
+    };
+    const char *name = pdf->current_font->font.name;
+    int family = 0;
+
+    if (pdf->current_font->font.is_ttf)
+        return NULL;
+    if (strncasecmp(name, "Times", 5) == 0)
+        family = 1;
+    else if (strncasecmp(name, "Courier", 7) == 0)
+        family = 2;
+
+    return styles[family][style];
+}
+
+/* Draw the pending text run in the given state & advance *xoff past it */
+static int pdf_bbcode_flush(struct pdf_doc *pdf, struct pdf_object *page,
+                            struct dstr *run, float size, float *xoff,
+                            float yoff, const struct bbcode_state *state)
+{
+    const char *font = pdf_bbcode_font(pdf, state->style);
+    float width;
+    int e;
+
+    if (!dstr_len(run))
+        return 0;
+    if (font && (e = pdf_set_font(pdf, font)) < 0)
+        return e;
+    if ((e = pdf_add_text(pdf, page, dstr_data(run), size, *xoff, yoff,
+                          state->colour)) < 0)
+        return e;
+    if ((e = pdf_get_font_text_width(pdf, NULL, dstr_data(run), size,
+                                     &width)) < 0)
+        return e;
+    if (state->url &&
+        (e = pdf_add_uri_link(pdf, page, *xoff, yoff, width, size,
+                              state->url_len ? state->url : dstr_data(run),
+                              state->url_len ? (size_t)state->url_len
+                                             : dstr_len(run))) < 0)
+        return e;
+    *xoff += width;
+    run->used_len = 0;
+    dstr_data(run)[0] = '\0';
+
+    return 0;
+}
+
+int pdf_add_bbcode(struct pdf_doc *pdf, struct pdf_object *page,
+                   const char *text, float size, float xoff, float yoff,
+                   uint32_t colour)
+{
+    struct bbcode_state stack[16] = {{0, 0, colour, NULL, 0}};
+    int depth = 0;
+    struct dstr run = INIT_DSTR;
+    const char *save_font = pdf->current_font->font.name;
+    int e = 0;
+
+    while (e >= 0 && *text) {
+        struct bbcode_state next = stack[depth];
+        const char *tag = text + 1, *end, *value;
+        bool close = false;
+        size_t len;
+        char kind = 0;
+
+        if (*text != '[' || !(end = strchr(tag, ']'))) {
+            dstr_append_data(&run, text++, 1);
+            continue;
+        }
+        if (*tag == '/') {
+            close = true;
+            tag++;
+        }
+        value = (const char *)memchr(tag, '=', end - tag);
+        len = (value ? value : end) - tag;
+        if (value)
+            value++;
+
+        if (len == 1 && strncasecmp(tag, "b", 1) == 0)
+            kind = 'b', next.style |= 1;
+        else if (len == 1 && strncasecmp(tag, "i", 1) == 0)
+            kind = 'i', next.style |= 2;
+        else if ((len == 5 && strncasecmp(tag, "color", 5) == 0) ||
+                 (len == 6 && strncasecmp(tag, "colour", 6) == 0)) {
+            char *ep;
+            kind = 'c';
+            if (!close) {
+                if (value && *value == '#' && end - value == 7)
+                    next.colour = (uint32_t)strtoul(value + 1, &ep, 16);
+                else
+                    ep = NULL;
+                if (ep != end)
+                    kind = 0; /* Malformed colour value */
+            }
+        } else if (len == 3 && strncasecmp(tag, "url", 3) == 0) {
+            kind = 'u';
+            next.url = value ? value : "";
+            next.url_len = value ? (int)(end - value) : 0;
+        }
+        /* Open tags other than colour/url take no value */
+        if (value && (kind == 'b' || kind == 'i' || close))
+            kind = 0;
+
+        if (close && kind && depth > 0 && stack[depth].tag == kind) {
+            e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
+                                 &stack[depth]);
+            depth--;
+            text = end + 1;
+        } else if (!close && kind &&
+                   depth + 1 < (int)(sizeof(stack) / sizeof(stack[0]))) {
+            e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
+                                 &stack[depth]);
+            next.tag = kind;
+            stack[++depth] = next;
+            text = end + 1;
+        } else {
+            /* Not a valid tag here; render it literally */
+            dstr_append_data(&run, text++, 1);
+        }
+    }
+    if (e >= 0)
+        e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
+                             &stack[depth]);
+    dstr_free(&run);
+    if (!pdf->current_font->font.is_ttf)
+        pdf_set_font(pdf, save_font);
+
+    return e < 0 ? e : 0;
 }
 
 /* How wide is each character, in points, at size 14 */
