@@ -4718,12 +4718,9 @@ static uint8_t qr_gf_mul(uint8_t a, uint8_t b)
 {
     uint8_t r = 0;
 
-    while (b) {
+    for (; b; b >>= 1, a = (uint8_t)((a << 1) ^ ((a & 0x80) ? 0x1d : 0)))
         if (b & 1)
             r ^= a;
-        b >>= 1;
-        a = (uint8_t)((a << 1) ^ ((a & 0x80) ? 0x1d : 0));
-    }
     return r;
 }
 
@@ -4735,14 +4732,10 @@ static void qr_reed_solomon(const uint8_t *data, int ndata, uint8_t *ecc,
     uint8_t root = 1;
 
     gen[necc - 1] = 1;
-    for (int i = 0; i < necc; i++) {
-        for (int j = 0; j < necc; j++) {
-            gen[j] = qr_gf_mul(gen[j], root);
-            if (j + 1 < necc)
-                gen[j] ^= gen[j + 1];
-        }
-        root = qr_gf_mul(root, 2);
-    }
+    for (int i = 0; i < necc; i++, root = qr_gf_mul(root, 2))
+        for (int j = 0; j < necc; j++)
+            gen[j] =
+                qr_gf_mul(gen[j], root) ^ (j + 1 < necc ? gen[j + 1] : 0);
 
     memset(ecc, 0, necc);
     for (int i = 0; i < ndata; i++) { /* polynomial division remainder */
@@ -4754,88 +4747,74 @@ static void qr_reed_solomon(const uint8_t *data, int ndata, uint8_t *ecc,
     }
 }
 
-static void qr_add_bits(uint8_t *buf, int *pos, uint32_t val, int nbits)
+static int qr_dist(int dx, int dy) /* Chebyshev distance */
 {
-    for (int i = nbits - 1; i >= 0; i--, (*pos)++)
-        if ((val >> i) & 1)
-            buf[*pos / 8] |= 0x80 >> (*pos % 8);
+    return abs(dx) > abs(dy) ? abs(dx) : abs(dy);
 }
 
-static int qr_dist(int dx, int dy)
+/* The fixed pattern for module x,y (0 => data, 2 => light, 3 => dark) */
+static uint8_t qr_pattern(int m, int x, int y)
 {
-    dx = abs(dx);
-    dy = abs(dy);
-    return dx > dy ? dx : dy;
+    int a = qr_dist(x - m + 7, y - m + 7);
+
+    for (int k = 0; k < 3; k++) { /* finder patterns & separators */
+        int d = qr_dist(x - (k == 1 ? m - 4 : 3), y - (k == 2 ? m - 4 : 3));
+        if (d <= 4)
+            return d == 2 || d == 4 ? 2 : 3;
+    }
+    if (m > 21 && a <= 2) /* alignment pattern (versions 2+) */
+        return a == 1 ? 2 : 3;
+    if (x == 6 || y == 6) /* timing patterns */
+        return 2 | (~(x + y) & 1);
+    return 0;
 }
 
 /* Build the QR module grid: bit 0 of each entry is the module colour
- * (1 => dark), bit 1 marks the function patterns */
+ * (1 => dark), bit 1 marks the fixed patterns */
 static void qr_build(const char *s, int len, int ver,
                      uint8_t grid[QR_MAX_MODULES][QR_MAX_MODULES])
 {
     /* Codewords for up to a version 5 code, followed by permanently
-     * zero bytes that supply the final (unused) remainder bits */
+     * zero bytes that supply the 4-bit terminator and the final
+     * (unused) remainder bits */
     uint8_t cw[135] = {0};
     int m = 17 + 4 * ver;
     int ndata = qr_ndata[ver - 1];
     int pos = 0;
 
-    /* Data codewords: mode/length header, data, 4 zero terminator bits
-     * (already present), then alternating pad bytes */
-    qr_add_bits(cw, &pos, 4, 4); /* byte mode */
-    qr_add_bits(cw, &pos, len, 8);
-    for (int i = 0; i < len; i++)
-        qr_add_bits(cw, &pos, (uint8_t)s[i], 8);
-    for (int i = len + 2; i < ndata; i++)
+    /* Data codewords - the 4-bit mode marker and 8-bit length make
+     * byte mode conveniently nibble aligned */
+    cw[0] = 0x40 | (len >> 4);
+    cw[1] = (uint8_t)(len << 4);
+    for (int i = 0; i < len; i++) {
+        uint8_t c = (uint8_t)s[i];
+        cw[i + 1] |= c >> 4;
+        cw[i + 2] = (uint8_t)(c << 4);
+    }
+    for (int i = len + 2; i < ndata; i++) /* alternating pad bytes */
         cw[i] = (i - len) & 1 ? 0x11 : 0xec;
     qr_reed_solomon(cw, ndata, &cw[ndata], qr_necc[ver - 1]);
 
-    /* Finder patterns & separators, then the single alignment pattern
-     * that versions 2-5 require */
-    for (int k = 0; k < 3; k++) {
-        int cx = k == 1 ? m - 7 : 0;
-        int cy = k == 2 ? m - 7 : 0;
-        for (int dy = -1; dy < 8; dy++)
-            for (int dx = -1; dx < 8; dx++) {
-                int d = qr_dist(dx - 3, dy - 3);
-                if (cx + dx >= 0 && cx + dx < m && cy + dy >= 0 &&
-                    cy + dy < m)
-                    grid[cy + dy][cx + dx] = d != 2 && d != 4 ? 3 : 2;
-            }
-    }
-    if (ver >= 2) {
-        int c = 4 * ver + 10;
-        for (int dy = -2; dy <= 2; dy++)
-            for (int dx = -2; dx <= 2; dx++)
-                grid[c + dy][c + dx] = qr_dist(dx, dy) != 1 ? 3 : 2;
-    }
-
-    /* Timing patterns */
-    for (int i = 8; i < m - 8; i++)
-        grid[6][i] = grid[i][6] = 2 | (~i & 1);
+    for (int y = 0; y < m; y++)
+        for (int x = 0; x < m; x++)
+            grid[y][x] = qr_pattern(m, x, y);
 
     /* Two copies of the format information (precomputed for level 'L',
      * mask 0), and the fixed dark module */
     for (int i = 0; i < 15; i++) {
         uint8_t bit = 2 | ((0x77c4 >> i) & 1);
-        if (i < 6)
-            grid[i][8] = bit;
-        else if (i == 6)
-            grid[7][8] = bit;
-        else if (i < 9)
-            grid[8][15 - i] = bit;
-        else
-            grid[8][14 - i] = bit;
-        if (i < 8)
+        if (i < 8) { /* stepping over the timing patterns */
+            grid[i + (i > 5)][8] = bit;
             grid[8][m - 1 - i] = bit;
-        else
+        } else {
+            grid[8][14 - i + (i == 8)] = bit;
             grid[m - 15 + i][8] = bit;
+        }
     }
     grid[m - 8][8] = 3;
 
     /* Place the data bits in the up/down zig-zag pattern, applying
      * mask pattern 0 */
-    pos = 0;
     for (int right = m - 1; right >= 1; right -= 2) {
         if (right == 6)
             right = 5;
@@ -4844,8 +4823,8 @@ static void qr_build(const char *s, int len, int ver,
                 int x = right - j;
                 int y = ((right + 1) & 2) ? vert : m - 1 - vert;
                 if (!grid[y][x]) {
-                    uint8_t b = (cw[pos / 8] >> (7 - pos % 8)) & 1;
-                    grid[y][x] = b ^ (~(x + y) & 1);
+                    grid[y][x] =
+                        ((cw[pos / 8] >> (7 - pos % 8)) ^ ~(x + y)) & 1;
                     pos++;
                 }
             }
@@ -4856,7 +4835,7 @@ static int pdf_add_barcode_qr(struct pdf_doc *pdf, struct pdf_object *page,
                               float x, float y, float size,
                               const char *string, uint32_t colour)
 {
-    uint8_t grid[QR_MAX_MODULES][QR_MAX_MODULES] = {{0}};
+    uint8_t grid[QR_MAX_MODULES][QR_MAX_MODULES];
     size_t len = strlen(string);
     int ver, m;
     float scale;
@@ -4875,17 +4854,15 @@ static int pdf_add_barcode_qr(struct pdf_doc *pdf, struct pdf_object *page,
 
     /* Draw runs of adjacent dark modules as single rectangles */
     for (int gy = 0; gy < m; gy++)
-        for (int gx = 0; gx < m; gx++) {
-            int run = 0;
-            while (gx + run < m && (grid[gy][gx + run] & 1))
-                run++;
+        for (int gx = 0, run; gx < m; gx += run + 1) {
+            for (run = 0; gx + run < m && (grid[gy][gx + run] & 1); run++)
+                ;
             if (run) {
                 int e = pdf_add_filled_rectangle(
                     pdf, page, x + (gx + 4) * scale, y + (m + 3 - gy) * scale,
                     run * scale, scale, 0, colour, PDF_TRANSPARENT);
                 if (e < 0)
                     return e;
-                gx += run;
             }
         }
     return 0;

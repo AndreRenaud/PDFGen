@@ -28,6 +28,7 @@ Supports the following PDF features
     * UPC-A
     * EAN-8
     * UPC-E
+    * QR codes
 * Embedded images
     * PPM/PGM (binary format only)
     * JPEG
