@@ -1887,22 +1887,33 @@ static int pdf_save_object_internal(struct pdf_doc *pdf, FILE *fp, int index,
         break;
 
     case OBJ_cid_font: {
+        int e;
+
         // CIDFontType2 descendant for the Type0 font.
         // /W specifies per-glyph advance widths in thousandths-of-em for
         // glyph IDs 0 .. num_h_metrics-1; remaining glyphs use /DW.
+        // The CIDSystemInfo strings must be encrypted like any other
+        // string object when encryption is enabled.
         fprintf(fp,
                 "<<\r\n"
                 "  /Type /Font\r\n"
                 "  /Subtype /CIDFontType2\r\n"
                 "  /BaseFont /%s\r\n"
                 "  /CIDSystemInfo <<\r\n"
-                "    /Registry (Adobe)\r\n"
-                "    /Ordering (Identity)\r\n"
+                "    /Registry ",
+                object->cid_font.font_name);
+        if ((e = pdf_write_string_val(pdf, fp, index, "Adobe", crypt)) < 0)
+            return e;
+        fprintf(fp, "\r\n    /Ordering ");
+        if ((e = pdf_write_string_val(pdf, fp, index, "Identity", crypt)) < 0)
+            return e;
+        fprintf(fp,
+                "\r\n"
                 "    /Supplement 0\r\n"
                 "  >>\r\n"
                 "  /DW %d\r\n"
                 "  /W [0 [",
-                object->cid_font.font_name, object->cid_font.default_width);
+                object->cid_font.default_width);
         for (uint16_t g = 0; g < object->cid_font.num_h_metrics; g++)
             fprintf(fp, " %d", (int)object->cid_font.glyph_widths[g]);
         fprintf(fp,
