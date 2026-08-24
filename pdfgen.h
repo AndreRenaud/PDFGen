@@ -752,10 +752,13 @@ enum {
     PDF_BARCODE_UPCA,  //!< Produce UPC-A style barcodes
     PDF_BARCODE_EAN8,  //!< Produce EAN-8 style barcodes
     PDF_BARCODE_UPCE,  //!< Produce UPC-E style barcodes
+    PDF_BARCODE_QR,    //!< Produce QR codes
 };
 
 /**
- * Add a barcode to the document
+ * Add a barcode to the document.
+ * QR codes are drawn as a square of side min(width, height), use error
+ * correction level 'L' and support payloads of up to 106 bytes
  * @param pdf PDF document to add barcode to
  * @param page Page to add barcode to (NULL => most recently added page)
  * @param code Type of barcode to add (PDF_BARCODE_xxx)
