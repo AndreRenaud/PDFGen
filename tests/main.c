@@ -105,6 +105,10 @@ int main(int argc, char *argv[])
 
     pdf_add_image_file(pdf, NULL, 150, 50, 50, 150, "data/grey.jpg");
     pdf_add_image_file(pdf, NULL, 200, 50, 50, -1, "data/bee.pgm");
+    pdf_add_image_file(pdf, NULL, 250, 50, 50, -1, "data/bee-ascii.pgm");
+    pdf_add_image_file(pdf, NULL, 300, 50, 50, -1, "data/bee.pbm");
+    pdf_add_image_file(pdf, NULL, 350, 50, 50, -1, "data/bee-binary.pbm");
+    pdf_add_image_file(pdf, NULL, 250, 10, 20, 30, "data/teapot-ascii.ppm");
     pdf_add_image_file(pdf, NULL, 400, 100, 100, 100, "data/grey.png");
     pdf_add_image_file(pdf, NULL, 400, 210, 100, 100, "data/indexed.png");
 

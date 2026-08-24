@@ -30,7 +30,7 @@ Supports the following PDF features
     * UPC-E
     * QR codes
 * Embedded images
-    * PPM/PGM (binary format only)
+    * PPM/PGM/PBM (binary & ASCII formats)
     * JPEG
     * PNG (Alpha Channels are not supported)
     * BMP

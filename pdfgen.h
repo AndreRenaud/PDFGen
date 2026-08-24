@@ -151,6 +151,11 @@ enum {
     PPM_BINARY_COLOR_RGB,  //!< binary ppm with RGB colors (magic number P6)
     PPM_BINARY_COLOR_GRAY, //!< binary ppm with grayscale colors (magic number
                            //!< P5)
+    PPM_ASCII_COLOR_RGB,   //!< ascii ppm with RGB colors (magic number P3)
+    PPM_ASCII_COLOR_GRAY,  //!< ascii ppm with grayscale colors (magic number
+                           //!< P2)
+    PPM_BINARY_BITMAP,     //!< binary pbm bitmap (magic number P4)
+    PPM_ASCII_BITMAP,      //!< ascii pbm bitmap (magic number P1)
 };
 
 /**
@@ -776,7 +781,7 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
 
 /**
  * Add image data as an image to the document.
- * Image data must be one of: JPEG, PNG, PPM, PGM or BMP formats
+ * Image data must be one of: JPEG, PNG, PPM/PGM/PBM or BMP formats
  * Passing 0 for either the display width or height will
  * include the image but not render it visible.
  * Passing a negative number for either the display height or width will
@@ -843,7 +848,7 @@ int pdf_add_grayscale8(struct pdf_doc *pdf, struct pdf_object *page, float x,
  * include the image but not render it visible.
  * Passing a negative number for either the display height or width will
  * have the image be resized while keeping the original aspect ratio.
- * Supports image formats: JPEG, PNG, PPM, PGM & BMP
+ * Supports image formats: JPEG, PNG, PPM/PGM/PBM & BMP
  * @param pdf PDF document to add image to
  * @param page Page to add image to (NULL => most recently added page)
  * @param x X offset to put image at

@@ -199,8 +199,6 @@ static const uint8_t bmp_signature[] = {'B', 'M'};
 static const uint8_t png_signature[] = {0x89, 0x50, 0x4E, 0x47,
                                         0x0D, 0x0A, 0x1A, 0x0A};
 static const uint8_t jpeg_signature[] = {0xff, 0xd8};
-static const uint8_t ppm_signature[] = {'P', '6'};
-static const uint8_t pgm_signature[] = {'P', '5'};
 
 // Special signatures for PNG chunks
 static const char png_chunk_header[] = "IHDR";
@@ -4924,6 +4922,39 @@ static size_t dgets(const uint8_t *data, size_t *pos, size_t len, char *line,
     return *pos;
 }
 
+// Reads a non-negative ASCII integer from a fixed in-memory buffer of data,
+// skipping whitespace & '#' comments. Returns -1 on invalid data, or if the
+// value exceeds maxval. With maxval == 1 each digit is a value of its own,
+// since PBM bitmap data need not be whitespace separated.
+static int dgetv(const uint8_t *data, size_t *pos, size_t len, int maxval)
+{
+    int val = -1;
+
+    while (*pos < len) {
+        uint8_t c = data[*pos];
+        if (c == '#') { // Skip comment to the end of the line
+            while (*pos < len && data[*pos] != '\n')
+                (*pos)++;
+        } else if (c >= '0' && c <= '9') {
+            val = (val > 0 ? val : 0) * 10 + (c - '0');
+            if (val > maxval)
+                return -1;
+            if (maxval == 1) {
+                (*pos)++;
+                return val;
+            }
+        } else if (isspace(c)) {
+            if (val >= 0)
+                return val;
+        } else {
+            return -1;
+        }
+        (*pos)++;
+    }
+
+    return val;
+}
+
 static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
                             size_t length, char *err_msg,
                             size_t err_msg_length)
@@ -4933,24 +4964,25 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
     size_t pos = 0;
 
     // Load the PPM file
-    if (!dgets(data, &pos, length, line, sizeof(line) - 1)) {
+    if (!dgets(data, &pos, length, line, sizeof(line) - 1) ||
+        line[0] != 'P' || line[1] < '1' || line[1] > '6') {
         snprintf(err_msg, err_msg_length, "Invalid PPM file");
         return -EINVAL;
     }
 
-    // Determine number of color channels (Also, we only support binary ppms)
-    int ncolors;
-    if (strncmp(line, "P6", 2) == 0) {
-        info->ppm.color_space = PPM_BINARY_COLOR_RGB;
-        ncolors = 3;
-    } else if (strncmp(line, "P5", 2) == 0) {
-        info->ppm.color_space = PPM_BINARY_COLOR_GRAY;
-        ncolors = 1;
-    } else {
-        snprintf(err_msg, err_msg_length,
-                 "Only binary PPM files (grayscale, RGB) supported");
-        return -EINVAL;
-    }
+    // Map the magic number (P1...P6) to its color space
+    static const int color_spaces[] = {
+        PPM_ASCII_BITMAP,  PPM_ASCII_COLOR_GRAY,  PPM_ASCII_COLOR_RGB,
+        PPM_BINARY_BITMAP, PPM_BINARY_COLOR_GRAY, PPM_BINARY_COLOR_RGB,
+    };
+    const int color_space = color_spaces[line[1] - '1'];
+    const bool is_bitmap =
+        color_space == PPM_ASCII_BITMAP || color_space == PPM_BINARY_BITMAP;
+    const int ncolors = (color_space == PPM_ASCII_COLOR_RGB ||
+                         color_space == PPM_BINARY_COLOR_RGB)
+                            ? 3
+                            : 1;
+    info->ppm.color_space = color_space;
 
     // Skip comments before header
     do {
@@ -4970,7 +5002,29 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
                  info->width, info->height);
         return -EINVAL;
     }
-    info->ppm.size = (size_t)(info->width * info->height * ncolors);
+
+    // Bitmaps have no maxval line; everything else must be 8-bit or less
+    if (!is_bitmap) {
+        unsigned maxval;
+        do {
+            if (!dgets(data, &pos, length, line, sizeof(line) - 1)) {
+                snprintf(err_msg, err_msg_length,
+                         "Unable to find PPM maxval");
+                return -EINVAL;
+            }
+        } while (line[0] == '#');
+        if (sscanf(line, "%u", &maxval) != 1 || maxval == 0 || maxval > 255) {
+            snprintf(err_msg, err_msg_length, "Unsupported PPM maxval");
+            return -EINVAL;
+        }
+    }
+
+    // For the ascii formats this is the number of values, each of which
+    // takes at least one byte of input
+    if (color_space == PPM_BINARY_BITMAP)
+        info->ppm.size = (size_t)((info->width + 7) / 8) * info->height;
+    else
+        info->ppm.size = (size_t)info->width * info->height * ncolors;
     info->ppm.data_begin_pos = pos;
 
     return 0;
@@ -4982,44 +5036,82 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                             const struct pdf_img_info *info,
                             const uint8_t *ppm_data, size_t len)
 {
-    char line[1024];
     // We start reading at the position delivered by parse_ppm_header,
-    // since we already parsed the header of the file there.
+    // since we already parsed & validated the header of the file there.
     size_t pos = info->ppm.data_begin_pos;
+    int ncolors = 1;
+    int maxval = 255;
 
-    /* Skip over the byte-size line */
-    if (!dgets(ppm_data, &pos, len, line, sizeof(line) - 1))
-        return pdf_set_err(pdf, -EINVAL, "No byte-size line in PPM file");
-
-    /* Try and limit the memory usage to sane images */
-    if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
-        return pdf_set_err(pdf, -EINVAL,
-                           "Invalid width/height in PPM file: %ux%u",
-                           info->width, info->height);
-    }
-
-    if (info->ppm.size > len - pos) {
+    if (info->ppm.size > len - pos)
         return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
-    }
 
     switch (info->ppm.color_space) {
     case PPM_BINARY_COLOR_GRAY:
         return pdf_add_grayscale8(pdf, page, x, y, display_width,
                                   display_height, &ppm_data[pos], info->width,
                                   info->height);
-        break;
 
     case PPM_BINARY_COLOR_RGB:
         return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
                              &ppm_data[pos], info->width, info->height);
+
+    case PPM_ASCII_COLOR_RGB:
+        ncolors = 3;
+        break;
+
+    case PPM_ASCII_COLOR_GRAY:
+        break;
+
+    case PPM_ASCII_BITMAP:
+    case PPM_BINARY_BITMAP:
+        maxval = 1;
         break;
 
     default:
         return pdf_set_err(pdf, -EINVAL,
                            "Invalid color space in ppm file: %i",
                            info->ppm.color_space);
-        break;
     }
+
+    // The remaining formats are decoded into an 8-bit buffer
+    int ret = 0;
+    size_t count = (size_t)info->width * info->height * ncolors;
+    uint8_t *buf = (uint8_t *)malloc(count);
+    if (!buf)
+        return pdf_set_err(pdf, -ENOMEM,
+                           "Unable to allocate PPM decode buffer");
+
+    if (info->ppm.color_space == PPM_BINARY_BITMAP) {
+        // Rows are packed 8 pixels to the byte; a set bit indicates black
+        size_t stride = (info->width + 7) / 8;
+        for (uint32_t j = 0; j < info->height; j++)
+            for (uint32_t i = 0; i < info->width; i++)
+                buf[(size_t)j * info->width + i] =
+                    (ppm_data[pos + j * stride + i / 8] & (0x80 >> (i % 8)))
+                        ? 0x00
+                        : 0xff;
+    } else {
+        for (size_t i = 0; i < count && ret == 0; i++) {
+            int val = dgetv(ppm_data, &pos, len, maxval);
+            if (val < 0)
+                ret = pdf_set_err(pdf, -EINVAL, "Invalid data in PPM file");
+            else // In bitmaps, 1 indicates black
+                buf[i] = (maxval == 1) ? (val ? 0x00 : 0xff) : (uint8_t)val;
+        }
+    }
+
+    if (ret == 0) {
+        if (ncolors == 3)
+            ret =
+                pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
+                              buf, info->width, info->height);
+        else
+            ret = pdf_add_grayscale8(pdf, page, x, y, display_width,
+                                     display_height, buf, info->width,
+                                     info->height);
+    }
+    free(buf);
+    return ret;
 }
 
 static int parse_jpeg_header(struct pdf_img_info *info, const uint8_t *data,
@@ -5535,11 +5627,8 @@ static int determine_image_format(const uint8_t *data, size_t length)
     if (length >= sizeof(jpeg_signature) &&
         memcmp(data, jpeg_signature, sizeof(jpeg_signature)) == 0)
         return IMAGE_JPG;
-    if (length >= sizeof(ppm_signature) &&
-        memcmp(data, ppm_signature, sizeof(ppm_signature)) == 0)
-        return IMAGE_PPM;
-    if (length >= sizeof(pgm_signature) &&
-        memcmp(data, pgm_signature, sizeof(pgm_signature)) == 0)
+    // PBM/PGM/PPM (netpbm) magic numbers P1 through P6
+    if (length >= 2 && data[0] == 'P' && data[1] >= '1' && data[1] <= '6')
         return IMAGE_PPM;
 
     return IMAGE_UNKNOWN;
