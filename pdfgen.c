@@ -691,9 +691,12 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
             return -ENOMEM;
         }
     }
-    flex->item_count++;
+    /* Only extend the item count when appending; overwriting an
+     * existing slot must not inflate the size */
+    if (index >= flex->item_count)
+        flex->item_count = index + 1;
     flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)] = data;
-    return flex->item_count - 1;
+    return index;
 }
 
 static inline int flexarray_append(struct flexarray *flex, void *data)
@@ -797,6 +800,12 @@ static int dstr_printf(struct dstr *str, const char *fmt, ...)
     va_start(ap, fmt);
     va_copy(aq, ap);
     len = vsnprintf(NULL, 0, fmt, ap);
+    if (len < 0) {
+        va_end(ap);
+        va_end(aq);
+        restore_locale(saved_locale);
+        return -EINVAL;
+    }
     if (dstr_ensure(str, str->used_len + len + 1) < 0) {
         va_end(ap);
         va_end(aq);
@@ -977,25 +986,17 @@ static void pdf_del_object(struct pdf_doc *pdf, struct pdf_object *obj)
 {
     int type = obj->type;
     flexarray_set(&pdf->objects, obj->index, NULL);
-    if (pdf->last_objects[type] == obj) {
-        pdf->last_objects[type] = NULL;
-        for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
-            struct pdf_object *o = pdf_get_object(pdf, i);
-            if (o && o->type == type)
-                pdf->last_objects[type] = o;
-        }
-    }
 
-    if (pdf->first_objects[type] == obj) {
-        pdf->first_objects[type] = NULL;
-        for (int i = 0; i < flexarray_size(&pdf->objects); i++) {
-            struct pdf_object *o = pdf_get_object(pdf, i);
-            if (o && o->type == type) {
-                pdf->first_objects[type] = o;
-                break;
-            }
-        }
-    }
+    /* Unlink from the per-type doubly-linked list */
+    if (obj->prev)
+        obj->prev->next = obj->next;
+    if (obj->next)
+        obj->next->prev = obj->prev;
+
+    if (pdf->last_objects[type] == obj)
+        pdf->last_objects[type] = obj->prev;
+    if (pdf->first_objects[type] == obj)
+        pdf->first_objects[type] = obj->next;
 
     pdf_object_destroy(obj);
 }
@@ -2271,7 +2272,8 @@ static bool pdf_crypt_write_stream(const struct pdf_crypt *crypt,
 
     /* Find the first "stream\r\n" — marks the end of the dictionary header */
     const char *hdr_end = strstr(raw, stream_marker);
-    if (!hdr_end || total < footer_len) {
+    if (!hdr_end ||
+        total < (size_t)(hdr_end - raw) + marker_len + footer_len) {
         /* Unexpected format: write empty stream to avoid leaking data */
         fwrite(raw, 1, (size_t)(hdr_end ? hdr_end - raw + marker_len : 0),
                fp);
@@ -2530,6 +2532,9 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
         struct pdf_object *parent_obj = pdf_get_object(pdf, parent);
         if (!parent_obj)
             return pdf_set_err(pdf, -EINVAL, "Invalid parent ID %d supplied",
+                               parent);
+        if (parent_obj->type != OBJ_bookmark)
+            return pdf_set_err(pdf, -EINVAL, "Parent ID %d is not a bookmark",
                                parent);
         obj->bookmark.parent = parent_obj;
         flexarray_append(&parent_obj->bookmark.children, obj);
@@ -3323,12 +3328,12 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                 xoff_align += (wrap_width - line_width) / 2;
                 break;
             case PDF_ALIGN_JUSTIFY:
-                if ((len - 1) > 0 && *end != '\r' && *end != '\n' &&
+                if ((len - 2) > 0 && *end != '\r' && *end != '\n' &&
                     *end != '\0')
                     char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             case PDF_ALIGN_JUSTIFY_ALL:
-                if ((len - 1) > 0)
+                if ((len - 2) > 0)
                     char_spacing = (wrap_width - line_width) / (len - 2);
                 break;
             }
@@ -3482,8 +3487,8 @@ int pdf_add_custom_path(struct pdf_doc *pdf, struct pdf_object *page,
             dstr_printf(&str, "h\r\n");
             break;
         default:
-            return pdf_set_err(pdf, -errno, "Invalid operation");
-            break;
+            dstr_free(&str);
+            return pdf_set_err(pdf, -EINVAL, "Invalid operation");
         }
     }
 
@@ -3603,6 +3608,9 @@ int pdf_add_polygon(struct pdf_doc *pdf, struct pdf_object *page, float x[],
     int ret;
     struct dstr str = INIT_DSTR;
 
+    if (count < 1 || !x || !y)
+        return pdf_set_err(pdf, -EINVAL, "Invalid polygon point data");
+
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
     dstr_printf(&str, "%f w ", border_width);
@@ -3624,6 +3632,9 @@ int pdf_add_filled_polygon(struct pdf_doc *pdf, struct pdf_object *page,
 {
     int ret;
     struct dstr str = INIT_DSTR;
+
+    if (count < 1 || !x || !y)
+        return pdf_set_err(pdf, -EINVAL, "Invalid polygon point data");
 
     dstr_printf(&str, "%f %f %f RG ", PDF_RGB_R(colour), PDF_RGB_G(colour),
                 PDF_RGB_B(colour));
@@ -4445,7 +4456,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     } else if (string[4] && memcmp(string + 5, "00000", 5) == 0) {
         memcpy(X, string + 1, 4);
         X[4] = string[11];
-        X[5] = 4;
+        X[5] = '4';
     } else if ('0' <= string[3] && string[3] <= '2' &&
                memcmp(string + 4, "0000", 4) == 0) {
         X[0] = string[1];
@@ -4459,7 +4470,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
         memcpy(X, string + 1, 3);
         X[3] = string[9];
         X[4] = string[10];
-        X[5] = 3;
+        X[5] = '3';
     } else {
         pdf_set_font(pdf, save_font);
         return pdf_set_err(pdf, -EINVAL, "Invalid UPCE string format");
