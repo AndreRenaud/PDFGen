@@ -15,425 +15,230 @@ extern unsigned int data_penguin_jpg_len;
 
 extern unsigned char data_rgb[];
 
-/* Fail the test if 'call' does not report an error */
-#define EXPECT_FAIL(doc, call)                                               \
+/* Abort the tests if 'cond' is false */
+#define CHECK(cond)                                                          \
     do {                                                                     \
-        pdf_clear_err(doc);                                                  \
-        if ((call) >= 0) {                                                   \
-            fprintf(stderr, "%s:%d: expected failure from %s\n", __FILE__,   \
-                    __LINE__, #call);                                        \
-            pdf_destroy(doc);                                                \
-            return -1;                                                       \
-        }                                                                    \
-        if (!pdf_get_err(doc, NULL)) {                                       \
-            fprintf(stderr, "%s:%d: no error message set by %s\n", __FILE__, \
-                    __LINE__, #call);                                        \
+        if (!(cond)) {                                                       \
+            fprintf(stderr, "%s:%d: check failed: %s\n", __FILE__, __LINE__, \
+                    #cond);                                                  \
             pdf_destroy(doc);                                                \
             return -1;                                                       \
         }                                                                    \
     } while (0)
 
-/* Fail the test if 'call' (which returns a pointer) does not report an
- * error */
-#define EXPECT_NULL(doc, call)                                               \
-    do {                                                                     \
-        pdf_clear_err(doc);                                                  \
-        if ((call) != NULL || !pdf_get_err(doc, NULL)) {                     \
-            fprintf(stderr, "%s:%d: expected NULL/error from %s\n",          \
-                    __FILE__, __LINE__, #call);                              \
-            pdf_destroy(doc);                                                \
-            return -1;                                                       \
-        }                                                                    \
-    } while (0)
+/* Shorthand for the calls that are exercised repeatedly by the tests */
+#define TEXT(s) pdf_add_text(doc, NULL, s, 12, 10, 10, PDF_BLACK)
+#define WRAP(s, w, align)                                                    \
+    pdf_add_text_wrap(doc, NULL, s, 12, 10, 700, 0, PDF_BLACK, w, align, NULL)
+#define WIDTH(font, s) pdf_get_font_text_width(doc, font, s, 12, &width)
+#define BARCODE(type, w, h, s)                                               \
+    pdf_add_barcode(doc, NULL, PDF_BARCODE_##type, 0, 0, w, h, s, PDF_BLACK)
+#define IMG(data, n)                                                         \
+    pdf_add_image_data(doc, NULL, 0, 0, 10, 10, (const uint8_t *)(data), n)
+#define DATA(s) IMG(s, sizeof(s) - 1)
+#define PNG_HDR(ct, depth, deflate)                                          \
+    IMG(buf, png_build(buf, ct, depth, deflate, NULL, 0, NULL, 0))
+#define PNG(ct, chunk1, size1, chunk2, size2)                                \
+    IMG(buf, png_build(buf, ct, 8, 0, chunk1, size1, chunk2, size2))
+/* The template BMP, with the bytes at 'off' replaced by 'val' */
+#define BMP(off, val)                                                        \
+    (memcpy(bmp, bmp_template, sizeof(bmp)),                                 \
+     memcpy(&bmp[off], val, sizeof(val) - 1), IMG(bmp, sizeof(bmp)))
 
-/* Fail the test if 'call' reports an error */
-#define EXPECT_OK(doc, call)                                                 \
-    do {                                                                     \
-        int _err;                                                            \
-        pdf_clear_err(doc);                                                  \
-        if ((call) < 0) {                                                    \
-            fprintf(stderr, "%s:%d: unexpected failure from %s: %s\n",       \
-                    __FILE__, __LINE__, #call, pdf_get_err(doc, &_err));     \
-            pdf_destroy(doc);                                                \
-            return -1;                                                       \
-        }                                                                    \
-    } while (0)
+/* A valid 2x2 24-bit BMP; biCompression & the pixel data are all zero */
+static const uint8_t bmp_template[70] = {
+    'B', 'M', 70, 0, 0, 0, /* bfSize */
+    0,   0,   0,  0,       /* reserved */
+    54,  0,   0,  0,       /* bfOffBits */
+    40,  0,   0,  0,       /* biSize */
+    2,   0,   0,  0,       /* biWidth */
+    2,   0,   0,  0,       /* biHeight */
+    1,   0,                /* biPlanes */
+    24,  0,                /* biBitCount */
+};
 
-static void put_be32(uint8_t *p, uint32_t v)
+/* Append a zero-filled PNG chunk to buf, returning the new length. Only the
+ * low byte of 'size' is honoured, so bogus chunk lengths can be declared */
+static size_t png_chunk(uint8_t *buf, size_t len, const char *type,
+                        uint32_t size)
 {
-    p[0] = (uint8_t)(v >> 24);
-    p[1] = (uint8_t)(v >> 16);
-    p[2] = (uint8_t)(v >> 8);
-    p[3] = (uint8_t)v;
+    for (int i = 0; i < 4; i++)
+        buf[len + i] = (uint8_t)(size >> (24 - i * 8));
+    memcpy(&buf[len + 4], type, 4);
+    memset(&buf[len + 8], 0, (size & 0xff) + 4); /* data & CRC */
+    return len + 12 + (size & 0xff);
 }
 
-static void put_le32(uint8_t *p, uint32_t v)
+/* Build a 2x2 PNG with the given header values and up to two extra chunks */
+static size_t png_build(uint8_t *buf, uint8_t colour_type, uint8_t bit_depth,
+                        uint8_t deflate, const char *type1, uint32_t size1,
+                        const char *type2, uint32_t size2)
 {
-    p[0] = (uint8_t)v;
-    p[1] = (uint8_t)(v >> 8);
-    p[2] = (uint8_t)(v >> 16);
-    p[3] = (uint8_t)(v >> 24);
+    size_t len = png_chunk(buf, 8, "IHDR", 13);
+    memcpy(buf, "\x89PNG\r\n\x1a\n", 8);
+    buf[19] = buf[23] = 2; /* width & height */
+    buf[24] = bit_depth;
+    buf[25] = colour_type;
+    buf[26] = deflate;
+    if (type1)
+        len = png_chunk(buf, len, type1, size1);
+    if (type2)
+        len = png_chunk(buf, len, type2, size2);
+    return len;
 }
 
-static void put_le16(uint8_t *p, uint16_t v)
-{
-    p[0] = (uint8_t)v;
-    p[1] = (uint8_t)(v >> 8);
-}
-
-static const uint8_t png_sig[8] = {0x89, 'P',  'N',  'G',
-                                   0x0d, 0x0a, 0x1a, 0x0a};
-
-/* Append a PNG chunk (with a dummy CRC) to 'out', returning the new length */
-static size_t png_chunk(uint8_t *out, size_t pos, const char *type,
-                        const uint8_t *data, uint32_t len)
-{
-    put_be32(&out[pos], len);
-    memcpy(&out[pos + 4], type, 4);
-    if (len)
-        memcpy(&out[pos + 8], data, len);
-    memset(&out[pos + 8 + len], 0, 4);
-    return pos + 12 + len;
-}
-
-/* Build a minimal PNG: signature + IHDR + optional extra chunks */
-static size_t png_build(uint8_t *out, uint8_t colour_type, uint8_t bit_depth,
-                        uint8_t deflate)
-{
-    uint8_t ihdr[13] = {0};
-    put_be32(&ihdr[0], 2); /* width */
-    put_be32(&ihdr[4], 2); /* height */
-    ihdr[8] = bit_depth;
-    ihdr[9] = colour_type;
-    ihdr[10] = deflate;
-    memcpy(out, png_sig, sizeof(png_sig));
-    return png_chunk(out, sizeof(png_sig), "IHDR", ihdr, sizeof(ihdr));
-}
-
-/* Build a valid 2x2 24-bit BMP (70 bytes) */
-#define BMP_LEN 70
-static void bmp_build(uint8_t *out)
-{
-    memset(out, 0, BMP_LEN);
-    out[0] = 'B';
-    out[1] = 'M';
-    put_le32(&out[2], BMP_LEN); /* bfSize */
-    put_le32(&out[10], 54);     /* bfOffBits */
-    put_le32(&out[14], 40);     /* biSize */
-    put_le32(&out[18], 2);      /* biWidth */
-    put_le32(&out[22], 2);      /* biHeight */
-    put_le16(&out[26], 1);      /* biPlanes */
-    put_le16(&out[28], 24);     /* biBitCount */
-    put_le32(&out[30], 0);      /* biCompression */
-}
-
-/* Exercise error handling and less commonly used code paths in a
- * standalone document, so that the primary output.pdf is unaffected */
+/* Exercise error handling and less commonly used code paths in a standalone
+ * document, so that the primary output.pdf is unaffected */
 static int error_path_tests(void)
 {
-    struct pdf_info info = {.creator = "Error tests",
-                            .producer = "Error tests",
-                            .title = "Error tests",
-                            .author = "Nobody",
-                            .subject = "Errors"};
-    struct pdf_doc *doc = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, &info);
-    struct pdf_object *page;
-    uint8_t buf[256];
-    uint8_t bmp[BMP_LEN];
-    char err_msg[128];
-    struct pdf_img_info img_info;
-    size_t len;
-    float width, height;
-    int link;
+    struct pdf_doc *doc = pdf_create(PDF_A4_WIDTH, PDF_A4_HEIGHT, NULL);
+    struct pdf_path_operation ops[] = {
+        {.op = 'm', .x1 = 10, .y1 = 10},
+        {.op = 'v', .x1 = 50, .y1 = 50, .x2 = 100, .y2 = 10},
+        {.op = 'y', .x1 = 150, .y1 = 50, .x2 = 200, .y2 = 10},
+        {.op = 'h'}};
+    uint8_t buf[256], bmp[sizeof(bmp_template)];
+    char big[600];
+    float width;
 
-    if (!doc) {
-        fprintf(stderr, "Unable to create PDF\n");
-        return -1;
-    }
+    CHECK(doc != NULL);
+    memset(big, 'A', sizeof(big) - 1);
+    big[sizeof(big) - 1] = '\0';
 
     /* Nothing that needs a page should work before one exists */
-    EXPECT_FAIL(doc, pdf_page_set_size(doc, NULL, 100, 100));
-    EXPECT_NULL(doc, pdf_get_page(doc, 0));
-    EXPECT_NULL(doc, pdf_get_page(doc, 1));
-    EXPECT_FAIL(doc, pdf_add_link(doc, NULL, 0, 0, 10, 10, NULL, 0, 0));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_39, 0, 0, 100, 20,
-                                     "ABC", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_EAN13, 0, 0, 100,
-                                     50, "4003994155486", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCA, 0, 0, 100,
-                                     50, "003994155480", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_EAN8, 0, 0, 100,
-                                     50, "95012346", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100,
-                                     50, "012345000058", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_QR, 0, 0, 100,
-                                     100, "hello", PDF_BLACK));
+    CHECK(pdf_page_set_size(doc, NULL, 100, 100) < 0);
+    CHECK(!pdf_get_page(doc, 0));
+    CHECK(!pdf_get_page(doc, 1));
+    CHECK(pdf_add_link(doc, NULL, 0, 0, 10, 10, NULL, 0, 0) < 0);
+    CHECK(BARCODE(39, 100, 20, "ABC") < 0);
+    CHECK(BARCODE(EAN13, 100, 50, "4003994155486") < 0);
+    CHECK(BARCODE(UPCA, 100, 50, "003994155480") < 0);
+    CHECK(BARCODE(EAN8, 100, 50, "95012346") < 0);
+    CHECK(BARCODE(UPCE, 100, 50, "012345000058") < 0);
+    CHECK(BARCODE(QR, 100, 100, "hello") < 0);
+    CHECK(pdf_append_page(doc) != NULL);
 
-    page = pdf_append_page(doc);
-    if (!page) {
-        fprintf(stderr, "Unable to append page\n");
-        pdf_destroy(doc);
-        return -1;
-    }
-    EXPECT_NULL(doc, pdf_get_page(doc, 2));
+    /* Links & bookmarks: object 0 exists, but is not a bookmark */
+    CHECK(pdf_add_link(doc, NULL, 0, 0, 10, 10, NULL, 0, 0) < 0);
+    CHECK(pdf_add_bookmark(doc, NULL, 0, "Not a bookmark") < 0);
+    CHECK(pdf_add_bookmark(doc, NULL, 999999, "Bad parent") < 0);
 
-    /* Links & bookmarks */
-    EXPECT_FAIL(doc, pdf_add_link(doc, NULL, 0, 0, 10, 10, NULL, 0, 0));
-    link = pdf_add_link(doc, NULL, 0, 0, 10, 10, page, 0, 0);
-    EXPECT_OK(doc, link);
-    EXPECT_FAIL(doc, pdf_add_bookmark(doc, NULL, link, "Not a bookmark"));
-    EXPECT_FAIL(doc, pdf_add_bookmark(doc, NULL, 999999, "Bad parent"));
-
-    /* Fonts */
-    EXPECT_FAIL(doc, pdf_set_font(doc, "NotAFont"));
-    EXPECT_FAIL(doc,
-                pdf_get_font_text_width(doc, "NotAFont", "x", 12, &width));
-    EXPECT_FAIL(doc, pdf_get_font_text_width(doc, NULL, "\xff", 12, &width));
-    EXPECT_OK(doc,
-              pdf_get_font_text_width(doc, "Times-Bold", "x", 12, &width));
-    EXPECT_OK(doc,
-              pdf_get_font_text_width(doc, "Times-Italic", "x", 12, &width));
-    EXPECT_OK(doc, pdf_get_font_text_width(doc, "Symbol", "x", 12, &width));
-    EXPECT_OK(doc,
-              pdf_get_font_text_width(doc, "ZapfDingbats", "x", 12, &width));
-    EXPECT_NULL(doc, pdf_set_font_ttf(doc, "data/does-not-exist.ttf"));
-    EXPECT_NULL(doc, pdf_set_font_ttf(doc, "data/penguin.jpg"));
-
-    /* Text: invalid & unsupported UTF-8 with a standard font */
-    EXPECT_OK(doc, pdf_set_font(doc, "Helvetica"));
-    EXPECT_FAIL(
-        doc, pdf_add_text(doc, NULL, "bad \xff utf8", 12, 10, 10, PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_text(doc, NULL, "emoji \xf0\x9f\x98\x80", 12, 10,
-                                  10, PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_text(doc, NULL, "cjk \xe4\xb8\xad", 12, 10, 10,
-                                  PDF_BLACK));
+    /* Fonts & text encoding */
+    CHECK(pdf_set_font(doc, "NotAFont") < 0);
+    CHECK(WIDTH("NotAFont", "x") < 0);
+    CHECK(WIDTH(NULL, "\xff") < 0);
+    CHECK(WIDTH("Times-Bold", "x") >= 0);
+    CHECK(WIDTH("Times-Italic", "x") >= 0);
+    CHECK(WIDTH("Symbol", "x") >= 0);
+    CHECK(WIDTH("ZapfDingbats", "x") >= 0);
+    CHECK(!pdf_set_font_ttf(doc, "data/does-not-exist.ttf"));
+    CHECK(!pdf_set_font_ttf(doc, "data/penguin.jpg"));
+    CHECK(TEXT("emoji \xf0\x9f\x98\x80") < 0);
+    CHECK(pdf_set_font_ttf(doc, "data/Ithaca.ttf") != NULL);
+    CHECK(TEXT("bad \xff utf8") < 0);
+    CHECK(WIDTH(NULL, "\xff") < 0);
+    CHECK(pdf_set_font(doc, "Helvetica") >= 0);
 
     /* Text wrapping: alignments, oversized lines & impossible wraps */
-    EXPECT_OK(doc,
-              pdf_add_text_wrap(doc, NULL, "Right aligned text", 12, 10, 700,
-                                0, PDF_BLACK, 200, PDF_ALIGN_RIGHT, &height));
-    EXPECT_OK(doc, pdf_add_text_wrap(doc, NULL, "Justify all lines\nshort",
-                                     12, 10, 650, 0, PDF_BLACK, 200,
-                                     PDF_ALIGN_JUSTIFY_ALL, &height));
-    {
-        char long_line[600];
-        memset(long_line, 'a', sizeof(long_line) - 1);
-        long_line[sizeof(long_line) - 1] = '\0';
-        EXPECT_OK(doc, pdf_add_text_wrap(doc, NULL, long_line, 4, 10, 600, 0,
-                                         PDF_BLACK, 100000, PDF_ALIGN_LEFT,
-                                         &height));
-    }
-    EXPECT_FAIL(doc,
-                pdf_add_text_wrap(doc, NULL, "Hello", 12, 10, 500, 0,
-                                  PDF_BLACK, 0.5f, PDF_ALIGN_LEFT, &height));
-
-    /* bbcode with malformed tags should fall back to literal text */
-    EXPECT_OK(doc,
-              pdf_add_bbcode(doc, NULL, "[color=#12]bad[/color] [b=1]x[/b]",
-                             12, 10, 450, PDF_BLACK));
-
-    /* Text with a TrueType font */
-    if (!pdf_set_font_ttf(doc, "data/Ithaca.ttf")) {
-        fprintf(stderr, "Failed to load TTF font: %s\n",
-                pdf_get_err(doc, NULL));
-        pdf_destroy(doc);
-        return -1;
-    }
-    EXPECT_FAIL(
-        doc, pdf_add_text(doc, NULL, "bad \xff utf8", 12, 10, 10, PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_get_font_text_width(doc, NULL, "\xff", 12, &width));
-    EXPECT_OK(doc, pdf_set_font(doc, "Helvetica"));
+    CHECK(WRAP("Right aligned text", 200, PDF_ALIGN_RIGHT) >= 0);
+    CHECK(WRAP("Justify all lines\nshort", 200, PDF_ALIGN_JUSTIFY_ALL) >= 0);
+    CHECK(WRAP(big, 100000, PDF_ALIGN_LEFT) >= 0);
+    CHECK(WRAP("Hello", 0.5f, PDF_ALIGN_LEFT) < 0);
+    /* Malformed bbcode tags are treated as literal text */
+    CHECK(pdf_add_bbcode(doc, NULL, "[color=#12]bad[/color] [b=1]x[/b]", 12,
+                         10, 450, PDF_BLACK) >= 0);
 
     /* Custom paths & polygons */
-    {
-        struct pdf_path_operation ops[] = {
-            {.op = 'm', .x1 = 10, .y1 = 10},
-            {.op = 'v', .x1 = 50, .y1 = 50, .x2 = 100, .y2 = 10},
-            {.op = 'y', .x1 = 150, .y1 = 50, .x2 = 200, .y2 = 10},
-            {.op = 'h'},
-        };
-        struct pdf_path_operation bad_ops[] = {
-            {.op = 'm', .x1 = 10, .y1 = 10},
-            {.op = 'z', .x1 = 50, .y1 = 50},
-        };
-        EXPECT_OK(doc, pdf_add_custom_path(doc, NULL, ops, 4, 1, PDF_BLACK,
-                                           PDF_TRANSPARENT));
-        EXPECT_FAIL(doc, pdf_add_custom_path(doc, NULL, bad_ops, 2, 1,
-                                             PDF_BLACK, PDF_TRANSPARENT));
-    }
-    EXPECT_FAIL(doc, pdf_add_polygon(doc, NULL, NULL, NULL, 0, 1, PDF_BLACK));
+    CHECK(pdf_add_custom_path(doc, NULL, ops, 4, 1, PDF_BLACK,
+                              PDF_TRANSPARENT) >= 0);
+    ops[0].op = 'z';
+    CHECK(pdf_add_custom_path(doc, NULL, ops, 4, 1, PDF_BLACK,
+                              PDF_TRANSPARENT) < 0);
+    CHECK(pdf_add_polygon(doc, NULL, NULL, NULL, 0, 1, PDF_BLACK) < 0);
 
     /* Barcodes */
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, 999, 0, 0, 100, 20, "ABC",
-                                     PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_128A, 0, 0, 0, 20,
-                                     "ABC", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_128A, 0, 0, 100,
-                                     20, "tab\there", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_39, 0, 0, 100, 20,
-                                     "lowercase", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_EAN13, 0, 0, 100,
-                                     50, "12345", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_EAN13, 0, 0, 100,
-                                     50, "X003994155486", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCA, 0, 0, 100,
-                                     50, "123", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_EAN8, 0, 0, 100,
-                                     50, "123", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100,
-                                     50, "123", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100,
-                                     50, "112345000058", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100,
-                                     50, "01234500005a", PDF_BLACK));
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100,
-                                     50, "012345678901", PDF_BLACK));
+    CHECK(pdf_add_barcode(doc, NULL, 999, 0, 0, 10, 10, "X", PDF_BLACK) < 0);
+    CHECK(BARCODE(128A, 0, 20, "ABC") < 0);
+    CHECK(BARCODE(128A, 100, 20, "tab\there") < 0);
+    CHECK(BARCODE(39, 100, 20, "lowercase") < 0);
+    CHECK(BARCODE(EAN13, 100, 50, "12345") < 0);
+    CHECK(BARCODE(EAN13, 100, 50, "X003994155486") < 0);
+    CHECK(BARCODE(UPCA, 100, 50, "123") < 0);
+    CHECK(BARCODE(EAN8, 100, 50, "123") < 0);
+    CHECK(BARCODE(UPCE, 100, 50, "123") < 0);
+    CHECK(BARCODE(UPCE, 100, 50, "112345000058") < 0);
+    CHECK(BARCODE(UPCE, 100, 50, "01234500005a") < 0);
+    CHECK(BARCODE(UPCE, 100, 50, "012345678901") < 0);
     /* The remaining UPC-E compression patterns */
-    EXPECT_OK(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100, 50,
-                                   "012340000005", PDF_BLACK));
-    EXPECT_OK(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100, 50,
-                                   "012000004567", PDF_BLACK));
-    EXPECT_OK(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_UPCE, 0, 0, 100, 50,
-                                   "012300000678", PDF_BLACK));
-    {
-        char long_qr[200];
-        memset(long_qr, 'A', sizeof(long_qr) - 1);
-        long_qr[sizeof(long_qr) - 1] = '\0';
-        EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_QR, 0, 0, 100,
-                                         100, long_qr, PDF_BLACK));
-    }
-    EXPECT_FAIL(doc, pdf_add_barcode(doc, NULL, PDF_BARCODE_QR, 0, 0, 0, 0,
-                                     "hello", PDF_BLACK));
+    CHECK(BARCODE(UPCE, 100, 50, "012340000005") >= 0);
+    CHECK(BARCODE(UPCE, 100, 50, "012000004567") >= 0);
+    CHECK(BARCODE(UPCE, 100, 50, "012300000678") >= 0);
+    CHECK(BARCODE(QR, 100, 100, big) < 0);
+    CHECK(BARCODE(QR, 0, 0, "hello") < 0);
 
     /* Raw images: dimension validation & aspect ratio handling */
-    EXPECT_FAIL(doc, pdf_add_rgb24(doc, NULL, 0, 0, 10, 10, data_rgb, 0, 8));
-    EXPECT_FAIL(doc,
-                pdf_add_grayscale8(doc, NULL, 0, 0, 10, 10, data_rgb, 16, 0));
-    EXPECT_FAIL(doc,
-                pdf_add_grayscale8(doc, NULL, 0, 0, -1, -1, data_rgb, 4, 4));
-    EXPECT_OK(doc,
-              pdf_add_grayscale8(doc, NULL, 0, 0, -1, 20, data_rgb, 4, 4));
+    CHECK(pdf_add_rgb24(doc, NULL, 0, 0, 10, 10, data_rgb, 0, 8) < 0);
+    CHECK(pdf_add_grayscale8(doc, NULL, 0, 0, 10, 10, data_rgb, 16, 0) < 0);
+    CHECK(pdf_add_grayscale8(doc, NULL, 0, 0, -1, -1, data_rgb, 4, 4) < 0);
+    CHECK(pdf_add_grayscale8(doc, NULL, 0, 0, -1, 20, data_rgb, 4, 4) >= 0);
 
-    /* Image files */
-    EXPECT_FAIL(doc, pdf_add_image_file(doc, NULL, 0, 0, 10, 10,
-                                        "data/does-not-exist.png"));
-    EXPECT_FAIL(doc, pdf_add_image_file(doc, NULL, 0, 0, 10, 10, "data"));
-    EXPECT_OK(doc,
-              pdf_add_image_file(doc, NULL, 0, 0, -1, 40, "data/bee.pgm"));
-
-    /* Unrecognised image data */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10,
-                                        (const uint8_t *)"not an image", 12));
-    if (pdf_parse_image_header(&img_info, (const uint8_t *)"nope", 4, err_msg,
-                               sizeof(err_msg)) >= 0) {
-        fprintf(stderr, "Parsed invalid image header\n");
-        pdf_destroy(doc);
-        return -1;
-    }
-
-    /* JPEG data */
-    {
-        const uint8_t bad_jpeg[] = {0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11};
-        EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, bad_jpeg,
-                                            sizeof(bad_jpeg)));
-    }
-    EXPECT_FAIL(doc,
-                pdf_add_image_data(doc, NULL, 0, 0, -1, -1, data_penguin_jpg,
-                                   data_penguin_jpg_len));
+    /* Image files, unrecognised data & JPEGs */
+    CHECK(pdf_add_image_file(doc, NULL, 0, 0, 10, 10, "data/none.png") < 0);
+    CHECK(pdf_add_image_file(doc, NULL, 0, 0, 10, 10, "data") < 0);
+    CHECK(DATA("not an image") < 0);
+    CHECK(DATA("\xff\xd8\xff\xc0\x00\x11") < 0); /* Truncated JPEG */
+    CHECK(pdf_add_image_data(doc, NULL, 0, 0, -1, -1, data_penguin_jpg,
+                             data_penguin_jpg_len) < 0);
 
     /* PNG data */
-#define PNG_TEST(expect, ...)                                                \
-    do {                                                                     \
-        len = png_build(buf, __VA_ARGS__);                                   \
-        expect(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));  \
-    } while (0)
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, png_sig,
-                                        sizeof(png_sig)));
-    memcpy(buf, png_sig, sizeof(png_sig));
-    memset(&buf[sizeof(png_sig)], 0, 8);
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, 12));
-    memcpy(&buf[12], "IHDR", 4);
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, 20));
+    CHECK(PNG_HDR(PNG_COLOR_RGB, 8, 0) < 0); /* Nothing after IHDR */
+    CHECK(IMG(buf, 8) < 0);                  /* Signature only */
+    CHECK(IMG(buf, 12) < 0);                 /* Truncated chunk header */
+    CHECK(IMG(buf, 20) < 0);                 /* Truncated IHDR */
     memcpy(&buf[12], "tEXt", 4);
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, 40));
-    PNG_TEST(EXPECT_FAIL, PNG_COLOR_RGB, 8, 1);  /* Bad deflate */
-    PNG_TEST(EXPECT_FAIL, PNG_COLOR_RGB, 0, 0);  /* Zero bit depth */
-    PNG_TEST(EXPECT_FAIL, PNG_COLOR_RGBA, 8, 0); /* Unsupported colour */
-    PNG_TEST(EXPECT_FAIL, PNG_COLOR_RGB, 8, 0);  /* Truncated after IHDR */
-    len = png_build(buf, PNG_COLOR_RGB, 8, 0);
-    len = png_chunk(buf, len, "IDAT", NULL, 0);
-    put_be32(&buf[len - 12], 0x7fffffff); /* Chunk longer than the file */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_INDEXED, 8, 0);
-    len = png_chunk(buf, len, "PLTE", buf, 4); /* Not a multiple of 3 */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_INDEXED, 8, 0);
-    len = png_chunk(buf, len, "PLTE", NULL, 0); /* Empty palette */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_INDEXED, 8, 0);
-    len = png_chunk(buf, len, "PLTE", buf, 3);
-    len = png_chunk(buf, len, "PLTE", buf, 3); /* Duplicate palette */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_GREYSCALE, 8, 0);
-    len = png_chunk(buf, len, "PLTE", buf, 3); /* Unexpected palette */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_RGB, 8, 0);
-    len = png_chunk(buf, len, "IEND", NULL, 0); /* No image data */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_INDEXED, 8, 0);
-    len = png_chunk(buf, len, "IDAT", buf, 4);
-    len = png_chunk(buf, len, "IEND", NULL, 0); /* Indexed without palette */
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-    len = png_build(buf, PNG_COLOR_RGB, 8, 0);
-    len = png_chunk(buf, len, "IDAT", buf, 4);
-    len = png_chunk(buf, len, "IEND", NULL, 0);
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, -1, -1, buf, len));
-    EXPECT_OK(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, buf, len));
-#undef PNG_TEST
+    CHECK(IMG(buf, 33) < 0);                  /* First chunk is not IHDR */
+    CHECK(PNG_HDR(PNG_COLOR_RGB, 8, 1) < 0);  /* Bad deflate */
+    CHECK(PNG_HDR(PNG_COLOR_RGB, 0, 0) < 0);  /* Zero bit depth */
+    CHECK(PNG_HDR(PNG_COLOR_RGBA, 8, 0) < 0); /* Unsupported colour */
+    /* A chunk longer than the file, then the palette chunk handling */
+    CHECK(PNG(PNG_COLOR_RGB, "IDAT", 0x7fffff00, NULL, 0) < 0);
+    CHECK(PNG(PNG_COLOR_INDEXED, "PLTE", 4, NULL, 0) < 0);   /* Not % 3 */
+    CHECK(PNG(PNG_COLOR_INDEXED, "PLTE", 0, NULL, 0) < 0);   /* Empty */
+    CHECK(PNG(PNG_COLOR_INDEXED, "PLTE", 3, "PLTE", 3) < 0); /* Duplicate */
+    CHECK(PNG(PNG_COLOR_GREYSCALE, "PLTE", 3, NULL, 0) < 0); /* Unexpected */
+    CHECK(PNG(PNG_COLOR_RGB, "IEND", 0, NULL, 0) < 0); /* No image data */
+    CHECK(PNG(PNG_COLOR_INDEXED, "IDAT", 4, "IEND", 0) < 0); /* No palette */
+    CHECK(PNG(PNG_COLOR_RGB, "IDAT", 4, "IEND", 0) >= 0);
+    CHECK(pdf_add_image_data(doc, NULL, 0, 0, -1, -1, buf, 61) < 0);
 
     /* BMP data */
-    bmp_build(bmp);
-    EXPECT_OK(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, bmp, BMP_LEN));
-    EXPECT_FAIL(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, bmp, 20));
-#define BMP_TEST(offset, value, set)                                         \
-    do {                                                                     \
-        bmp_build(bmp);                                                      \
-        set(&bmp[offset], value);                                            \
-        EXPECT_FAIL(                                                         \
-            doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10, bmp, BMP_LEN)); \
-    } while (0)
-    BMP_TEST(18, 0xffffffff, put_le32); /* Negative width */
-    BMP_TEST(22, 0x80000000, put_le32); /* Height overflow */
-    BMP_TEST(2, BMP_LEN + 1, put_le32); /* Wrong file size */
-    BMP_TEST(14, 12, put_le32);         /* Wrong header size */
-    BMP_TEST(30, 1, put_le32);          /* Compressed */
-    BMP_TEST(18, 0, put_le32);          /* Zero width */
-    BMP_TEST(22, 0, put_le32);          /* Zero height */
-    BMP_TEST(28, 8, put_le16);          /* Unsupported bit depth */
-    BMP_TEST(10, 100, put_le32);        /* Data offset beyond file */
-    BMP_TEST(10, 60, put_le32);         /* Insufficient pixel data */
-#undef BMP_TEST
+    CHECK(BMP(0, "BM") >= 0); /* The unmodified template is valid */
+    CHECK(IMG(bmp, 20) < 0);  /* Too short */
+    CHECK(BMP(18, "\xff\xff\xff\xff") < 0); /* Negative width */
+    CHECK(BMP(22, "\0\0\0\x80") < 0);       /* Height overflow */
+    CHECK(BMP(2, "\x47") < 0);              /* Wrong file size */
+    CHECK(BMP(14, "\x0c") < 0);             /* Wrong header size */
+    CHECK(BMP(30, "\x01") < 0);             /* Compressed */
+    CHECK(BMP(18, "\0") < 0);               /* Zero width */
+    CHECK(BMP(22, "\0") < 0);               /* Zero height */
+    CHECK(BMP(28, "\x08") < 0);             /* Unsupported bit depth */
+    CHECK(BMP(10, "\x64") < 0);             /* Data offset beyond file */
+    CHECK(BMP(10, "\x3c") < 0);             /* Insufficient pixel data */
 
     /* PPM data */
-#define PPM_TEST(expect, str)                                                \
-    expect(doc, pdf_add_image_data(doc, NULL, 0, 0, 10, 10,                  \
-                                   (const uint8_t *)str, sizeof(str) - 1))
-    PPM_TEST(EXPECT_FAIL, "P6\n");              /* No header */
-    PPM_TEST(EXPECT_FAIL, "P6\nfoo\n");         /* No size */
-    PPM_TEST(EXPECT_FAIL, "P6\n0 0\n");         /* Zero size */
-    PPM_TEST(EXPECT_FAIL, "P6\n2 2\n");         /* No maxval */
-    PPM_TEST(EXPECT_FAIL, "P6\n2 2\n65535\n");  /* Bad maxval */
-    PPM_TEST(EXPECT_FAIL, "P6\n2 2\n255\nabc"); /* Short data */
-    PPM_TEST(EXPECT_FAIL, "P2\n2 1\n255\n# comment\n300 1\n"); /* > maxval */
-    PPM_TEST(EXPECT_FAIL, "P3\n1 1\n255\nx y z\n"); /* Non-numeric */
-    PPM_TEST(EXPECT_OK, "P2\n1 1\n255\n7");         /* No trailing ws */
-    PPM_TEST(EXPECT_OK, "P1\n2 1\n10");             /* Packed bits */
-#undef PPM_TEST
+    CHECK(DATA("P6\n") < 0);                             /* No header */
+    CHECK(DATA("P6\nfoo\n") < 0);                        /* No size */
+    CHECK(DATA("P6\n0 0\n") < 0);                        /* Zero size */
+    CHECK(DATA("P6\n2 2\n") < 0);                        /* No maxval */
+    CHECK(DATA("P6\n2 2\n65535\n") < 0);                 /* Bad maxval */
+    CHECK(DATA("P6\n2 2\n255\nabc") < 0);                /* Short data */
+    CHECK(DATA("P2\n2 1\n255\n# comment\n300 1\n") < 0); /* > maxval */
+    CHECK(DATA("P3\n1 1\n255\nx y z\n") < 0);            /* Non-numeric */
+    CHECK(DATA("P2\n1 1\n255\n7") >= 0); /* No trailing space */
 
     /* Saving to somewhere impossible */
-    EXPECT_FAIL(doc, pdf_save(doc, "/nonexistent-directory/output.pdf"));
-    EXPECT_FAIL(doc, pdf_save_encrypted(doc, "/nonexistent-directory/o.pdf",
-                                        "secret"));
+    CHECK(pdf_save(doc, "/nonexistent-directory/output.pdf") < 0);
+    CHECK(pdf_save_encrypted(doc, "/nonexistent-directory/o.pdf", "x") < 0);
 
     pdf_destroy(doc);
     return 0;
