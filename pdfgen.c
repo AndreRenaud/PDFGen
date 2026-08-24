@@ -4703,6 +4703,171 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     return 0;
 }
 
+/* QR code generation: byte mode & error correction level 'L' only,
+ * versions 1-5 only (chosen from the string length, max 106 bytes).
+ * These are all single Reed-Solomon block formats, and the mask pattern
+ * is fixed at 0, which decodes fine everywhere but skips the
+ * optimal-mask scoring described by the specification.
+ */
+#define QR_MAX_MODULES 37                                /* version 5 */
+static const uint8_t qr_ndata[] = {19, 34, 55, 80, 108}; /* data codewords */
+static const uint8_t qr_necc[] = {7, 10, 15, 20, 26};    /* ecc codewords */
+
+/* GF(2^8) multiplication, modulo the QR polynomial x^8+x^4+x^3+x^2+1 */
+static uint8_t qr_gf_mul(uint8_t a, uint8_t b)
+{
+    uint8_t r = 0;
+
+    for (; b; b >>= 1, a = (uint8_t)((a << 1) ^ ((a & 0x80) ? 0x1d : 0)))
+        if (b & 1)
+            r ^= a;
+    return r;
+}
+
+/* Store the necc Reed-Solomon codewords for data into ecc */
+static void qr_reed_solomon(const uint8_t *data, int ndata, uint8_t *ecc,
+                            int necc)
+{
+    uint8_t gen[26] = {0}; /* generator polynomial (x-1)(x-a)(x-a^2)... */
+    uint8_t root = 1;
+
+    gen[necc - 1] = 1;
+    for (int i = 0; i < necc; i++, root = qr_gf_mul(root, 2))
+        for (int j = 0; j < necc; j++)
+            gen[j] =
+                qr_gf_mul(gen[j], root) ^ (j + 1 < necc ? gen[j + 1] : 0);
+
+    memset(ecc, 0, necc);
+    for (int i = 0; i < ndata; i++) { /* polynomial division remainder */
+        uint8_t factor = data[i] ^ ecc[0];
+        memmove(ecc, &ecc[1], necc - 1);
+        ecc[necc - 1] = 0;
+        for (int j = 0; j < necc; j++)
+            ecc[j] ^= qr_gf_mul(gen[j], factor);
+    }
+}
+
+static int qr_dist(int dx, int dy) /* Chebyshev distance */
+{
+    return abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+}
+
+/* The fixed pattern for module x,y (0 => data, 2 => light, 3 => dark) */
+static uint8_t qr_pattern(int m, int x, int y)
+{
+    int a = qr_dist(x - m + 7, y - m + 7);
+
+    for (int k = 0; k < 3; k++) { /* finder patterns & separators */
+        int d = qr_dist(x - (k == 1 ? m - 4 : 3), y - (k == 2 ? m - 4 : 3));
+        if (d <= 4)
+            return d == 2 || d == 4 ? 2 : 3;
+    }
+    if (m > 21 && a <= 2) /* alignment pattern (versions 2+) */
+        return a == 1 ? 2 : 3;
+    if (x == 6 || y == 6) /* timing patterns */
+        return 2 | (~(x + y) & 1);
+    return 0;
+}
+
+/* Build the QR module grid: bit 0 of each entry is the module colour
+ * (1 => dark), bit 1 marks the fixed patterns */
+static void qr_build(const char *s, int len, int ver,
+                     uint8_t grid[QR_MAX_MODULES][QR_MAX_MODULES])
+{
+    /* Codewords for up to a version 5 code, followed by permanently
+     * zero bytes that supply the 4-bit terminator and the final
+     * (unused) remainder bits */
+    uint8_t cw[135] = {0};
+    int m = 17 + 4 * ver;
+    int ndata = qr_ndata[ver - 1];
+    int pos = 0;
+
+    /* Data codewords - the 4-bit mode marker and 8-bit length make
+     * byte mode conveniently nibble aligned */
+    cw[0] = 0x40 | (len >> 4);
+    cw[1] = (uint8_t)(len << 4);
+    for (int i = 0; i < len; i++) {
+        uint8_t c = (uint8_t)s[i];
+        cw[i + 1] |= c >> 4;
+        cw[i + 2] = (uint8_t)(c << 4);
+    }
+    for (int i = len + 2; i < ndata; i++) /* alternating pad bytes */
+        cw[i] = (i - len) & 1 ? 0x11 : 0xec;
+    qr_reed_solomon(cw, ndata, &cw[ndata], qr_necc[ver - 1]);
+
+    for (int y = 0; y < m; y++)
+        for (int x = 0; x < m; x++)
+            grid[y][x] = qr_pattern(m, x, y);
+
+    /* Two copies of the format information (precomputed for level 'L',
+     * mask 0), and the fixed dark module */
+    for (int i = 0; i < 15; i++) {
+        uint8_t bit = 2 | ((0x77c4 >> i) & 1);
+        if (i < 8) { /* stepping over the timing patterns */
+            grid[i + (i > 5)][8] = bit;
+            grid[8][m - 1 - i] = bit;
+        } else {
+            grid[8][14 - i + (i == 8)] = bit;
+            grid[m - 15 + i][8] = bit;
+        }
+    }
+    grid[m - 8][8] = 3;
+
+    /* Place the data bits in the up/down zig-zag pattern, applying
+     * mask pattern 0 */
+    for (int right = m - 1; right >= 1; right -= 2) {
+        if (right == 6)
+            right = 5;
+        for (int vert = 0; vert < m; vert++)
+            for (int j = 0; j < 2; j++) {
+                int x = right - j;
+                int y = ((right + 1) & 2) ? vert : m - 1 - vert;
+                if (!grid[y][x]) {
+                    grid[y][x] =
+                        ((cw[pos / 8] >> (7 - pos % 8)) ^ ~(x + y)) & 1;
+                    pos++;
+                }
+            }
+    }
+}
+
+static int pdf_add_barcode_qr(struct pdf_doc *pdf, struct pdf_object *page,
+                              float x, float y, float size,
+                              const char *string, uint32_t colour)
+{
+    uint8_t grid[QR_MAX_MODULES][QR_MAX_MODULES];
+    size_t len = strlen(string);
+    int ver, m;
+    float scale;
+
+    for (ver = 1; ver <= 5; ver++)
+        if (len + 2 <= qr_ndata[ver - 1])
+            break;
+    if (ver > 5)
+        return pdf_set_err(pdf, -EINVAL, "QR code too long (max 106 bytes)");
+    m = 17 + 4 * ver;
+    scale = size / (m + 8); /* 4 modules of quiet zone on each side */
+    if (scale <= 0)
+        return pdf_set_err(pdf, -EINVAL, "Insufficient size to draw QR");
+
+    qr_build(string, (int)len, ver, grid);
+
+    /* Draw runs of adjacent dark modules as single rectangles */
+    for (int gy = 0; gy < m; gy++)
+        for (int gx = 0, run; gx < m; gx += run + 1) {
+            for (run = 0; gx + run < m && (grid[gy][gx + run] & 1); run++)
+                ;
+            if (run) {
+                int e = pdf_add_filled_rectangle(
+                    pdf, page, x + (gx + 4) * scale, y + (m + 3 - gy) * scale,
+                    run * scale, scale, 0, colour, PDF_TRANSPARENT);
+                if (e < 0)
+                    return e;
+            }
+        }
+    return 0;
+}
+
 int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
                     float x, float y, float width, float height,
                     const char *string, uint32_t colour)
@@ -4728,6 +4893,9 @@ int pdf_add_barcode(struct pdf_doc *pdf, struct pdf_object *page, int code,
     case PDF_BARCODE_UPCE:
         return pdf_add_barcode_upce(pdf, page, x, y, width, height, string,
                                     colour);
+    case PDF_BARCODE_QR:
+        return pdf_add_barcode_qr(
+            pdf, page, x, y, width < height ? width : height, string, colour);
     default:
         return pdf_set_err(pdf, -EINVAL, "Invalid barcode code %d", code);
     }

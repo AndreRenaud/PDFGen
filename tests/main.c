@@ -306,6 +306,14 @@ int main(int argc, char *argv[])
                     PDF_MM_TO_POINT(60), PDF_MM_TO_POINT(60),
                     PDF_MM_TO_POINT(80), "012345000058", PDF_BLACK);
 
+    pdf_add_text_wrap(pdf, NULL, "QR Code", 10, PDF_MM_TO_POINT(20),
+                      PDF_MM_TO_POINT(145), 0, PDF_RGB(0, 0, 0),
+                      PDF_MM_TO_POINT(60), PDF_ALIGN_CENTER, NULL);
+    pdf_add_barcode(pdf, NULL, PDF_BARCODE_QR, PDF_MM_TO_POINT(30),
+                    PDF_MM_TO_POINT(103), PDF_MM_TO_POINT(40),
+                    PDF_MM_TO_POINT(40),
+                    "https://github.com/AndreRenaud/PDFGen", PDF_BLACK);
+
     pdf_append_page(pdf);
     pdf_page_set_size(pdf, NULL, PDF_A3_HEIGHT, PDF_A3_WIDTH);
     pdf_add_bookmark(pdf, NULL, -1, "Last Page");

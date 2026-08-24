@@ -46,6 +46,7 @@ run "check barcode EAN13" grep -q "EAN-13:4003994155486" output-barcodes.txt
 run "check barcode UPC-A" grep -q "EAN-13:0003994155480" output-barcodes.txt
 run "check barcode Code 128" grep -q "CODE-128:Code128" output-barcodes.txt
 run "check barcode CODE 39" grep -q "CODE-39:CODE39" output-barcodes.txt
+run "check barcode QR" grep -q "QR-Code:https://github.com/AndreRenaud/PDFGen" output-barcodes.txt
 
 # Check for pdftk meta data
 run "check page count" grep -q "NumberOfPages: 6$" output.pdftk
