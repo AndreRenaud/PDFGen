@@ -2906,9 +2906,10 @@ struct bbcode_state {
     int url_len;
 };
 
-/* Get the styled variant of the current standard font's family, or NULL if
- * the current font is a TTF (which has no built-in style variants) */
-static const char *pdf_bbcode_font(const struct pdf_doc *pdf, int style)
+/* Draw the pending text run in the given state & advance *xoff past it */
+static int pdf_bbcode_flush(struct pdf_doc *pdf, struct pdf_object *page,
+                            struct dstr *run, float size, float *xoff,
+                            float yoff, const struct bbcode_state *state)
 {
     static const char *const styles[3][4] = {
         {"Helvetica", "Helvetica-Bold", "Helvetica-Oblique",
@@ -2917,35 +2918,22 @@ static const char *pdf_bbcode_font(const struct pdf_doc *pdf, int style)
         {"Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique"},
     };
     const char *name = pdf->current_font->font.name;
-    int family = 0;
-
-    if (pdf->current_font->font.is_ttf)
-        return NULL;
-    if (strncasecmp(name, "Times", 5) == 0)
-        family = 1;
-    else if (strncasecmp(name, "Courier", 7) == 0)
-        family = 2;
-
-    return styles[family][style];
-}
-
-/* Draw the pending text run in the given state & advance *xoff past it */
-static int pdf_bbcode_flush(struct pdf_doc *pdf, struct pdf_object *page,
-                            struct dstr *run, float size, float *xoff,
-                            float yoff, const struct bbcode_state *state)
-{
-    const char *font = pdf_bbcode_font(pdf, state->style);
     float width;
     int e;
 
     if (!dstr_len(run))
         return 0;
-    if (font && (e = pdf_set_font(pdf, font)) < 0)
-        return e;
+    /* Restyle the built-in font families; TTF fonts have no variants */
+    if (!pdf->current_font->font.is_ttf) {
+        int family = strncasecmp(name, "Times", 5) == 0     ? 1
+                     : strncasecmp(name, "Courier", 7) == 0 ? 2
+                                                            : 0;
+        if ((e = pdf_set_font(pdf, styles[family][state->style])) < 0)
+            return e;
+    }
     if ((e = pdf_add_text(pdf, page, dstr_data(run), size, *xoff, yoff,
-                          state->colour)) < 0)
-        return e;
-    if ((e = pdf_get_font_text_width(pdf, NULL, dstr_data(run), size,
+                          state->colour)) < 0 ||
+        (e = pdf_get_font_text_width(pdf, NULL, dstr_data(run), size,
                                      &width)) < 0)
         return e;
     if (state->url &&
@@ -2973,65 +2961,59 @@ int pdf_add_bbcode(struct pdf_doc *pdf, struct pdf_object *page,
 
     while (e >= 0 && *text) {
         struct bbcode_state next = stack[depth];
-        const char *tag = text + 1, *end, *value;
+        const char *tag = text + 1, *end = NULL, *value = NULL;
         bool close = false;
-        size_t len;
         char kind = 0;
 
-        if (*text != '[' || !(end = strchr(tag, ']'))) {
+        if (*text == '[' && (end = strchr(tag, ']')) != NULL) {
+            size_t len;
+
+            if ((close = *tag == '/'))
+                tag++;
+            value = (const char *)memchr(tag, '=', end - tag);
+            len = (value ? value : end) - tag;
+            if (value)
+                value++;
+
+            if (len == 1 && strncasecmp(tag, "b", 1) == 0)
+                kind = 'b', next.style |= 1;
+            else if (len == 1 && strncasecmp(tag, "i", 1) == 0)
+                kind = 'i', next.style |= 2;
+            else if ((len == 5 && strncasecmp(tag, "color", 5) == 0) ||
+                     (len == 6 && strncasecmp(tag, "colour", 6) == 0)) {
+                char *ep = NULL;
+                kind = 'c';
+                if (!close) {
+                    if (value && *value == '#' && end - value == 7)
+                        next.colour = (uint32_t)strtoul(value + 1, &ep, 16);
+                    if (ep != end)
+                        kind = 0; /* Malformed colour value */
+                }
+            } else if (len == 3 && strncasecmp(tag, "url", 3) == 0) {
+                kind = 'u';
+                next.url = value ? value : "";
+                next.url_len = value ? (int)(end - value) : 0;
+            }
+            /* Values are only valid on open colour/url tags; a close must
+             * match the innermost open tag; an open must fit on the stack */
+            if (value && (kind == 'b' || kind == 'i' || close))
+                kind = 0;
+            if (close ? depth < 1 || stack[depth].tag != kind
+                      : depth + 1 >= (int)(sizeof(stack) / sizeof(stack[0])))
+                kind = 0;
+        }
+        if (!kind) { /* Not a valid tag here; render it literally */
             dstr_append_data(&run, text++, 1);
             continue;
         }
-        if (*tag == '/') {
-            close = true;
-            tag++;
-        }
-        value = (const char *)memchr(tag, '=', end - tag);
-        len = (value ? value : end) - tag;
-        if (value)
-            value++;
-
-        if (len == 1 && strncasecmp(tag, "b", 1) == 0)
-            kind = 'b', next.style |= 1;
-        else if (len == 1 && strncasecmp(tag, "i", 1) == 0)
-            kind = 'i', next.style |= 2;
-        else if ((len == 5 && strncasecmp(tag, "color", 5) == 0) ||
-                 (len == 6 && strncasecmp(tag, "colour", 6) == 0)) {
-            char *ep;
-            kind = 'c';
-            if (!close) {
-                if (value && *value == '#' && end - value == 7)
-                    next.colour = (uint32_t)strtoul(value + 1, &ep, 16);
-                else
-                    ep = NULL;
-                if (ep != end)
-                    kind = 0; /* Malformed colour value */
-            }
-        } else if (len == 3 && strncasecmp(tag, "url", 3) == 0) {
-            kind = 'u';
-            next.url = value ? value : "";
-            next.url_len = value ? (int)(end - value) : 0;
-        }
-        /* Open tags other than colour/url take no value */
-        if (value && (kind == 'b' || kind == 'i' || close))
-            kind = 0;
-
-        if (close && kind && depth > 0 && stack[depth].tag == kind) {
-            e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
-                                 &stack[depth]);
+        e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
+                             &stack[depth]);
+        next.tag = kind;
+        if (close)
             depth--;
-            text = end + 1;
-        } else if (!close && kind &&
-                   depth + 1 < (int)(sizeof(stack) / sizeof(stack[0]))) {
-            e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
-                                 &stack[depth]);
-            next.tag = kind;
+        else
             stack[++depth] = next;
-            text = end + 1;
-        } else {
-            /* Not a valid tag here; render it literally */
-            dstr_append_data(&run, text++, 1);
-        }
+        text = end + 1;
     }
     if (e >= 0)
         e = pdf_bbcode_flush(pdf, page, &run, size, &xoff, yoff,
