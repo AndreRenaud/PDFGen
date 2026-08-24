@@ -4705,7 +4705,15 @@ static struct pdf_object *pdf_add_raw_image(struct pdf_doc *pdf,
     size_t len;
     const char *endstream = ">\r\nendstream\r\n";
     struct dstr str = INIT_DSTR;
-    size_t data_len = (size_t)width * (size_t)height * ncomponents;
+    size_t data_len;
+
+    if (width == 0 || height == 0 || ncomponents <= 0 ||
+        (size_t)width > (SIZE_MAX / 4) / (size_t)ncomponents / height) {
+        pdf_set_err(pdf, -EINVAL, "Invalid image dimensions: %ux%u", width,
+                    height);
+        return NULL;
+    }
+    data_len = (size_t)width * (size_t)height * (size_t)ncomponents;
 
     dstr_printf(&str,
                 "<<\r\n"
@@ -4997,7 +5005,8 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
         snprintf(err_msg, err_msg_length, "Unable to find PPM size");
         return -EINVAL;
     }
-    if (info->width > MAX_IMAGE_WIDTH || info->height > MAX_IMAGE_HEIGHT) {
+    if (info->width == 0 || info->width > MAX_IMAGE_WIDTH ||
+        info->height == 0 || info->height > MAX_IMAGE_HEIGHT) {
         snprintf(err_msg, err_msg_length, "Invalid width/height: %ux%u",
                  info->width, info->height);
         return -EINVAL;
@@ -5042,7 +5051,11 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     int ncolors = 1;
     int maxval = 255;
 
-    if (info->ppm.size > len - pos)
+    if (info->width == 0 || info->width > MAX_IMAGE_WIDTH ||
+        info->height == 0 || info->height > MAX_IMAGE_HEIGHT)
+        return pdf_set_err(pdf, -EINVAL, "Invalid PPM width/height: %ux%u",
+                           info->width, info->height);
+    if (pos > len || info->ppm.size > len - pos)
         return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
 
     switch (info->ppm.color_space) {
@@ -5373,9 +5386,13 @@ static int pdf_add_png_data(struct pdf_doc *pdf, struct pdf_object *page,
             }
         } else if (strncmp(chunk->type, png_chunk_data, 4) == 0) {
             if (chunk_length > 0 && chunk_length < png_data_length - pos) {
+                if (chunk_length > png_data_length - png_data_total_length) {
+                    pdf_set_err(pdf, -EINVAL,
+                                "PNG data chunks exceed file size");
+                    goto free_buffers;
+                }
                 uint8_t *data = (uint8_t *)realloc(
                     png_data_temp, png_data_total_length + chunk_length);
-                // (uint8_t *)realloc(info.data, info.length + chunk_length);
                 if (!data) {
                     pdf_set_err(pdf, -ENOMEM, "No memory for PNG data");
                     goto free_buffers;
