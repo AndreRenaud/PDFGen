@@ -2488,7 +2488,7 @@ int pdf_save(struct pdf_doc *pdf, const char *filename)
 
     e = pdf_save_file(pdf, fp);
 
-    if (fp != stdout) {
+    if (filename) {
         if (fclose(fp) != 0)
             return pdf_set_err(pdf, -errno, "Unable to close '%s': %s",
                                filename, strerror(errno));
@@ -2918,7 +2918,7 @@ static int pdf_bbcode_flush(struct pdf_doc *pdf, struct pdf_object *page,
         {"Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique"},
     };
     const char *name = pdf->current_font->font.name;
-    float width;
+    float width = 0;
     int e;
 
     if (!dstr_len(run))

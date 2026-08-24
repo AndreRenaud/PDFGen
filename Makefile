@@ -87,7 +87,7 @@ podman-build: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make'
 
 podman-test: podman-image
-	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && scan-build --status-bugs make check'
+	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && scan-build --status-bugs -o scan-results make check'
 
 podman-check: podman-image
 	podman run --rm -v $(PWD):/src -w /src pdfgen bash -c 'make clean && make check'
@@ -108,4 +108,4 @@ podman-shell: podman-image
 
 clean:
 	rm -f *$(O_SUFFIX) tests/*$(O_SUFFIX) $(TESTPROG) *.gcda *.gcno *.gcov tests/*.gcda tests/*.gcno output.pdf output_encrypted.pdf output.txt tests/fuzz-header tests/fuzz-text tests/fuzz-image-data tests/fuzz-image-file test/massive-file output.pdftk fuzz-image-file.pdf fuzz-image-data.pdf fuzz-image.dat doxygen.log tests/penguin.c fuzz.pdf output.ps output.ppm output-barcodes.txt
-	rm -rf docs/html docs/latex fuzz-artifacts infer-out coverage-html
+	rm -rf docs/html docs/latex fuzz-artifacts infer-out coverage-html scan-results
