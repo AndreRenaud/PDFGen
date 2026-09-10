@@ -159,17 +159,17 @@ static inline uint32_t bswap32(uint32_t x)
             ((x & 0x0000ff00u) << 8) | ((x & 0x000000ffu) << 24));
 }
 
-#ifdef __has_include // C++17, supported as extension to C++11 in clang, GCC
-                     // 5+, vs2015
-#if __has_include(<endian.h>)
-#include <endian.h> // gnu libc normally provides, linux
-#elif __has_include(<machine/endian.h>)
-#include <machine/endian.h> //open bsd, macos
-#elif __has_include(<sys/param.h>)
-#include <sys/param.h> // mingw, some bsd (not open/macos)
-#elif __has_include(<sys/isadefs.h>)
-#include <sys/isadefs.h> // solaris
-#endif
+#if defined(__has_include) // C17, supported as extension in clang, GCC 5+,
+                            // vs2015
+#  if __has_include(<endian.h>)
+#    include <endian.h> // gnu libc normally provides, linux
+#  elif __has_include(<machine/endian.h>)
+#    include <machine/endian.h> // open bsd, macos
+#  elif __has_include(<sys/param.h>)
+#    include <sys/param.h> // mingw, some bsd (not open/macos)
+#  elif __has_include(<sys/isadefs.h>)
+#    include <sys/isadefs.h> // solaris
+#  endif
 #endif
 
 #if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
@@ -675,29 +675,24 @@ static int bin_offset[] = {
     (1 << (MIN_SHIFT + 15)) - 1 - MIN_OFFSET,
 };
 
-static inline int flexarray_get_bin(const struct flexarray *flex, int index)
+static inline int flexarray_get_bin(int index)
 {
-    (void)flex;
     for (int i = 0; i < (int)ARRAY_SIZE(bin_offset); i++)
         if (index < bin_offset[i])
             return i - 1;
     return -1;
 }
 
-static inline int flexarray_get_bin_size(const struct flexarray *flex,
-                                         int bin)
+static inline int flexarray_get_bin_size(int bin)
 {
-    (void)flex;
     if (bin >= (int)ARRAY_SIZE(bin_offset) - 1)
         return -1;
     int next = bin_offset[bin + 1];
     return next - bin_offset[bin];
 }
 
-static inline int flexarray_get_bin_offset(const struct flexarray *flex,
-                                           int bin, int index)
+static inline int flexarray_get_bin_offset(int bin, int index)
 {
-    (void)flex;
     return index - bin_offset[bin];
 }
 
@@ -717,7 +712,7 @@ static inline int flexarray_size(const struct flexarray *flex)
 
 static int flexarray_set(struct flexarray *flex, int index, void *data)
 {
-    int bin = flexarray_get_bin(flex, index);
+    int bin = flexarray_get_bin(index);
     if (bin < 0)
         return -EINVAL;
     while (bin >= flex->bin_count) {
@@ -734,7 +729,7 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
         flex->bin_count++;
         flex->bins = bins;
         flex->bins[flex->bin_count - 1] =
-            (void **)calloc(flexarray_get_bin_size(flex, flex->bin_count - 1),
+            (void **)calloc(flexarray_get_bin_size(flex->bin_count - 1),
                             sizeof(void *));
         if (!flex->bins[flex->bin_count - 1]) {
             flex->bin_count--;
@@ -745,7 +740,7 @@ static int flexarray_set(struct flexarray *flex, int index, void *data)
      * existing slot must not inflate the size */
     if (index >= flex->item_count)
         flex->item_count = index + 1;
-    flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)] = data;
+    flex->bins[bin][flexarray_get_bin_offset(bin, index)] = data;
     return index;
 }
 
@@ -760,10 +755,10 @@ static inline void *flexarray_get(const struct flexarray *flex, int index)
 
     if (index >= flex->item_count)
         return NULL;
-    bin = flexarray_get_bin(flex, index);
+    bin = flexarray_get_bin(index);
     if (bin < 0 || bin >= flex->bin_count)
         return NULL;
-    return flex->bins[bin][flexarray_get_bin_offset(flex, bin, index)];
+    return flex->bins[bin][flexarray_get_bin_offset(bin, index)];
 }
 
 /**
