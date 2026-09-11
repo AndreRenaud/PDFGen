@@ -3258,19 +3258,6 @@ static int pdf_ttf_text_point_width(struct pdf_doc *pdf,
     return 0;
 }
 
-// Dispatch text width calculation based on whether the current font is a TTF.
-// For standard fonts, `widths` must be a pointer to a 256-entry advance-width
-// table; for TTF fonts it is ignored (glyph widths are looked up via cmap).
-static int pdf_text_width_for_font(struct pdf_doc *pdf, bool is_ttf,
-                                   const uint16_t *widths, const char *text,
-                                   ptrdiff_t len, float size, float *out)
-{
-    if (is_ttf)
-        return pdf_ttf_text_point_width(pdf, pdf->current_font, text, len,
-                                        size, out);
-    return pdf_text_point_width(pdf, text, len, size, widths, out);
-}
-
 static const uint16_t *find_font_widths(const char *font_name)
 {
     /* The oblique variants share the metrics of their upright versions */
@@ -3376,8 +3363,11 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
 
         end = new_end;
 
-        e = pdf_text_width_for_font(pdf, ttf_font, widths, start, end - start,
-                                    size, &line_width);
+        e = ttf_font
+                  ? pdf_ttf_text_point_width(pdf, pdf->current_font, start,
+                                             end - start, size, &line_width)
+                  : pdf_text_point_width(pdf, start, end - start, size, widths,
+                                         &line_width);
         if (e < 0)
             return e;
 
@@ -3394,8 +3384,13 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                         ((start[i - 1] & 0xc0) == 0x80 &&
                          (start[i] & 0xc0) == 0x80))
                         continue;
-                    e = pdf_text_width_for_font(pdf, ttf_font, widths, start,
-                                                i, size, &this_width);
+                    e = ttf_font
+                              ? pdf_ttf_text_point_width(pdf,
+                                                         pdf->current_font,
+                                                         start, i, size,
+                                                         &this_width)
+                              : pdf_text_point_width(pdf, start, i, size,
+                                                     widths, &this_width);
                     if (e < 0)
                         return e;
                     if (this_width < wrap_width)
@@ -3426,8 +3421,11 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
             strncpy(line, start, len);
             line[len] = '\0';
 
-            e = pdf_text_width_for_font(pdf, ttf_font, widths, start, len,
-                                        size, &line_width);
+            e = ttf_font
+                      ? pdf_ttf_text_point_width(pdf, pdf->current_font, start,
+                                                 len, size, &line_width)
+                      : pdf_text_point_width(pdf, start, len, size, widths,
+                                             &line_width);
             if (e < 0)
                 return e;
 
