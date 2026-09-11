@@ -54,6 +54,8 @@ coverage: $(TESTPROG)
 	rm -rf coverage-html
 	mkdir coverage-html
 	gcovr -r . --html --html-details -o coverage-html/coverage.html
+	# Fail if line coverage of the library drops below 85%
+	gcovr -r . -f pdfgen.c --fail-under-line 85
 
 example-check:
 	# Extract the code block from the README & make sure it compiles
