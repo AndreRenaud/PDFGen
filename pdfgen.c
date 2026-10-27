@@ -1243,14 +1243,15 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp,
     float ascent, descent, cap_height, italic_angle, stem_v;
     int flags;
     char font_name[64];
-    struct stat st;
-
-    if (fstat(fileno(fp), &st) < 0) {
+    fseek(fp, 0, SEEK_END);
+    long fsize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (fsize < 0) {
         pdf_set_err(pdf, -errno, "Unable to stat font file '%s': %s", path,
                     strerror(errno));
         return NULL;
     }
-    font_data_len = (size_t)st.st_size;
+    font_data_len = (size_t)fsize;
     font_data = (uint8_t *)malloc(font_data_len);
     if (!font_data) {
         pdf_set_err(pdf, -ENOMEM,
