@@ -1251,7 +1251,7 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp,
                     strerror(errno));
         return NULL;
     }
-    font_data_len = (size_t) fsize;
+    font_data_len = (size_t)fsize;
     font_data = (uint8_t *)malloc(font_data_len);
     if (!font_data) {
         pdf_set_err(pdf, -ENOMEM,
