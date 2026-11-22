@@ -3910,6 +3910,7 @@ static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
 {
     float nw = char_width / 12.0f;
     float ww = char_width / 4.0f;
+    float gap = nw < 2 ? nw / 2 : 1; /* Space left after each bar */
     int code = 0;
 
     code = find_39_encoding(ch);
@@ -3920,13 +3921,13 @@ static int pdf_barcode_39_ch(struct pdf_doc *pdf, struct pdf_object *page,
     for (int i = 5; i >= 0; i--) {
         int pattern = (code >> i * 4) & 0xf;
         if (pattern == 0) { // wide
-            if (pdf_add_filled_rectangle(pdf, page, x, y, ww - 1, height, 0,
+            if (pdf_add_filled_rectangle(pdf, page, x, y, ww - gap, height, 0,
                                          colour, PDF_TRANSPARENT) < 0)
                 return pdf->errval;
             x += ww;
         }
         if (pattern == 1) { // narrow
-            if (pdf_add_filled_rectangle(pdf, page, x, y, nw - 1, height, 0,
+            if (pdf_add_filled_rectangle(pdf, page, x, y, nw - gap, height, 0,
                                          colour, PDF_TRANSPARENT) < 0)
                 return pdf->errval;
             x += nw;
