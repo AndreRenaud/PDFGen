@@ -1372,6 +1372,10 @@ const char *pdf_set_font_ttf_file(struct pdf_doc *pdf, FILE *fp,
         if (dot)
             *dot = '\0';
     }
+    /* The name is written out as a PDF name object */
+    for (char *p = font_name; *p; p++)
+        if (*p <= ' ' || *p > '~' || strchr("()<>[]{}/%#", *p))
+            *p = '_';
 
     // Check whether this TTF font has already been loaded (reuse if so)
     for (struct pdf_object *obj = pdf_find_first_object(pdf, OBJ_font); obj;
