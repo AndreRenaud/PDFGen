@@ -2683,6 +2683,8 @@ static int utf8_to_utf32(const char *utf8, int len, uint32_t *utf32)
         else
             ch |= ((uint32_t)(*utf8++) & 0x3f) << shift;
     }
+    if (!ch) /* Overlong encoded nul */
+        return -EINVAL;
 
     *utf32 = ch;
 
