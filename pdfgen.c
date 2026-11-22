@@ -2098,11 +2098,7 @@ static void pdf_md5(const uint8_t *data, size_t len, uint8_t digest[16])
 
     /* Process data in 512-bit (64-byte) blocks, with padding */
     size_t padded = ((len + 8) / 64 + 1) * 64;
-    uint8_t *buf = (uint8_t *)calloc(padded, 1);
-    if (!buf) {
-        memset(digest, 0, 16);
-        return;
-    }
+    uint8_t buf[128] = {0}; /* All callers hash at most 76 bytes */
     memcpy(buf, data, len);
     buf[len] = 0x80;
     uint64_t bits = (uint64_t)len * 8;
@@ -2144,7 +2140,6 @@ static void pdf_md5(const uint8_t *data, size_t len, uint8_t digest[16])
         c0 += C;
         d0 += D;
     }
-    free(buf);
 
     for (int i = 0; i < 4; i++) {
         digest[i] = (uint8_t)(a0 >> (8 * i));
