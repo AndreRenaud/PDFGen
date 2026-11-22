@@ -5085,8 +5085,8 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
 
     // The maxval is the last header value, one character before the data
-    for (size_t p = pos - 1, mul = 1; p > 2 && isdigit(ppm_data[p - 1]);
-         p--, mul *= 10)
+    for (size_t p = pos - 1, mul = 1;
+         p > 2 && mul <= 100 && isdigit(ppm_data[p - 1]); p--, mul *= 10)
         maxval += (ppm_data[p - 1] - '0') * (int)mul;
 
     switch (info->ppm.color_space) {
@@ -5117,6 +5117,9 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                            "Invalid color space in ppm file: %i",
                            info->ppm.color_space);
     }
+
+    if (maxval < 1 || maxval > 255)
+        return pdf_set_err(pdf, -EINVAL, "Unsupported PPM maxval");
 
     // Decode into an 8-bit buffer, scaling the values up to 0...255
     int ret = 0;
