@@ -5074,7 +5074,8 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     // since we already parsed & validated the header of the file there.
     size_t pos = info->ppm.data_begin_pos;
     int ncolors = 1;
-    int maxval = 255;
+    int maxval = 0;
+    bool binary = false, bitmap = false;
 
     if (info->width == 0 || info->width > MAX_IMAGE_WIDTH ||
         info->height == 0 || info->height > MAX_IMAGE_HEIGHT)
@@ -5083,15 +5084,20 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
     if (pos > len || info->ppm.size > len - pos)
         return pdf_set_err(pdf, -EINVAL, "Insufficient image data available");
 
+    // The maxval is the last header value, one character before the data
+    for (size_t p = pos - 1, mul = 1; p > 2 && isdigit(ppm_data[p - 1]);
+         p--, mul *= 10)
+        maxval += (ppm_data[p - 1] - '0') * (int)mul;
+
     switch (info->ppm.color_space) {
     case PPM_BINARY_COLOR_GRAY:
-        return pdf_add_grayscale8(pdf, page, x, y, display_width,
-                                  display_height, &ppm_data[pos], info->width,
-                                  info->height);
+        binary = true;
+        break;
 
     case PPM_BINARY_COLOR_RGB:
-        return pdf_add_rgb24(pdf, page, x, y, display_width, display_height,
-                             &ppm_data[pos], info->width, info->height);
+        binary = true;
+        ncolors = 3;
+        break;
 
     case PPM_ASCII_COLOR_RGB:
         ncolors = 3;
@@ -5102,6 +5108,7 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
 
     case PPM_ASCII_BITMAP:
     case PPM_BINARY_BITMAP:
+        bitmap = true;
         maxval = 1;
         break;
 
@@ -5111,7 +5118,7 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                            info->ppm.color_space);
     }
 
-    // The remaining formats are decoded into an 8-bit buffer
+    // Decode into an 8-bit buffer, scaling the values up to 0...255
     int ret = 0;
     size_t count = (size_t)info->width * info->height * ncolors;
     uint8_t *buf = (uint8_t *)malloc(count);
@@ -5130,11 +5137,13 @@ static int pdf_add_ppm_data(struct pdf_doc *pdf, struct pdf_object *page,
                         : 0xff;
     } else {
         for (size_t i = 0; i < count && ret == 0; i++) {
-            int val = dgetv(ppm_data, &pos, len, maxval);
-            if (val < 0)
+            int val = binary ? ppm_data[pos + i]
+                             : dgetv(ppm_data, &pos, len, maxval);
+            if (val < 0 || val > maxval)
                 ret = pdf_set_err(pdf, -EINVAL, "Invalid data in PPM file");
             else // In bitmaps, 1 indicates black
-                buf[i] = (maxval == 1) ? (val ? 0x00 : 0xff) : (uint8_t)val;
+                buf[i] = bitmap ? (val ? 0x00 : 0xff)
+                                : (uint8_t)(val * 255 / maxval);
         }
     }
 
