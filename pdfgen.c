@@ -2634,13 +2634,17 @@ static int pdf_add_uri_link(struct pdf_doc *pdf, struct pdf_object *page,
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to add link, no pages available");
 
-    obj = pdf_add_object(pdf, OBJ_link);
-    if (!obj)
-        return pdf->errval;
-
-    obj->link.uri = (char *)malloc(len + 1);
-    if (!obj->link.uri)
+    char *copy = (char *)malloc(len + 1);
+    if (!copy)
         return pdf_set_err(pdf, -ENOMEM, "Unable to allocate URI");
+
+    obj = pdf_add_object(pdf, OBJ_link);
+    if (!obj) {
+        free(copy);
+        return pdf->errval;
+    }
+
+    obj->link.uri = copy;
     memcpy(obj->link.uri, uri, len);
     obj->link.uri[len] = '\0';
     obj->link.llx = x;
