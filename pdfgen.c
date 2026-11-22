@@ -4891,7 +4891,11 @@ pdf_add_raw_jpeg_data(struct pdf_doc *pdf, const struct pdf_img_info *info,
                 "  /Length %zu\r\n"
                 ">>stream\r\n",
                 flexarray_size(&pdf->objects),
-                (info->jpeg.ncolours == 1) ? "/DeviceGray" : "/DeviceRGB",
+                /* CMYK JPEGs are conventionally stored inverted */
+                info->jpeg.ncolours == 1 ? "/DeviceGray"
+                : info->jpeg.ncolours == 4
+                    ? "/DeviceCMYK /Decode [1 0 1 0 1 0 1 0]"
+                    : "/DeviceRGB",
                 info->width, info->height, len);
     dstr_append_data(&obj->stream.stream, jpeg_data, len);
 
