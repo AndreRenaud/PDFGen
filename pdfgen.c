@@ -4188,7 +4188,7 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
     float bar_y = y + new_height - bar_height;
 
     int e;
-    const char *save_font = pdf->current_font->font.name;
+    struct pdf_object *save_font = pdf->current_font;
     e = pdf_set_font(pdf, "Courier"); /* Built-in monospace font */
     if (e < 0)
         return e;
@@ -4253,7 +4253,7 @@ static int pdf_add_barcode_ean13(struct pdf_doc *pdf, struct pdf_object *page,
          604.0f * font / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font, x, y, colour);
 out:
-    pdf_set_font(pdf, save_font);
+    pdf->current_font = save_font;
     return e < 0 ? e : 0;
 }
 
@@ -4282,7 +4282,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
     float bar_y = y + new_height - bar_height;
 
     int e;
-    const char *save_font = pdf->current_font->font.name;
+    struct pdf_object *save_font = pdf->current_font;
     e = pdf_set_font(pdf, "Courier");
     if (e < 0)
         return e;
@@ -4353,7 +4353,7 @@ static int pdf_add_barcode_upca(struct pdf_doc *pdf, struct pdf_object *page,
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
 out:
-    pdf_set_font(pdf, save_font);
+    pdf->current_font = save_font;
     return e < 0 ? e : 0;
 }
 
@@ -4382,7 +4382,7 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
     float bar_y = y + new_height - bar_height;
 
     int e;
-    const char *save_font = pdf->current_font->font.name;
+    struct pdf_object *save_font = pdf->current_font;
     e = pdf_set_font(pdf, "Courier"); /* Built-in monospace font */
     if (e < 0)
         return e;
@@ -4446,7 +4446,7 @@ static int pdf_add_barcode_ean8(struct pdf_doc *pdf, struct pdf_object *page,
          604.0f * font / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font, x, y, colour);
 out:
-    pdf_set_font(pdf, save_font);
+    pdf->current_font = save_font;
     return e < 0 ? e : 0;
 }
 
@@ -4485,7 +4485,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
     float bar_y = y + new_height - bar_height;
 
     int e;
-    const char *save_font = pdf->current_font->font.name;
+    struct pdf_object *save_font = pdf->current_font;
     e = pdf_set_font(pdf, "Courier");
     if (e < 0)
         return e;
@@ -4555,7 +4555,7 @@ static int pdf_add_barcode_upce(struct pdf_doc *pdf, struct pdf_object *page,
          604.0f * font * 4.0f / 7.0f / (14.0f * 72.0f);
     e = pdf_add_text(pdf, page, text, font * 4.0f / 7.0f, x, y, colour);
 out:
-    pdf_set_font(pdf, save_font);
+    pdf->current_font = save_font;
     return e < 0 ? e : 0;
 }
 
