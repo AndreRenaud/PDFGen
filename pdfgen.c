@@ -5730,7 +5730,7 @@ int pdf_add_image_data(struct pdf_doc *pdf, struct pdf_object *page, float x,
     int ret = pdf_parse_image_header(&info, data, len, pdf->errstr,
                                      sizeof(pdf->errstr));
     if (ret)
-        return ret;
+        return pdf->errval = ret;
 
     // Try and determine which image format it is based on the content
     switch (info.image_format) {
