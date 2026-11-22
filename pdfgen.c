@@ -1866,8 +1866,10 @@ static int pdf_save_object_internal(struct pdf_doc *pdf, FILE *fp, int index,
             int count = 0;
             cur = first;
             while (cur) {
-                if (!cur->bookmark.parent)
+                if (!cur->bookmark.parent) {
                     count += pdf_get_bookmark_count(cur) + 1;
+                    last = cur;
+                }
                 cur = cur->next;
             }
 
