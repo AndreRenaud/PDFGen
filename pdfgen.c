@@ -5329,6 +5329,10 @@ static int parse_png_header(struct pdf_img_info *info, const uint8_t *data,
             snprintf(err_msg, err_msg_length, "PNG file has zero bit depth");
             return -EINVAL;
         }
+        if (header->interlace != 0) {
+            snprintf(err_msg, err_msg_length, "Interlaced PNG unsupported");
+            return -EINVAL;
+        }
         // ensure the width and height values have the proper byte order
         // and copy them into the info struct.
         header->width = ntoh32(header->width);
