@@ -5016,19 +5016,25 @@ static int parse_ppm_header(struct pdf_img_info *info, const uint8_t *data,
                             size_t err_msg_length)
 {
     size_t pos = 2;
-
-    if (length < 3 || data[0] != 'P' || data[1] < '1' || data[1] > '6' ||
-        !isspace(data[2])) {
-        snprintf(err_msg, err_msg_length, "Invalid PPM file");
-        return -EINVAL;
-    }
-
     // Map the magic number (P1...P6) to its color space
     static const int color_spaces[] = {
         PPM_ASCII_BITMAP,  PPM_ASCII_COLOR_GRAY,  PPM_ASCII_COLOR_RGB,
         PPM_BINARY_BITMAP, PPM_BINARY_COLOR_GRAY, PPM_BINARY_COLOR_RGB,
     };
-    const int color_space = color_spaces[data[1] - '1'];
+
+    if (length < 3 || data[0] != 'P' || !isspace(data[2])) {
+        snprintf(err_msg, err_msg_length, "Invalid PPM file");
+        return -EINVAL;
+    }
+
+    // Bounds check the index itself, rather than the byte it came from, so
+    // that it is evidently within the table
+    const unsigned int magic = (unsigned int)data[1] - '1';
+    if (magic >= ARRAY_SIZE(color_spaces)) {
+        snprintf(err_msg, err_msg_length, "Invalid PPM file");
+        return -EINVAL;
+    }
+    const int color_space = color_spaces[magic];
     const bool is_bitmap =
         color_space == PPM_ASCII_BITMAP || color_space == PPM_BINARY_BITMAP;
     const int ncolors = (color_space == PPM_ASCII_COLOR_RGB ||
