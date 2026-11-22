@@ -2544,7 +2544,7 @@ static int pdf_add_stream(struct pdf_doc *pdf, struct pdf_object *page,
 int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
                      const char *name)
 {
-    struct pdf_object *obj, *outline = NULL;
+    struct pdf_object *obj, *outline = NULL, *parent_obj = NULL;
 
     if (!page)
         page = pdf_find_last_object(pdf, OBJ_page);
@@ -2552,6 +2552,16 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
     if (!page)
         return pdf_set_err(pdf, -EINVAL,
                            "Unable to add bookmark, no pages available");
+
+    if (parent >= 0) {
+        parent_obj = pdf_get_object(pdf, parent);
+        if (!parent_obj)
+            return pdf_set_err(pdf, -EINVAL, "Invalid parent ID %d supplied",
+                               parent);
+        if (parent_obj->type != OBJ_bookmark)
+            return pdf_set_err(pdf, -EINVAL, "Parent ID %d is not a bookmark",
+                               parent);
+    }
 
     if (!pdf_find_first_object(pdf, OBJ_outline)) {
         outline = pdf_add_object(pdf, OBJ_outline);
@@ -2569,17 +2579,9 @@ int pdf_add_bookmark(struct pdf_doc *pdf, struct pdf_object *page, int parent,
     strncpy(obj->bookmark.name, name, sizeof(obj->bookmark.name) - 1);
     obj->bookmark.name[sizeof(obj->bookmark.name) - 1] = '\0';
     obj->bookmark.page = page;
-    if (parent >= 0) {
-        struct pdf_object *parent_obj = pdf_get_object(pdf, parent);
-        if (!parent_obj)
-            return pdf_set_err(pdf, -EINVAL, "Invalid parent ID %d supplied",
-                               parent);
-        if (parent_obj->type != OBJ_bookmark)
-            return pdf_set_err(pdf, -EINVAL, "Parent ID %d is not a bookmark",
-                               parent);
-        obj->bookmark.parent = parent_obj;
+    obj->bookmark.parent = parent_obj;
+    if (parent_obj)
         flexarray_append(&parent_obj->bookmark.children, obj);
-    }
 
     return obj->index;
 }
