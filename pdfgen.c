@@ -3335,7 +3335,7 @@ static const char *find_word_break(const char *string)
     /* Skip over the actual word */
     while (*string) {
         uint32_t codepoint;
-        int code_len = utf8_to_utf32(string, strlen(string), &codepoint);
+        int code_len = utf8_to_utf32(string, 4, &codepoint);
         if (code_len <= 0) {
             code_len = 1;
         } else if (codepoint < 256 && isspace((unsigned char)codepoint)) {
@@ -3387,9 +3387,9 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
         if (line_width >= wrap_width) {
             if (last_best == start) {
                 /* There is a single word that is too long for the line */
-                ptrdiff_t i;
+                ptrdiff_t i, best = 0;
                 /* Find the best character to chop it at */
-                for (i = end - start - 1; i > 0; i--) {
+                for (i = 1; i < end - start; i++) {
                     float this_width;
                     // Don't look at places that are in the middle of a utf-8
                     // sequence
@@ -3401,14 +3401,15 @@ int pdf_add_text_wrap(struct pdf_doc *pdf, struct pdf_object *page,
                                                 i, size, &this_width);
                     if (e < 0)
                         return e;
-                    if (this_width < wrap_width)
+                    if (this_width >= wrap_width)
                         break;
+                    best = i;
                 }
-                if (i == 0)
+                if (best == 0)
                     return pdf_set_err(pdf, -EINVAL,
                                        "Unable to find suitable line break");
 
-                end = start + i;
+                end = start + best;
             } else
                 end = last_best;
             output = 1;
